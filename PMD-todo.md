@@ -443,3 +443,10 @@ TODO
 - [x] Fix Available People cards collapsing (main column flex + min-width)
 - [x] Normalize Assign panel headers/controls layout
 - [ ] Verify 3-column layout + panel scroll
+
+## 2026-01-27 – CI fix: TS null guard + Mongo service
+
+TODO
+- [x] Fix TS2345 in ProjectDetails (null guard)
+- [x] Add MongoDB service to backend CI job
+- [ ] Run frontend build + backend tests

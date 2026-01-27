@@ -97,6 +97,11 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
     fetchProject(projectId)
       .then((data) => {
         if (!active) return
+        if (!data) {
+          setProject(null)
+          setNotFound(true)
+          return
+        }
         setProject(data)
         initializeSelected(data)
       })

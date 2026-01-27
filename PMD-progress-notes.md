@@ -221,3 +221,18 @@ Findings / fixes:
 3) Assign not full width
 - Root cause: page always used .container max-width 1080px.
 - Fix: route-specific container-full on /assign, with max-width:none; width:100%; padding-left/right:28px (16px on small screens).
+
+## 2026-01-27 – CI fix (TS null guard + Mongo service)
+
+Root causes:
+- TS2345: etchProject returns Project | null, but initializeSelected expected Project.
+- Backend CI: no MongoDB service in runner, so contextLoads failed on MongoTemplate.
+
+Changes:
+- rontend/pmd-frontend/src/components/ProjectDetails.tsx: guard null response before calling initializeSelected and mark notFound when null.
+- .github/workflows/ci.yml: added MongoDB service and SPRING_DATA_MONGODB_URI=mongodb://localhost:27017/pmd.
+
+Notes:
+- npm ci failed locally due to EPERM unlink on esbuild.exe (Windows file locked).
+- npm run build failed because tsc not found (node_modules missing after npm ci failure).
+- Backend ./mvnw test succeeded locally.
