@@ -1,0 +1,28 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: pmd-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - pmd_mongo_data:/data/db
+    networks:
+      - pmd-net
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: pmd-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks:
+      - pmd-net
+
+volumes:
+  pmd_mongo_data:
+
+networks:
+  pmd-net:
+    driver: bridge

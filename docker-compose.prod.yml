@@ -1,0 +1,45 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - pmd
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER:-your-org}/pmd-backend:latest
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      SPRING_DATA_MONGODB_URI: ${SPRING_DATA_MONGODB_URI:-mongodb://mongo:27017/pmd}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-localhost}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
+      PMD_MAIL_FROM: ${PMD_MAIL_FROM:-no-reply@pmd.local}
+      PMD_JWT_SECRET: ${PMD_JWT_SECRET}
+      PMD_JWT_EXPIRATIONSECONDS: ${PMD_JWT_EXPIRATIONSECONDS:-86400}
+      SERVER_PORT: 8080
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - pmd
+    ports:
+      - "8080:8080"
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:-your-org}/pmd-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - pmd
+    ports:
+      - "80:80"
+
+volumes:
+  mongo_data:
+  uploads:
+
+networks:
+  pmd:

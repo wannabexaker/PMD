@@ -1,0 +1,73 @@
+package com.pmd.auth.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public class UpdateProfileRequest {
+
+    @NotBlank
+    private String firstName;
+
+    @NotBlank
+    private String lastName;
+
+    @NotBlank
+    private String email;
+
+    @NotBlank
+    private String team;
+
+    @Size(max = 128)
+    private String bio;
+
+    public UpdateProfileRequest() {
+    }
+
+    public UpdateProfileRequest(String firstName, String lastName, String email, String team, String bio) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email;
+        this.team = team;
+        this.bio = bio;
+    }
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getTeam() {
+        return team;
+    }
+
+    public void setTeam(String team) {
+        this.team = team;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
+    }
+}

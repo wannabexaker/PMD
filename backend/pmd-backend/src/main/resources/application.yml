@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: pmd-backend
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/pmd
+
+  mail:
+    host: localhost
+    port: 1025
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+pmd:
+  mail:
+    from: no-reply@pmd.local
+  jwt:
+    secret: "pmd-local-dev-secret-change-me-please-32chars"
+    expirationSeconds: 86400
+
+server:
+  port: 8080
