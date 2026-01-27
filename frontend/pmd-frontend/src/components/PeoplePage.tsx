@@ -163,6 +163,13 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
 
   const recommendedOnly = selectedFilterKeys.includes('recommended')
 
+  const isFilterActive = useMemo(() => {
+    if (selectedFilterKeys.includes('recommended')) {
+      return true
+    }
+    return selectedFilterKeys.length !== defaultTeamFilters.length
+  }, [selectedFilterKeys, defaultTeamFilters])
+
   const effectiveTeamSet = useMemo(() => {
     if (availableTeams.length === 0) {
       return new Set<string>()
@@ -446,6 +453,7 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
           searchAriaLabel="Search people"
           filterAriaLabel="Filter"
           searchOverlay
+          filterActive={isFilterActive}
         />
       </div>
       <div className="people-layout">

@@ -201,10 +201,7 @@ export function DashboardPage({
   }, [users])
 
   const defaultFilterKeys = useMemo(() => {
-    const allStatuses = [
-      ...PROJECT_FOLDERS.map((folder) => `status:${folder.key}`),
-      `status:${UNASSIGNED_FILTER_KEY}`,
-    ]
+    const allStatuses = PROJECT_FOLDERS.map((folder) => `status:${folder.key}`)
     const allTeams = availableTeams.map((team) => `team:${team}`)
     return [...allStatuses, ...allTeams]
   }, [availableTeams])
