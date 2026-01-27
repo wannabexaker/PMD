@@ -62,8 +62,8 @@ export function AdminPanel({ users, projects }: AdminPanelProps) {
               <h3>Users</h3>
               <ul className="list compact">
                 {users.length === 0 ? <li className="muted">No users available.</li> : null}
-                {users.map((user) => (
-                  <li key={user.id ?? user.email ?? Math.random()} className="row space">
+                {users.map((user, index) => (
+                  <li key={user.id ?? user.email ?? 'user-' + index} className="row space">
                     <div>
                       <strong>{user.displayName ?? '-'}</strong>
                       <div className="muted">{user.email ?? ''}</div>
@@ -120,3 +120,4 @@ export function AdminPanel({ users, projects }: AdminPanelProps) {
     </section>
   )
 }
+

@@ -4,6 +4,9 @@ import com.pmd.project.dto.ProjectRequest;
 import com.pmd.project.dto.ProjectResponse;
 import com.pmd.project.service.ProjectService;
 import com.pmd.project.dto.DashboardStatsResponse;
+import com.pmd.project.dto.RandomAssignRequest;
+import com.pmd.project.dto.RandomAssignResponse;
+import com.pmd.project.dto.RandomProjectRequest;
 import com.pmd.auth.security.UserPrincipal;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/projects")
@@ -42,15 +46,28 @@ public class ProjectController {
     }
 
     @GetMapping
-    public List<ProjectResponse> findAll(Authentication authentication) {
+    public List<ProjectResponse> findAll(
+        @RequestParam(name = "assignedToMe", defaultValue = "false") boolean assignedToMe,
+        Authentication authentication
+    ) {
         User requester = getRequester(authentication);
-        return projectService.findAll(requester);
+        return projectService.findAll(requester, assignedToMe);
     }
 
     @GetMapping("/my-stats")
     public DashboardStatsResponse myStats(Authentication authentication) {
         User requester = getRequester(authentication);
         return projectService.getMyDashboardStats(requester);
+    }
+
+    @PostMapping("/random")
+    public ProjectResponse randomProject(
+        @RequestBody(required = false) RandomProjectRequest request,
+        Authentication authentication
+    ) {
+        User requester = getRequester(authentication);
+        String teamId = request != null ? request.getTeamId() : null;
+        return projectService.randomProject(requester, teamId);
     }
 
     @GetMapping("/{id}")
@@ -65,6 +82,17 @@ public class ProjectController {
         User requester = getRequester(authentication);
         String assignedByUserId = requester.getId();
         return projectService.update(id, request, assignedByUserId, requester);
+    }
+
+    @PostMapping("/{id}/random-assign")
+    public RandomAssignResponse randomAssign(
+        @PathVariable String id,
+        @RequestBody(required = false) RandomAssignRequest request,
+        Authentication authentication
+    ) {
+        User requester = getRequester(authentication);
+        String teamId = request != null ? request.getTeamId() : null;
+        return projectService.randomAssign(id, requester, teamId);
     }
 
     @DeleteMapping("/{id}")

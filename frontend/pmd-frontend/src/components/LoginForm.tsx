@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Logo } from './Logo'
 import type { LoginPayload } from '../types'
 
@@ -11,17 +11,19 @@ type LoginFormProps = {
 
 const EMAIL_KEY = 'pmd_login_email'
 
+function getSavedEmail() {
+  try {
+    return localStorage.getItem(EMAIL_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: LoginFormProps) {
-  const [form, setForm] = useState<LoginPayload>({ username: '', password: '', remember: false })
+  const [form, setForm] = useState<LoginPayload>(() => ({ username: getSavedEmail(), password: '', remember: false }))
   const [formError, setFormError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
 
-  useEffect(() => {
-    const savedEmail = localStorage.getItem(EMAIL_KEY)
-    if (savedEmail) {
-      setForm((prev) => ({ ...prev, username: savedEmail }))
-    }
-  }, [])
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
     const { name, value } = event.target
@@ -165,3 +167,4 @@ function EyeOffIcon() {
     </svg>
   )
 }
+

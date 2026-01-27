@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type FilterOption = {
   id: string
@@ -11,9 +11,17 @@ type FilterMenuProps = {
   selected: string[]
   onChange: (next: string[]) => void
   ariaLabel: string
+  isActive?: boolean
 }
 
-export function FilterMenu({ options = [], sections, selected, onChange, ariaLabel }: FilterMenuProps) {
+export function FilterMenu({
+  options = [],
+  sections,
+  selected,
+  onChange,
+  ariaLabel,
+  isActive,
+}: FilterMenuProps) {
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -28,7 +36,16 @@ export function FilterMenu({ options = [], sections, selected, onChange, ariaLab
   }, [options, sections])
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
-  const isActive = selected.length > 0 && selected.length < allOptions.length
+  const derivedActive = selected.length > 0 && selected.length < allOptions.length
+  const active = isActive ?? derivedActive
+
+  const requestClose = useCallback(() => {
+    setVisible(false)
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current)
+    }
+    closeTimerRef.current = window.setTimeout(() => setOpen(false), 200)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -54,15 +71,7 @@ export function FilterMenu({ options = [], sections, selected, onChange, ariaLab
       window.removeEventListener('click', handleClick)
       window.removeEventListener('keydown', handleKey)
     }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) {
-      setVisible(false)
-    } else {
-      setVisible(true)
-    }
-  }, [open])
+  }, [open, requestClose])
 
   useEffect(() => {
     return () => {
@@ -71,14 +80,6 @@ export function FilterMenu({ options = [], sections, selected, onChange, ariaLab
       }
     }
   }, [])
-
-  const requestClose = () => {
-    setVisible(false)
-    if (closeTimerRef.current) {
-      window.clearTimeout(closeTimerRef.current)
-    }
-    closeTimerRef.current = window.setTimeout(() => setOpen(false), 200)
-  }
 
   const toggleOption = (id: string) => {
     if (selectedSet.has(id)) {
@@ -92,7 +93,7 @@ export function FilterMenu({ options = [], sections, selected, onChange, ariaLab
     <div className="filter-menu" ref={rootRef}>
       <button
         type="button"
-        className="btn btn-icon btn-ghost filter-button"
+        className="btn btn-icon btn-ghost icon-toggle filter-button"
         aria-label={ariaLabel}
         title={ariaLabel}
         data-tooltip={ariaLabel}
@@ -101,9 +102,10 @@ export function FilterMenu({ options = [], sections, selected, onChange, ariaLab
             requestClose()
             return
           }
+          setVisible(true)
           setOpen(true)
         }}
-        data-active={isActive ? 'true' : 'false'}
+        data-active={active ? 'true' : 'false'}
       >
         <FilterIcon />
       </button>

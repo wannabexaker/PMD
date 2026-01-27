@@ -4,6 +4,7 @@ import com.pmd.auth.dto.ConfirmEmailResponse;
 import com.pmd.auth.dto.ConfirmEmailStatus;
 import com.pmd.auth.dto.LoginRequest;
 import com.pmd.auth.dto.LoginResponse;
+import com.pmd.auth.dto.PeoplePageWidgetsRequest;
 import com.pmd.auth.dto.RegisterRequest;
 import com.pmd.auth.dto.UpdateProfileRequest;
 import com.pmd.auth.dto.UserResponse;
@@ -11,6 +12,7 @@ import com.pmd.auth.security.JwtService;
 import com.pmd.auth.service.EmailVerificationTokenService;
 import com.pmd.notification.WelcomeEmailService;
 import com.pmd.auth.security.UserPrincipal;
+import com.pmd.user.model.PeoplePageWidgets;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
 import jakarta.validation.Valid;
@@ -19,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -128,6 +131,23 @@ public class AuthController {
         return toUserResponse(saved);
     }
 
+    @PatchMapping("/me/people-page-widgets")
+    public PeoplePageWidgets updatePeoplePageWidgets(@RequestBody PeoplePageWidgetsRequest request,
+                                                     Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        User user = userService.findById(principal.getId());
+        PeoplePageWidgets next = new PeoplePageWidgets(
+            request.getVisible(),
+            request.getOrder(),
+            request.getConfig()
+        ).mergeWithDefaults();
+        user.setPeoplePageWidgets(next);
+        User saved = userService.save(user);
+        return saved.getPeoplePageWidgets();
+    }
+
     private String generateToken(User user) {
         return jwtService.generateToken(
             user.getId(),
@@ -139,6 +159,9 @@ public class AuthController {
     }
 
     private UserResponse toUserResponse(User user) {
+        PeoplePageWidgets widgets = user.getPeoplePageWidgets() != null
+            ? user.getPeoplePageWidgets().mergeWithDefaults()
+            : PeoplePageWidgets.defaults();
         return new UserResponse(
             user.getId(),
             user.getUsername(),
@@ -149,7 +172,8 @@ public class AuthController {
             user.getTeam(),
             user.isAdmin(),
             user.getBio(),
-            user.isEmailVerified()
+            user.isEmailVerified(),
+            widgets
         );
     }
 

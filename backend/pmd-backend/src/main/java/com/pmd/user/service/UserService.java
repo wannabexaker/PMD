@@ -72,6 +72,15 @@ public class UserService {
         if (user.getCreatedAt() == null) {
             user.setCreatedAt(Instant.now());
         }
+        if (user.getRecommendedByUserIds() == null) {
+            user.setRecommendedByUserIds(new java.util.ArrayList<>());
+        }
+        user.setRecommendedCount(user.getRecommendedByUserIds().size());
+        if (user.getPeoplePageWidgets() == null) {
+            user.setPeoplePageWidgets(com.pmd.user.model.PeoplePageWidgets.defaults());
+        } else {
+            user.setPeoplePageWidgets(user.getPeoplePageWidgets().mergeWithDefaults());
+        }
         user.setAdmin(isAdminTeam(user));
         return userRepository.save(user);
     }
@@ -111,6 +120,10 @@ public class UserService {
             return accessPolicy.isAdmin(user);
         }
         return false;
+    }
+
+    public boolean isAdmin(User user) {
+        return accessPolicy.isAdmin(user);
     }
 
     public boolean isAdminTeam(User user) {

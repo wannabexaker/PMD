@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Logo } from './Logo'
 import type { RegisterPayload } from '../types'
 
@@ -23,24 +23,29 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
   const [showPassword, setShowPassword] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [confirmTouched, setConfirmTouched] = useState(false)
+  const errorTimerRef = useRef<number | null>(null)
 
-  useEffect(() => {
-    if (!error && !formError) {
-      return
+  const clearErrorTimer = () => {
+    if (errorTimerRef.current) {
+      window.clearTimeout(errorTimerRef.current)
+      errorTimerRef.current = null
     }
-    const timer = window.setTimeout(() => {
+  }
+
+  const setTimedFormError = (message: string) => {
+    clearErrorTimer()
+    setFormError(message)
+    errorTimerRef.current = window.setTimeout(() => {
       setFormError(null)
+      errorTimerRef.current = null
     }, 10000)
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [error, formError])
+  }
 
   useEffect(() => {
-    if (error) {
-      setFormError(error)
+    return () => {
+      clearErrorTimer()
     }
-  }, [error])
+  }, [])
 
   useEffect(() => {
     if (!showSuccess) {
@@ -63,30 +68,32 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault()
+    clearErrorTimer()
     setFormError(null)
 
     if (!form.email.trim() || !form.password.trim()) {
-      setFormError('Email and password are required.')
+      setTimedFormError('Email and password are required.')
       return
     }
 
     if (!form.firstName.trim() || !form.lastName.trim()) {
-      setFormError('Name and surname are required.')
+      setTimedFormError('Name and surname are required.')
       return
     }
 
     if (form.password.trim().length < 6) {
-      setFormError('Password must be at least 6 characters.')
+      setTimedFormError('Password must be at least 6 characters.')
       return
     }
 
     if (form.password !== form.confirmPassword) {
-      setFormError('Passwords do not match.')
+      setConfirmTouched(true)
+      setFormError(null)
       return
     }
 
     if ((form.bio ?? '').length > 256) {
-      setFormError('Bio must be 256 characters or less.')
+      setTimedFormError('Bio must be 256 characters or less.')
       return
     }
 
@@ -103,7 +110,7 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
       setShowSuccess(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed'
-      setFormError(message)
+      setTimedFormError(message)
     }
   }
 
@@ -112,6 +119,9 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
     form.confirmPassword.length > 0 &&
     form.password.length > 0 &&
     form.password !== form.confirmPassword
+  const mismatchId = 'confirm-password-mismatch'
+
+  const displayError = formError ?? error
 
   return (
     <section className="panel auth-card">
@@ -175,9 +185,9 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                 </button>
               </div>
             </div>
-            <div className="form-field">
+            <div className="form-field confirm-password-field">
               <label htmlFor="confirmPassword">Confirm password</label>
-              <div className="input-with-icon">
+              <div className="input-with-icon confirm-password-input">
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -190,6 +200,8 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                     }
                   }}
                   minLength={6}
+                  aria-invalid={passwordMismatch}
+                  aria-describedby={passwordMismatch ? mismatchId : undefined}
                   required
                 />
                 <button
@@ -201,7 +213,11 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                   {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
               </div>
-              {passwordMismatch ? <span className="inline-error">Passwords do not match.</span> : null}
+              {passwordMismatch ? (
+                <span id={mismatchId} className="inline-error inline-error-overlay" aria-live="polite">
+                  Passwords do not match.
+                </span>
+              ) : null}
             </div>
             <div className="form-field">
               <label htmlFor="firstName">Name</label>
@@ -225,7 +241,7 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
               <span className="muted">{(form.bio ?? '').length}/256</span>
             </div>
           </div>
-          {formError ? <p className="error">{formError}</p> : null}
+          {displayError ? <p className="error">{displayError}</p> : null}
           <div className="form-field form-span-2">
             <button type="submit" className="btn btn-primary full-width" disabled={loading}>
               {loading ? 'Creating...' : 'Create account'}

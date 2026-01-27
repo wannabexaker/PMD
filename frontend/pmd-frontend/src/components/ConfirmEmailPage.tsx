@@ -5,13 +5,14 @@ import type { ConfirmEmailStatus } from '../types'
 
 export function ConfirmEmailPage() {
   const [searchParams] = useSearchParams()
-  const [status, setStatus] = useState<'loading' | 'confirmed' | 'already' | 'invalid'>('loading')
+  const token = searchParams.get('token')
+  const [status, setStatus] = useState<'loading' | 'confirmed' | 'already' | 'invalid'>(() =>
+    token ? 'loading' : 'invalid'
+  )
   const navigate = useNavigate()
 
   useEffect(() => {
-    const token = searchParams.get('token')
     if (!token) {
-      setStatus('invalid')
       return
     }
     confirmEmail(token)
@@ -28,7 +29,7 @@ export function ConfirmEmailPage() {
       .catch(() => {
         setStatus('invalid')
       })
-  }, [searchParams])
+  }, [token])
 
   const content = useMemo(() => {
     if (status === 'confirmed') {
@@ -58,9 +59,7 @@ export function ConfirmEmailPage() {
         <h2>Confirm Email</h2>
       </div>
       {status === 'loading' ? <p>Confirming your email...</p> : null}
-      {content ? (
-        <p className={content.tone === 'error' ? 'error' : 'muted'}>{content.message}</p>
-      ) : null}
+      {content ? <p className={content.tone === 'error' ? 'error' : 'muted'}>{content.message}</p> : null}
       {status !== 'loading' ? (
         <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
           Go to login

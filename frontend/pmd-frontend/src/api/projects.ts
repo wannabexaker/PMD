@@ -1,12 +1,17 @@
 import { requestJson } from './http'
-import type { CreateProjectPayload, DashboardStatsResponse, Project } from '../types'
+import type { CreateProjectPayload, DashboardStatsResponse, Project, RandomAssignResponse } from '../types'
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : []
 }
 
-export async function fetchProjects(): Promise<Project[]> {
-  const data = await requestJson<unknown>('/api/projects')
+export async function fetchProjects(params?: { assignedToMe?: boolean }): Promise<Project[]> {
+  const query = new URLSearchParams()
+  if (params?.assignedToMe) {
+    query.set('assignedToMe', 'true')
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : ''
+  const data = await requestJson<unknown>(`/api/projects${suffix}`)
   return asArray<Project>(data)
 }
 
@@ -39,12 +44,16 @@ export async function deleteProject(id: string): Promise<void> {
   })
 }
 
-export async function archiveProject(id: string): Promise<void> {
-  // TODO: backend endpoint for archiving a project
-  await Promise.resolve()
+export async function randomProject(teamId?: string): Promise<Project> {
+  return requestJson<Project>('/api/projects/random', {
+    method: 'POST',
+    body: JSON.stringify(teamId ? { teamId } : {}),
+  })
 }
 
-export async function restoreProject(id: string): Promise<void> {
-  // TODO: backend endpoint for restoring a project
-  await Promise.resolve()
+export async function randomAssign(projectId: string, teamId?: string): Promise<RandomAssignResponse> {
+  return requestJson<RandomAssignResponse>(`/api/projects/${projectId}/random-assign`, {
+    method: 'POST',
+    body: JSON.stringify(teamId ? { teamId } : {}),
+  })
 }

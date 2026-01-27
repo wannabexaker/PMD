@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
-import type { CreateProjectPayload, LoginPayload, Project, RegisterPayload, User, UserSummary } from './types'
+import type { LoginPayload, Project, RegisterPayload, User, UserSummary } from './types'
 import { fetchUsers } from './api/users'
-import { fetchProjects, createProject } from './api/projects'
+import { fetchProjects } from './api/projects'
 import { fetchMe, login, register } from './api/auth'
 import { clearAuthToken, getAuthToken, isApiError } from './api/http'
 import { DashboardPage } from './components/DashboardPage'
@@ -37,6 +37,7 @@ function App() {
   const navigate = useNavigate()
   const isAuthed = Boolean(currentUser)
   const isAdmin = (currentUser?.team ?? '').toLowerCase() === 'admin'
+  const isAssignRoute = location.pathname === '/assign'
 
   const loadMe = useCallback(async () => {
     setAuthError(null)
@@ -82,6 +83,16 @@ function App() {
       setProjectLoading(false)
     }
   }, [selectedProjectId])
+
+  const handleProjectCreated = useCallback(
+    (project?: Project) => {
+      if (project?.id) {
+        setProjects((prev) => [project, ...prev.filter((item) => item.id !== project.id)])
+      }
+      loadProjects()
+    },
+    [loadProjects]
+  )
 
   useEffect(() => {
     loadMe()
@@ -197,10 +208,6 @@ function App() {
     setCurrentUser(user)
   }
 
-  const handleCreateProject = async (payload: CreateProjectPayload) => {
-    await createProject(payload)
-    await loadProjects()
-  }
 
   if (authLoading) {
     return (
@@ -229,7 +236,12 @@ function App() {
               <span />
             </button>
             {isAuthed ? (
-              <button type="button" className="link-button" onClick={() => navigate('/profile')}>
+              <button
+                type="button"
+                className="link-button profile-pill truncate"
+                onClick={() => navigate('/profile')}
+                title={currentUser?.displayName ?? currentUser?.username ?? 'User'}
+              >
                 {currentUser?.displayName ?? currentUser?.username ?? 'User'}
               </button>
             ) : null}
@@ -311,7 +323,7 @@ function App() {
         </nav>
       </aside>
 
-      <main className="container">
+      <main className={`container${isAssignRoute ? ' container-full' : ''}`}>
         <Routes>
           <Route path="/" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
           <Route
@@ -330,7 +342,7 @@ function App() {
                       selectedProjectId={selectedProjectId}
                       onSelectProject={(id) => setSelectedProjectId(id)}
                       onClearSelection={() => setSelectedProjectId(null)}
-                      onCreated={loadProjects}
+                      onCreated={handleProjectCreated}
                       onRefresh={loadProjects}
                     />
                   )}
@@ -353,6 +365,7 @@ function App() {
                     <AssignPage
                       projects={projects}
                       users={users}
+                      currentUser={currentUser}
                       selectedProjectId={selectedProjectId}
                       onSelectProject={(id) => setSelectedProjectId(selectedProjectId === id ? null : id)}
                       onClearSelection={() => setSelectedProjectId(null)}

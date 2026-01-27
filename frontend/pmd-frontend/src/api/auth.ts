@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   ConfirmEmailResponse,
   LoginPayload,
+  PeoplePageWidgets,
   RegisterPayload,
   UpdateProfilePayload,
   User,
@@ -51,6 +52,13 @@ export async function confirmEmail(token: string): Promise<ConfirmEmailResponse>
 export async function updateProfile(payload: UpdateProfilePayload): Promise<User> {
   return requestJson<User>('/api/auth/me', {
     method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updatePeoplePageWidgets(payload: PeoplePageWidgets): Promise<PeoplePageWidgets> {
+  return requestJson<PeoplePageWidgets>('/api/auth/me/people-page-widgets', {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   })
 }

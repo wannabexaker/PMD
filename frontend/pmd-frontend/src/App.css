@@ -7,6 +7,74 @@
   --hover-glow: 0 0 0 1px color-mix(in srgb, var(--primary) 50%, transparent);
 }
 
+/* Global scrollbars: Windows-style, subtle by default, clearer on hover/drag */
+:root {
+  --scrollbar-size-idle: 6px;
+  --scrollbar-size-hover: 11px;
+  --scrollbar-thumb-idle: color-mix(in srgb, var(--text) 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 60%, var(--border));
+  --scrollbar-thumb-active: color-mix(in srgb, var(--primary) 72%, var(--border));
+  --scrollbar-track: transparent;
+}
+
+/* Firefox fallback */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb-idle) var(--scrollbar-track);
+}
+
+*:hover {
+  scrollbar-color: var(--scrollbar-thumb-hover) var(--scrollbar-track);
+}
+
+/* Chromium / WebKit */
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size-idle);
+  height: var(--scrollbar-size-idle);
+  transition: width 160ms ease, height 160ms ease;
+}
+
+*:hover::-webkit-scrollbar,
+*::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:active {
+  width: var(--scrollbar-size-hover);
+  height: var(--scrollbar-size-hover);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-idle);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*:hover::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-active);
+}
+
+/* Scrollbar buttons (arrows) where supported */
+*::-webkit-scrollbar-button {
+  display: block;
+  height: var(--scrollbar-size-hover);
+  background: transparent;
+}
+
+*:hover::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button:hover {
+  background:
+    linear-gradient(135deg, transparent 45%, color-mix(in srgb, var(--text) 35%, transparent) 46% 54%, transparent 55%)
+    center / 8px 8px no-repeat;
+  opacity: 0.9;
+}
 body[data-theme='dark'] {
   --bg: radial-gradient(circle at top, #1e293b 0%, #0f172a 45%, #0b1120 100%);
   --surface: #111827;
@@ -56,6 +124,13 @@ body {
   padding: 24px;
   display: grid;
   gap: 20px;
+}
+
+.container.container-full {
+  max-width: none;
+  width: 100%;
+  padding-left: 28px;
+  padding-right: 28px;
 }
 
 .topbar {
@@ -363,6 +438,37 @@ button {
   color: var(--text);
 }
 
+.icon-toggle {
+  border-color: var(--border);
+  color: var(--text);
+  background: transparent;
+}
+
+.icon-toggle:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  color: var(--text);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.icon-toggle[data-active='true'] {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent);
+}
+
+.icon-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.icon-toggle[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .assign-toggle.is-active {
   background: color-mix(in srgb, var(--primary) 18%, transparent);
   color: var(--text);
@@ -549,6 +655,25 @@ button {
   cursor: pointer;
 }
 
+.profile-pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  max-width: 220px;
+  line-height: 1.1;
+}
+
+.profile-pill:hover {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+
+.profile-pill:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 65%, transparent);
+  outline-offset: 2px;
+}
+
 .burger {
   width: 40px;
   height: 36px;
@@ -657,6 +782,46 @@ button {
 .inline-error {
   color: #f87171;
   font-size: 0.85rem;
+}
+
+.confirm-password-field {
+  position: relative;
+}
+
+.confirm-password-field .confirm-password-input {
+  position: relative;
+}
+
+/* Overlay mismatch text without affecting layout flow. */
+.confirm-password-field .inline-error-overlay {
+  position: absolute;
+  right: 44px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #f87171 60%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.1;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.18);
+  animation: fade-in 120ms ease;
+}
+
+.confirm-password-field input[aria-invalid='true'] {
+  border-color: color-mix(in srgb, #f87171 70%, var(--border));
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .full-width {
@@ -937,9 +1102,10 @@ button {
 
 .stats-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
+
 
 .dashboard-user-charts {
   display: grid;
@@ -1030,9 +1196,10 @@ button {
 
 .member-filters {
   display: grid;
-  grid-template-columns: 1fr 200px;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 200px);
   gap: 8px;
-  margin-bottom: 8px;
+  margin: 0;
+  align-items: center;
 }
 
 .members-panel h4 {
@@ -1070,11 +1237,12 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
   gap: 16px;
+  align-items: start;
 }
 
 .assign-layout {
   display: grid;
-  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   align-items: start;
 }
@@ -1085,11 +1253,53 @@ button {
   min-width: 0;
   min-height: 420px;
   max-height: min(78vh, 860px);
+  overflow: hidden;
+}
+
+.assign-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+}
+
+.assign-panel-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.assign-panel-title h3 {
+  margin: 0;
+}
+
+.assign-panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.assign-page .member-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.assign-page .member-filters input,
+.assign-page .member-filters select {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 0;
 }
 
 .assign-panel-projects,
 .assign-panel-people {
-  grid-template-rows: auto auto 1fr;
+  display: flex;
+  flex-direction: column;
 }
 
 .assign-panel-assigned {
@@ -1098,9 +1308,15 @@ button {
 
 .assign-panel-body {
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: grid;
   gap: 12px;
+}
+
+.assign-available-body {
+  flex: 1;
+  min-height: 0;
 }
 
 .assign-folders {
@@ -1120,6 +1336,32 @@ button {
   display: grid;
   gap: 8px;
   min-width: 0;
+}
+
+.assign-layout .project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assign-layout .project-card strong {
+  min-width: 0;
+}
+
+.assign-layout .project-card .meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.assign-layout .project-card .meta .muted {
+  white-space: nowrap;
+}
+
+.assign-layout .project-card .status-badge {
+  flex: 0 0 auto;
 }
 
 .project-card.is-selected {
@@ -1212,6 +1454,76 @@ button {
   align-self: stretch;
 }
 
+.people-card.is-recommended {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  box-shadow: var(--hover-shadow);
+}
+
+.recommend-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.people-card-star {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.people-card-star:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  box-shadow: var(--hover-shadow);
+}
+
+.people-card-star.is-active {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 60%, var(--border));
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.people-card-star-count {
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.recommend-tooltip {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 160px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--hover-shadow);
+  display: grid;
+  gap: 4px;
+  z-index: 6;
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.recommend-tooltip.is-open {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.recommend-tooltip-item {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
 .people-card-handle {
   font-size: 0.85rem;
   letter-spacing: 0.06em;
@@ -1274,7 +1586,60 @@ button {
 
 .assign-layout .project-grid,
 .assign-layout .people-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+}
+
+.assign-page .available-people-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+}
+
+.assign-page .available-people-grid .people-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 78px;
+  padding: 10px 12px;
+}
+
+.assign-page .available-people-grid .people-card .people-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assign-page .available-people-grid .people-card .people-card-actions {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.assign-page .available-people-grid .people-card .muted {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assign-page .dashboard-folder,
+.assign-page .dashboard-folder-header,
+.assign-page .project-grid {
+  min-width: 0;
+}
+
+.assign-page .assign-panel-header,
+.assign-page .assign-panel-controls,
+.assign-page .controls-bar {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.assign-page select,
+.assign-page input {
+  max-width: 100%;
 }
 
 .member-results {
@@ -1468,6 +1833,59 @@ button {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.people-directory-scroll {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  padding: 6px 4px 8px 0;
+  scrollbar-gutter: stable both-edges;
+}
+
+.people-directory-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  max-height: min(72vh, 740px);
+}
+
+.people-details-card {
+  min-height: 0;
+  max-height: min(72vh, 740px);
+  overflow: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+
+
+
+
+
+.people-directory.people-grid {
+  padding: 6px 0;
+  gap: 10px;
+}
+
+.people-directory .people-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 72px;
+  padding: 10px 12px;
+}
+
+.people-directory .people-card .people-card-main {
+  gap: 3px;
+}
+
+.people-directory .people-card .people-card-actions {
+  align-self: center;
+}
+
+.people-directory .people-card strong {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
 .people-sort {
   display: inline-flex;
   align-items: center;
@@ -1485,21 +1903,82 @@ button {
   gap: 12px;
 }
 
+.people-widgets-toolbar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.people-widgets-editor {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: min(320px, 90vw);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  box-shadow: var(--shadow);
+  z-index: 10;
+}
+
+.people-widgets-editor-section {
+  display: grid;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.widget-toggle {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.widget-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.people-widgets-editor .chip {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.people-widgets-editor .chip.is-active {
+  background: color-mix(in srgb, var(--primary) 20%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+
+.people-widgets-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .stats-card {
   background: var(--surface2);
 }
 
 .pie-chart {
   display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 10px;
   align-items: center;
+  justify-items: center;
 }
 
 .pie-legend {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
+  width: 100%;
 }
 
 .legend-item {
@@ -1507,7 +1986,7 @@ button {
   grid-template-columns: 12px 1fr auto;
   gap: 8px;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   min-width: 0;
 }
 
@@ -1635,6 +2114,27 @@ button {
 
 .assign-bar-actions {
   display: flex;
+  gap: 8px;
+}
+
+.assign-random-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assign-random-tools select {
+  min-width: 150px;
+}
+
+.assign-status-row {
+  align-items: center;
+  gap: 10px;
+}
+
+.assign-status-group {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -1943,6 +2443,11 @@ button {
     padding: 16px;
   }
 
+  .container.container-full {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
   .row.space {
     flex-direction: column;
     align-items: flex-start;
@@ -2008,6 +2513,18 @@ button {
   }
 }
 
+@media (max-width: 960px) {
+  .assign-panel-header {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .assign-panel-controls {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 640px) {
   .project-grid,
   .people-grid {
@@ -2036,4 +2553,11 @@ button {
     grid-column: span 1;
   }
 }
+
+
+
+
+
+
+
 

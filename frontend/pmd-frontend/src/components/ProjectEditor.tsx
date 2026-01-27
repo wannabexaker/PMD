@@ -149,8 +149,8 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
             value={form.memberIds ?? []}
             onChange={handleMembersChange}
           >
-            {filteredUsers.map((user) => (
-              <option key={user.id ?? user.email ?? Math.random()} value={user.id ?? ''}>
+            {filteredUsers.map((user, index) => (
+              <option key={user.id ?? user.email ?? 'user-' + index} value={user.id ?? ''}>
                 {(user.displayName ?? '-').trim()} {user.email ? `(${user.email})` : ''}
               </option>
             ))}
@@ -171,3 +171,4 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
     </form>
   )
 }
+

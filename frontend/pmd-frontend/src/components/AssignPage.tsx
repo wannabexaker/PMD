@@ -1,12 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { CreateProjectPayload, Project, ProjectStatus, UserSummary } from '../types'
-import { updateProject } from '../api/projects'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary } from '../types'
+import { deleteProject, fetchProjects, randomAssign, randomProject, updateProject } from '../api/projects'
+import { fetchRecommendationDetails, toggleRecommendation } from '../api/users'
 import { ControlsBar } from './common/ControlsBar'
 import { isApiError } from '../api/http'
+import {
+  PROJECT_FOLDERS,
+  PROJECT_STATUS_SELECTABLE,
+  formatStatusLabel,
+  toFolderKey,
+} from '../projects/statuses'
 
 type AssignPageProps = {
   projects: Project[]
   users: UserSummary[]
+  currentUser: User | null
   selectedProjectId: string | null
   onSelectProject: (id: string) => void
   onClearSelection?: () => void
@@ -14,30 +22,6 @@ type AssignPageProps = {
 }
 
 const MAX_PROJECT_TITLE_LENGTH = 32
-
-type ProjectFolderKey =
-  | 'NOT_STARTED'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELED'
-  | 'ARCHIVED'
-
-const FOLDERS: { key: ProjectFolderKey; label: string }[] = [
-  { key: 'NOT_STARTED', label: 'Not Started' },
-  { key: 'IN_PROGRESS', label: 'In Progress' },
-  { key: 'COMPLETED', label: 'Completed' },
-  { key: 'CANCELED', label: 'Canceled' },
-  { key: 'ARCHIVED', label: 'Archived' },
-]
-
-function toFolderKey(status?: string | null): ProjectFolderKey {
-  if (!status) return 'NOT_STARTED'
-  if (status === 'ARCHIVED') return 'ARCHIVED'
-  if (status === 'IN_PROGRESS') return 'IN_PROGRESS'
-  if (status === 'COMPLETED') return 'COMPLETED'
-  if (status === 'CANCELED') return 'CANCELED'
-  return 'NOT_STARTED'
-}
 
 function formatProjectTitle(value?: string | null) {
   if (!value) return '-'
@@ -49,6 +33,7 @@ function formatProjectTitle(value?: string | null) {
 export function AssignPage({
   projects,
   users,
+  currentUser,
   selectedProjectId,
   onSelectProject,
   onClearSelection,
@@ -65,6 +50,16 @@ export function AssignPage({
   const [error, setError] = useState<string | null>(null)
   const [projectSearch, setProjectSearch] = useState('')
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
+  const [randomTeamId, setRandomTeamId] = useState('')
+  const [assignedToMeProjects, setAssignedToMeProjects] = useState<Project[] | null>(null)
+  const [assignedToMeLoading, setAssignedToMeLoading] = useState(false)
+  const [recommendationOverrides, setRecommendationOverrides] = useState<
+    Record<string, { recommendedCount: number; recommendedByMe: boolean }>
+  >({})
+  const [tooltipUserId, setTooltipUserId] = useState<string | null>(null)
+  const [recommendersById, setRecommendersById] = useState<Record<string, UserSummary[]>>({})
+  const [recommendersLoadingId, setRecommendersLoadingId] = useState<string | null>(null)
+  const currentUserId = currentUser?.id ?? ''
 
   const usersById = useMemo(() => {
     const map = new Map<string, UserSummary>()
@@ -86,22 +81,6 @@ export function AssignPage({
     return map
   }, [users])
 
-  const selectedProject = useMemo(
-    () => projects.find((project) => project.id === selectedProjectId) ?? null,
-    [projects, selectedProjectId]
-  )
-  const hasSelectedProject = Boolean(selectedProject && selectedProject.id)
-
-  useEffect(() => {
-    if (!selectedProject) {
-      setSelectedMembers([])
-      return
-    }
-    const ids = selectedProject.memberIds ?? []
-    const mapped = ids.map((id) => usersById.get(id) ?? { id, displayName: 'Unknown user' })
-    setSelectedMembers(mapped)
-  }, [selectedProject, usersById])
-
   useEffect(() => {
     if (!toast) return
     const timer = window.setTimeout(() => setToast(null), 3000)
@@ -111,7 +90,9 @@ export function AssignPage({
   const teams = useMemo(() => {
     const values = new Set<string>()
     users.forEach((user) => {
-      if (user.team) values.add(user.team)
+      const team = user.team
+      if (!team || team.toLowerCase() === 'admin') return
+      values.add(team)
     })
     return Array.from(values).sort()
   }, [users])
@@ -121,10 +102,16 @@ export function AssignPage({
   }, [teams])
 
   useEffect(() => {
+    if (randomTeamId && !teams.includes(randomTeamId)) {
+      setRandomTeamId('')
+    }
+  }, [randomTeamId, teams])
+
+  useEffect(() => {
     if (selectedFilters.length > 0) {
       return
     }
-    const allStatuses = FOLDERS.map((folder) => `status:${folder.key}`)
+    const allStatuses = PROJECT_FOLDERS.map((folder) => `status:${folder.key}`)
     const allTeams = availableTeams.map((team) => `team:${team}`)
     setSelectedFilters([...allStatuses, ...allTeams])
   }, [availableTeams, selectedFilters.length])
@@ -146,20 +133,100 @@ export function AssignPage({
     )
   }, [selectedFilters])
 
-  const projectMatchesTeamFilter = (project: Project) => {
-    if (selectedTeamSet.size === 0) {
-      return availableTeams.length === 0
+  const recommendedOnly = selectedFilters.includes('recommended')
+  const assignedToMeOnly = selectedFilters.includes('assignedToMe')
+
+  const defaultFilterKeys = useMemo(() => {
+    const allStatuses = PROJECT_FOLDERS.map((folder) => `status:${folder.key}`)
+    const allTeams = availableTeams.map((team) => `team:${team}`)
+    return [...allStatuses, ...allTeams]
+  }, [availableTeams])
+
+  const isFilterActive = useMemo(() => {
+    if (selectedFilters.length === 0) {
+      return false
     }
-    const memberIds = project.memberIds ?? []
-    return memberIds.some((id) => {
-      const team = teamByUserId.get(id ?? '')
-      return team ? selectedTeamSet.has(team) : false
-    })
-  }
+    if (selectedFilters.length !== defaultFilterKeys.length) {
+      return true
+    }
+    const selectedSet = new Set(selectedFilters)
+    return defaultFilterKeys.some((key) => !selectedSet.has(key))
+  }, [selectedFilters, defaultFilterKeys])
+
+  const refreshAssignedToMe = useCallback(async () => {
+    if (!assignedToMeOnly) {
+      return
+    }
+    setAssignedToMeLoading(true)
+    try {
+      const data = await fetchProjects({ assignedToMe: true })
+      setAssignedToMeProjects(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load assigned projects')
+    } finally {
+      setAssignedToMeLoading(false)
+    }
+  }, [assignedToMeOnly])
+
+  useEffect(() => {
+    if (!assignedToMeOnly) {
+      setAssignedToMeProjects(null)
+      setAssignedToMeLoading(false)
+      return
+    }
+    void refreshAssignedToMe()
+  }, [assignedToMeOnly, refreshAssignedToMe])
+
+  const projectsSource = assignedToMeOnly && assignedToMeProjects ? assignedToMeProjects : projects
+
+  const selectedProject = useMemo(
+    () => projectsSource.find((project) => project.id === selectedProjectId) ?? null,
+    [projectsSource, selectedProjectId]
+  )
+  const hasSelectedProject = Boolean(selectedProject && selectedProject.id)
+  const selectedIsArchived =
+    toFolderKey(selectedProject?.status ?? 'NOT_STARTED') === 'ARCHIVED'
+  const canAssign = hasSelectedProject && !selectedIsArchived
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      return
+    }
+    const exists = projectsSource.some((project) => project.id === selectedProjectId)
+    if (!exists) {
+      onClearSelection?.()
+    }
+  }, [projectsSource, selectedProjectId, onClearSelection])
+
+  useEffect(() => {
+    if (!selectedProject) {
+      setSelectedMembers([])
+      return
+    }
+    const ids = selectedProject.memberIds ?? []
+    const mapped = ids.map((id) => usersById.get(id) ?? { id, displayName: 'Unknown user' })
+    setSelectedMembers(mapped)
+  }, [selectedProject, usersById])
+
+  const projectMatchesTeamFilter = useCallback(
+    (project: Project) => {
+      const allTeamsSelected =
+        availableTeams.length > 0 && selectedTeamSet.size === availableTeams.length
+      if (availableTeams.length === 0 || selectedTeamSet.size === 0 || allTeamsSelected) {
+        return true
+      }
+      const memberIds = project.memberIds ?? []
+      return memberIds.some((id) => {
+        const team = teamByUserId.get(id ?? '')
+        return team ? selectedTeamSet.has(team) : false
+      })
+    },
+    [selectedTeamSet, availableTeams, teamByUserId]
+  )
 
   const scopedProjects = useMemo(() => {
     const query = projectSearch.trim().toLowerCase()
-    return projects.filter((project) => {
+    return projectsSource.filter((project) => {
       const statusKey = project.status ?? 'NOT_STARTED'
       if (selectedStatusSet.size === 0) {
         return false
@@ -175,22 +242,131 @@ export function AssignPage({
       }
       return true
     })
-  }, [projects, selectedStatusSet, selectedTeamSet, teamByUserId, projectSearch, availableTeams])
+  }, [projectsSource, selectedStatusSet, projectSearch, projectMatchesTeamFilter])
 
-  const filteredUsers = useMemo(() => {
+  const foldersToShow = useMemo(() => {
+    if (selectedStatusSet.size > 0) {
+      return PROJECT_FOLDERS.filter((folder) => selectedStatusSet.has(folder.key))
+    }
+    return PROJECT_FOLDERS.filter((folder) =>
+      scopedProjects.some((project) => toFolderKey(project.status ?? 'NOT_STARTED') === folder.key)
+    )
+  }, [selectedStatusSet, scopedProjects])
+
+  const displayUsers = useMemo(() => {
+    return users.map((user) => {
+      if (!user.id) return user
+      const override = recommendationOverrides[user.id]
+      if (!override) return user
+      return {
+        ...user,
+        recommendedCount: override.recommendedCount,
+        recommendedByMe: override.recommendedByMe,
+      }
+    })
+  }, [users, recommendationOverrides])
+
+  const availableUsers = useMemo(() => {
+    const selectedIds = new Set(selectedMembers.map((member) => member.id).filter(Boolean))
+    return displayUsers.filter((user) => {
+      const team = (user.team ?? '').toLowerCase()
+      if (team === 'admin') {
+        return false
+      }
+      if (user.id && selectedIds.has(user.id)) {
+        return false
+      }
+      return true
+    })
+  }, [displayUsers, selectedMembers])
+
+  const baseCandidates = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return users.filter((user) => {
+    return availableUsers.filter((user) => {
       const name = user.displayName?.toLowerCase() ?? ''
       const email = user.email?.toLowerCase() ?? ''
       const team = user.team ?? ''
-      const matchesQuery = !query || name.includes(query) || email.includes(query)
+      const matchesQuery = !query || name.includes(query) || email.includes(query) || team.toLowerCase().includes(query)
       const matchesTeam = !teamFilter || team === teamFilter
-      return matchesQuery && matchesTeam && team.toLowerCase() !== 'admin'
+      const matchesRecommended = !recommendedOnly || (user.recommendedCount ?? 0) > 0
+      return matchesQuery && matchesTeam && matchesRecommended
     })
-  }, [users, search, teamFilter])
+  }, [availableUsers, search, teamFilter, recommendedOnly])
+
+  const recommendedPool = useMemo(() => {
+    if (baseCandidates.length === 0) {
+      return [] as UserSummary[]
+    }
+    const minActive = baseCandidates.reduce((min, user) => {
+      const count = user.activeProjectCount ?? 0
+      return Math.min(min, count)
+    }, Number.POSITIVE_INFINITY)
+    return baseCandidates
+      .filter((user) => (user.activeProjectCount ?? 0) === minActive)
+      .sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? ''))
+  }, [baseCandidates])
+
+  const recommendedIds = useMemo(() => {
+    return new Set(recommendedPool.map((user) => user.id).filter(Boolean))
+  }, [recommendedPool])
+
+  const visibleUsers = useMemo(() => {
+    if (baseCandidates.length === 0) {
+      return [] as UserSummary[]
+    }
+    const rest = baseCandidates
+      .filter((user) => !(user.id && recommendedIds.has(user.id)))
+      .sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? ''))
+    return [...recommendedPool, ...rest]
+  }, [baseCandidates, recommendedIds, recommendedPool])
+
+  const handleToggleRecommendation = async (user: UserSummary) => {
+    if (!user.id) return
+    try {
+      const response = await toggleRecommendation(user.id)
+      setRecommendationOverrides((prev) => ({
+        ...prev,
+        [user.id as string]: {
+          recommendedCount: response.recommendedCount,
+          recommendedByMe: response.recommendedByMe,
+        },
+      }))
+      setRecommendersById((prev) => {
+        const next = { ...prev }
+        delete next[user.id as string]
+        return next
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update recommendation')
+    }
+  }
+
+  const handleStarEnter = (user: UserSummary) => {
+    if (!user.id) return
+    setTooltipUserId(user.id)
+    if (recommendersById[user.id]) {
+      return
+    }
+    setRecommendersLoadingId(user.id)
+    fetchRecommendationDetails(user.id)
+      .then((data) => {
+        setRecommendersById((prev) => ({ ...prev, [user.id as string]: data }))
+      })
+      .catch((err) => {
+        console.error('Recommendation details failed', err)
+      })
+      .finally(() => {
+        setRecommendersLoadingId((prev) => (prev === user.id ? null : prev))
+      })
+  }
+
+  const handleStarLeave = (user: UserSummary) => {
+    if (!user.id) return
+    setTooltipUserId((prev) => (prev === user.id ? null : prev))
+  }
 
   const handleAddMember = (user: UserSummary) => {
-    if (!hasSelectedProject) return
+    if (!canAssign) return
     if (!user.id) return
     setSelectedMembers((prev) => {
       if (prev.some((member) => member.id === user.id)) return prev
@@ -199,11 +375,13 @@ export function AssignPage({
   }
 
   const handleRemoveMember = (id?: string | null) => {
+    if (!canAssign) return
     if (!id) return
     setSelectedMembers((prev) => prev.filter((member) => member.id !== id))
   }
 
   const handleDragStart = (event: React.DragEvent, userId?: string | null) => {
+    if (!canAssign) return
     if (!userId) return
     setDraggingUserId(userId)
     event.dataTransfer.setData('text/plain', userId)
@@ -217,27 +395,83 @@ export function AssignPage({
   const handleDropMember: React.DragEventHandler<HTMLDivElement> = (event) => {
     event.preventDefault()
     setDragOver(false)
-    if (!hasSelectedProject) return
+    if (!canAssign) return
     const userId = event.dataTransfer.getData('text/plain')
     if (!userId) return
     const user = usersById.get(userId)
     if (user) handleAddMember(user)
   }
 
-  const handleSave = async () => {
-    if (!selectedProject || !selectedProject.id) return
-    setError(null)
-    const memberIds = selectedMembers.map((member) => member.id).filter(Boolean) as string[]
-    const payload: CreateProjectPayload = {
-      name: (selectedProject.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
-      description: selectedProject.description ?? undefined,
-      status: (selectedProject.status ?? 'NOT_STARTED') as ProjectStatus,
-      memberIds,
+  const handleRandomProject = async () => {
+    if (assignedToMeOnly) {
+      setToast('Turn off Assigned to me to use random project')
+      return
     }
     try {
+      const project = await randomProject(randomTeamId || undefined)
+      if (project.id) {
+        onSelectProject(project.id)
+      }
+      await onRefresh?.()
+    } catch (err) {
+      if (isApiError(err) && err.status === 409) {
+        setToast(err.message || 'No eligible project')
+        return
+      }
+      setError(err instanceof Error ? err.message : 'Failed to pick a random project')
+    }
+  }
+
+  const handleRandomAssign = async () => {
+    if (!selectedProject?.id || selectedIsArchived) {
+      return
+    }
+    try {
+      const response = await randomAssign(selectedProject.id, randomTeamId || undefined)
+      const assignedId = response.assignedPerson?.id
+      if (assignedId) {
+        setSelectedMembers((prev) => {
+          if (prev.some((member) => member.id === assignedId)) {
+            return prev
+          }
+          return [...prev, response.assignedPerson]
+        })
+      }
+      const assignedName = response.assignedPerson?.displayName ?? response.assignedPerson?.email ?? 'person'
+      setToast(`Assigned ${assignedName}`)
+      await onRefresh?.()
+      await refreshAssignedToMe()
+    } catch (err) {
+      if (isApiError(err) && err.status === 409) {
+        setToast(err.message || 'No eligible people')
+        return
+      }
+      setError(err instanceof Error ? err.message : 'Failed to assign randomly')
+    }
+  }
+
+  const buildProjectPayload = (
+    project: Project,
+    overrides: Partial<CreateProjectPayload> = {}
+  ): CreateProjectPayload => {
+    const currentMemberIds = selectedMembers.map((member) => member.id).filter(Boolean) as string[]
+    return {
+      name: (project.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
+      description: project.description ?? undefined,
+      status: overrides.status ?? ((project.status ?? 'NOT_STARTED') as ProjectStatus),
+      memberIds: overrides.memberIds ?? currentMemberIds,
+    }
+  }
+
+  const handleSave = async () => {
+    if (!selectedProject || !selectedProject.id || selectedIsArchived) return
+    setError(null)
+    try {
       setSaving(true)
-      await updateProject(selectedProject.id, payload)
+      await updateProject(selectedProject.id, buildProjectPayload(selectedProject))
       setToast('Saved')
+      await onRefresh?.()
+      await refreshAssignedToMe()
     } catch (err) {
       if (isApiError(err) && (err.status === 403 || err.status === 404)) {
         if (err.status === 404 && onClearSelection) {
@@ -253,19 +487,14 @@ export function AssignPage({
   }
 
   const handleStatusChange = async (status: ProjectStatus) => {
-    if (!selectedProject || !selectedProject.id) return
+    if (!selectedProject || !selectedProject.id || selectedIsArchived) return
     setError(null)
-    const payload: CreateProjectPayload = {
-      name: (selectedProject.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
-      description: selectedProject.description ?? undefined,
-      status,
-      memberIds: selectedMembers.map((member) => member.id).filter(Boolean) as string[],
-    }
     try {
       setStatusUpdating(true)
-      await updateProject(selectedProject.id, payload)
+      await updateProject(selectedProject.id, buildProjectPayload(selectedProject, { status }))
       setToast('Status updated')
       await onRefresh?.()
+      await refreshAssignedToMe()
     } catch (err) {
       if (isApiError(err) && (err.status === 403 || err.status === 404)) {
         if (err.status === 404 && onClearSelection) {
@@ -280,8 +509,61 @@ export function AssignPage({
     }
   }
 
+  const handleRestoreArchived = async () => {
+    if (!selectedProject || !selectedProject.id) return
+    setError(null)
+    try {
+      setStatusUpdating(true)
+      await updateProject(
+        selectedProject.id,
+        buildProjectPayload(selectedProject, { status: 'NOT_STARTED', memberIds: [] })
+      )
+      setSelectedMembers([])
+      setToast('Restored')
+      await onRefresh?.()
+      await refreshAssignedToMe()
+    } catch (err) {
+      if (isApiError(err) && (err.status === 403 || err.status === 404)) {
+        if (err.status === 404 && onClearSelection) {
+          onClearSelection()
+        }
+        setError(err.status === 403 ? 'Not allowed' : 'Project not found.')
+        return
+      }
+      setError(err instanceof Error ? err.message : 'Failed to restore')
+    } finally {
+      setStatusUpdating(false)
+    }
+  }
+
+  const handleDeleteArchived = async () => {
+    if (!selectedProject || !selectedProject.id) return
+    const confirmed = window.confirm('Delete this project permanently?')
+    if (!confirmed) return
+    setError(null)
+    try {
+      setSaving(true)
+      await deleteProject(selectedProject.id)
+      setToast(null)
+      await onRefresh?.()
+      await refreshAssignedToMe()
+      onClearSelection?.()
+    } catch (err) {
+      if (isApiError(err) && (err.status === 403 || err.status === 404)) {
+        if (err.status === 404) {
+          onClearSelection?.()
+        }
+        setError(err.status === 403 ? 'Not allowed' : 'Project not found.')
+        return
+      }
+      setError(err instanceof Error ? err.message : 'Failed to delete')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
-    <section className="panel">
+    <section className="panel assign-page">
       <div className="panel-header">
         <div>
           <h2>Assign</h2>
@@ -289,40 +571,72 @@ export function AssignPage({
       </div>
       <div className="assign-layout">
         <div className="card assign-panel assign-panel-projects">
-          <div className="panel-header">
-            <h3>Projects</h3>
-            <span className="muted">{projects.length} total</span>
-          </div>
-          <div className="dashboard-controls">
-            <ControlsBar
-              searchValue={projectSearch}
-              onSearchChange={setProjectSearch}
-              searchPlaceholder="Search projects"
-              filters={[]}
+          <div className="assign-panel-header">
+            <div className="assign-panel-title">
+              <h3>Projects</h3>
+              <span className="muted">{assignedToMeLoading ? 'Loading...' : `${projectsSource.length} total`}</span>
+            </div>
+            <div className="assign-panel-controls">
+              <ControlsBar
+                searchValue={projectSearch}
+                onSearchChange={setProjectSearch}
+                searchPlaceholder="Search projects"
+                filters={[]}
+                actions={
+                  <div className="assign-random-tools">
+                    <select value={randomTeamId} onChange={(event) => setRandomTeamId(event.target.value)}>
+                      <option value="">All teams</option>
+                      {availableTeams.map((team) => (
+                        <option key={team} value={team}>
+                          {team}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-icon btn-ghost icon-toggle"
+                      onClick={handleRandomProject}
+                      disabled={assignedToMeOnly || assignedToMeLoading}
+                      title={assignedToMeOnly ? 'Turn off Assigned to me to randomize projects' : 'Random project'}
+                      data-tooltip="Random project"
+                    >
+                      <DiceIcon />
+                    </button>
+                  </div>
+                }
               filterSections={[
-                {
-                  label: 'Statuses',
-                  options: FOLDERS.map((folder) => ({
-                    id: `status:${folder.key}`,
-                    label: folder.label,
-                  })),
-                },
-                {
-                  label: 'Teams',
-                  options: availableTeams.map((team) => ({
-                    id: `team:${team}`,
-                    label: team,
-                  })),
-                },
-              ]}
+                  {
+                    label: 'Statuses',
+                    options: PROJECT_FOLDERS.map((folder) => ({
+                      id: `status:${folder.key}`,
+                      label: folder.label,
+                    })),
+                  },
+                  {
+                    label: 'Teams',
+                    options: availableTeams.map((team) => ({
+                      id: `team:${team}`,
+                      label: team,
+                    })),
+                  },
+                  {
+                    label: 'Extras',
+                    options: [
+                      { id: 'recommended', label: 'Recommended' },
+                      ...(currentUserId ? [{ id: 'assignedToMe', label: 'Assigned to me' }] : []),
+                    ],
+                  },
+                ]}
               selectedFilterKeys={selectedFilters}
               onSelectedFilterKeysChange={setSelectedFilters}
               searchAriaLabel="Search projects"
               filterAriaLabel="Filter"
+              filterActive={isFilterActive}
             />
+            </div>
           </div>
           <div className="assign-panel-body assign-folders">
-            {FOLDERS.filter((folder) => selectedStatusSet.has(folder.key)).map((folder) => {
+            {foldersToShow.map((folder) => {
               const filteredProjects = scopedProjects
                 .filter((project) => toFolderKey(project.status ?? 'NOT_STARTED') === folder.key)
               if (filteredProjects.length === 0) {
@@ -335,13 +649,13 @@ export function AssignPage({
                     <span className="folder-count">{filteredProjects.length}</span>
                   </div>
                   <div className="project-grid">
-                    {filteredProjects.map((project) => {
+                    {filteredProjects.map((project, index) => {
                       const id = project.id ?? ''
                       const memberCount = project.memberIds?.length ?? 0
                       const isSelected = selectedProjectId === id
                       return (
                         <button
-                          key={id || project.name || Math.random()}
+                          key={project.id ?? project.name ?? 'project-' + folder.key + '-' + index}
                           type="button"
                           className={`card project-card motion-card${isSelected ? ' is-selected' : ''}`}
                           onClick={() => {
@@ -357,7 +671,7 @@ export function AssignPage({
                           <strong className="truncate">{formatProjectTitle(project.name)}</strong>
                           <div className="meta">
                             <span className={`status-badge status-${project.status ?? 'NOT_STARTED'}`}>
-                              {(project.status ?? 'NOT_STARTED').toString().replace('_', ' ')}
+                              {formatStatusLabel(project.status ?? 'NOT_STARTED')}
                             </span>
                             <span className="muted">Members: {memberCount}</span>
                           </div>
@@ -371,39 +685,49 @@ export function AssignPage({
           </div>
         </div>
         <div className="card assign-panel assign-panel-people">
-          <div className="panel-header">
-            <h3>Available people</h3>
+          <div className="assign-panel-header">
+            <div className="assign-panel-title">
+              <h3>Available people</h3>
+            </div>
+            <div className="assign-panel-controls">
+              <div className="member-filters">
+                <input
+                  type="search"
+                  placeholder="Search by name or email"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)}>
+                  <option value="">All teams</option>
+                  {teams.map((team) => (
+                    <option key={team} value={team}>
+                      {team}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
-          <div className="member-filters">
-            <input
-              type="search"
-              placeholder="Search by name or email"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)}>
-              <option value="">All teams</option>
-              {teams.map((team) => (
-                <option key={team} value={team}>
-                  {team}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="assign-panel-body">
-            <div className="people-grid">
-              {filteredUsers.length === 0 ? (
+          <div className="assign-panel-body assign-available-body">
+            <div className="people-grid available-people-grid">
+              {visibleUsers.length === 0 ? (
                 <div className="muted">No users match the filters.</div>
               ) : (
-                filteredUsers.map((user) => {
+                visibleUsers.map((user, index) => {
                   const alreadyAdded = selectedMembers.some((member) => member.id === user.id)
                   const activeCount = user.activeProjectCount ?? 0
+                  const isRecommended = Boolean(user.id && recommendedIds.has(user.id))
+                  const recommendedCount = user.recommendedCount ?? 0
+                  const recommendedByMe = Boolean(user.recommendedByMe)
+                  const recommenders = user.id ? recommendersById[user.id] ?? [] : []
+                  const tooltipOpen = Boolean(user.id && tooltipUserId === user.id)
+                  const tooltipLoading = Boolean(user.id && recommendersLoadingId === user.id)
                   return (
                     <div
-                      key={user.id ?? user.email ?? Math.random()}
-                      className={`card people-card motion-card draggable${alreadyAdded ? ' is-selected' : ''}${draggingUserId === user.id ? ' is-dragging' : ''}`}
-                      title={`Active projects: ${activeCount}`}
-                      draggable={!alreadyAdded && hasSelectedProject}
+                      key={user.id ?? user.email ?? 'user-' + index}
+                      className={`card people-card motion-card draggable${isRecommended ? ' is-recommended' : ''}${alreadyAdded ? ' is-selected' : ''}${draggingUserId === user.id ? ' is-dragging' : ''}`}
+                      title={`Active projects: ${activeCount}${recommendedCount > 0 ? ` - ${recommendedCount} recommended` : ''}`}
+                      draggable={!alreadyAdded && canAssign}
                       onDragStart={(event) => handleDragStart(event, user.id)}
                       onDragEnd={handleDragEnd}
                     >
@@ -419,6 +743,48 @@ export function AssignPage({
                         </span>
                       </div>
                       <div className="people-card-actions">
+                        <div
+                          className="recommend-anchor"
+                          onMouseEnter={() => handleStarEnter(user)}
+                          onMouseLeave={() => handleStarLeave(user)}
+                        >
+                          <button
+                            type="button"
+                            className={`people-card-star${recommendedByMe ? ' is-active' : ''}`}
+                            aria-label={recommendedByMe ? 'Remove recommendation' : 'Recommend person'}
+                            title={recommendedByMe ? 'Recommended' : 'Recommend'}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleToggleRecommendation(user)
+                            }}
+                            disabled={!user.id}
+                          >
+                            <StarIcon active={recommendedByMe} />
+                            {recommendedCount > 0 ? (
+                              <span className="people-card-star-count">{recommendedCount}</span>
+                            ) : null}
+                          </button>
+                          {tooltipOpen ? (
+                            <div className={`recommend-tooltip${tooltipOpen ? ' is-open' : ''}`} role="tooltip">
+                              {tooltipLoading ? (
+                                <span className="muted">Loading...</span>
+                              ) : recommenders.length === 0 ? (
+                                <span className="muted">No recommendations yet.</span>
+                              ) : (
+                                recommenders.map((recommender, i) => (
+                                  <div
+                                    key={recommender.id ?? recommender.email ?? `recommender-${i}`}
+                                    className="recommend-tooltip-item truncate"
+                                    title={recommender.displayName ?? recommender.email ?? ''}
+                                  >
+                                    {recommender.displayName ?? recommender.email ?? 'User'}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                         <span className="people-card-handle" aria-hidden="true">
                           ::
                         </span>
@@ -433,7 +799,7 @@ export function AssignPage({
                             event.stopPropagation()
                             handleAddMember(user)
                           }}
-                          disabled={alreadyAdded || !hasSelectedProject}
+                          disabled={alreadyAdded || !canAssign}
                         >
                           +
                         </button>
@@ -455,93 +821,146 @@ export function AssignPage({
             <span className="muted">{selectedMembers.length} people</span>
           </div>
           {selectedProject ? (
-            <div className="row">
-              <label className="muted">Status</label>
-              <select
-                className="status-select"
-                value={selectedProject.status ?? 'NOT_STARTED'}
-                onChange={(event) => handleStatusChange(event.target.value as ProjectStatus)}
-                disabled={statusUpdating}
-              >
-                {(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as ProjectStatus[]).map((value) => (
-                  <option key={value} value={value}>
-                    {value.replace('_', ' ')}
-                  </option>
-                ))}
-              </select>
-            </div>
+            selectedIsArchived ? (
+              <div className="actions">
+                <button type="button" className="btn btn-secondary" onClick={handleRestoreArchived} disabled={statusUpdating}>
+                  Restore
+                </button>
+                <button type="button" className="btn btn-danger" onClick={handleDeleteArchived} disabled={saving}>
+                  Delete
+                </button>
+              </div>
+            ) : (
+              <div className="row space assign-status-row">
+                <div className="assign-status-group">
+                  <label className="muted">Status</label>
+                  <select
+                    className="status-select"
+                    value={selectedProject.status ?? 'NOT_STARTED'}
+                    onChange={(event) => handleStatusChange(event.target.value as ProjectStatus)}
+                    disabled={statusUpdating}
+                  >
+                    {PROJECT_STATUS_SELECTABLE.map((value) => (
+                      <option key={value} value={value}>
+                        {formatStatusLabel(value)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-icon btn-ghost icon-toggle"
+                  onClick={handleRandomAssign}
+                  disabled={statusUpdating || saving || !canAssign}
+                  title={randomTeamId ? `Random assign (${randomTeamId})` : 'Random assign'}
+                  data-tooltip="Random assign"
+                >
+                  <DiceIcon />
+                </button>
+              </div>
+            )
           ) : null}
           {error ? <p className="error">{error}</p> : null}
           {toast ? <div className="banner info">{toast}</div> : null}
           <div className="assign-panel-body">
-            <div
-              className={`member-dropzone${dragOver ? ' is-over' : ''}${
-                hasSelectedProject ? '' : ' is-disabled'
-              }`}
-              onDragEnter={(event) => {
-                if (!hasSelectedProject) return
-                event.preventDefault()
-                setDragOver(true)
-              }}
-              onDragOver={(event) => {
-                if (!hasSelectedProject) return
-                event.preventDefault()
-                setDragOver(true)
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDropMember}
-            >
-              {!hasSelectedProject ? (
-                <p className="muted">Select a project to start assigning people.</p>
-              ) : selectedMembers.length === 0 ? (
-                <p className="muted">Drop people here or click add.</p>
-              ) : (
-                <div className="member-chips">
-                  {selectedMembers.map((member) => (
-                    <span
-                      key={member.id ?? member.email ?? Math.random()}
-                      className="chip"
-                      draggable
-                      onDragStart={(event) => handleDragStart(event, member.id)}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <strong className="chip-name" title={member.email ?? ''}>
-                        <span
-                          className="truncate"
-                          title={`${member.displayName ?? ''}${member.email ? ` - ${member.email}` : ''}`}
-                        >
-                          {member.displayName ?? '-'}
-                        </span>
-                      </strong>
-                      <button
-                        type="button"
-                        className="chip-remove"
-                        onClick={() => handleRemoveMember(member.id)}
-                        aria-label={`Remove ${member.displayName ?? 'member'}`}
-                      >
-                        x
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="assign-bar">
-            <div className="assign-bar-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleSave}
-                disabled={saving || !hasSelectedProject}
+            {selectedIsArchived ? (
+              <p className="muted">Archived projects can only be restored or deleted.</p>
+            ) : (
+              <div
+                className={`member-dropzone${dragOver ? ' is-over' : ''}${canAssign ? '' : ' is-disabled'}`}
+                onDragEnter={(event) => {
+                  if (!canAssign) return
+                  event.preventDefault()
+                  setDragOver(true)
+                }}
+                onDragOver={(event) => {
+                  if (!canAssign) return
+                  event.preventDefault()
+                  setDragOver(true)
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDropMember}
               >
-                {saving ? 'Saving...' : 'Save assignments'}
-              </button>
-            </div>
+                {!hasSelectedProject ? (
+                  <p className="muted">Select a project to start assigning people.</p>
+                ) : selectedMembers.length === 0 ? (
+                  <p className="muted">Drop people here or click add.</p>
+                ) : (
+                  <div className="member-chips">
+                    {selectedMembers.map((member, index) => (
+                      <span
+                        key={member.id ?? member.email ?? 'member-' + index}
+                        className="chip"
+                        draggable={canAssign}
+                        onDragStart={(event) => handleDragStart(event, member.id)}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <strong className="chip-name" title={member.email ?? ''}>
+                          <span
+                            className="truncate"
+                            title={`${member.displayName ?? ''}${member.email ? ` - ${member.email}` : ''}`}
+                          >
+                            {member.displayName ?? '-'}
+                          </span>
+                        </strong>
+                        <button
+                          type="button"
+                          className="chip-remove"
+                          onClick={() => handleRemoveMember(member.id)}
+                          aria-label={`Remove ${member.displayName ?? 'member'}`}
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+          {!selectedIsArchived ? (
+            <div className="assign-bar">
+              <div className="assign-bar-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSave}
+                  disabled={saving || !canAssign}
+                >
+                  {saving ? 'Saving...' : 'Save assignments'}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </section>
   )
 }
 
+function StarIcon({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        d="m12 3.4 2.6 5.3 5.8.9-4.2 4.1 1 5.8L12 16.9 6.8 19.5l1-5.8-4.2-4.1 5.8-.9Z"
+        fill={active ? 'var(--primary)' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function DiceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="8" cy="8" r="1.4" fill="currentColor" />
+      <circle cx="16" cy="8" r="1.4" fill="currentColor" />
+      <circle cx="8" cy="16" r="1.4" fill="currentColor" />
+      <circle cx="16" cy="16" r="1.4" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+    </svg>
+  )
+}

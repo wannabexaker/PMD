@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FilterMenu } from '../FilterMenu'
 
 type ControlsBarProps = {
@@ -13,6 +13,7 @@ type ControlsBarProps = {
   searchOverlay?: boolean
   actions?: React.ReactNode
   filterSections?: { label: string; options: { id: string; label: string }[] }[]
+  filterActive?: boolean
 }
 
 export function ControlsBar({
@@ -27,6 +28,7 @@ export function ControlsBar({
   searchOverlay = false,
   actions,
   filterSections,
+  filterActive,
 }: ControlsBarProps) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchVisible, setSearchVisible] = useState(false)
@@ -35,6 +37,14 @@ export function ControlsBar({
   const closeTimerRef = useRef<number | null>(null)
 
   const isSearchActive = useMemo(() => searchValue.trim().length > 0, [searchValue])
+
+  const requestClose = useCallback(() => {
+    setSearchVisible(false)
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current)
+    }
+    closeTimerRef.current = window.setTimeout(() => setSearchOpen(false), 180)
+  }, [])
 
   useEffect(() => {
     if (!searchVisible) return
@@ -61,15 +71,7 @@ export function ControlsBar({
       window.removeEventListener('click', handleClick)
       window.removeEventListener('keydown', handleKey)
     }
-  }, [searchOpen])
-
-  useEffect(() => {
-    if (!searchOpen) {
-      setSearchVisible(false)
-    } else {
-      setSearchVisible(true)
-    }
-  }, [searchOpen])
+  }, [searchOpen, requestClose])
 
   useEffect(() => {
     return () => {
@@ -79,19 +81,11 @@ export function ControlsBar({
     }
   }, [])
 
-  const requestClose = () => {
-    setSearchVisible(false)
-    if (closeTimerRef.current) {
-      window.clearTimeout(closeTimerRef.current)
-    }
-    closeTimerRef.current = window.setTimeout(() => setSearchOpen(false), 180)
-  }
-
   return (
     <div className="controls-bar" ref={rootRef}>
       <button
         type="button"
-        className="btn btn-icon btn-ghost search-button"
+        className="btn btn-icon btn-ghost icon-toggle search-button"
         aria-label={searchAriaLabel}
         title={searchAriaLabel}
         data-tooltip={searchAriaLabel}
@@ -100,6 +94,7 @@ export function ControlsBar({
             requestClose()
             return
           }
+          setSearchVisible(true)
           setSearchOpen(true)
         }}
         data-active={isSearchActive ? 'true' : 'false'}
@@ -135,6 +130,7 @@ export function ControlsBar({
         sections={filterSections}
         selected={selectedFilterKeys}
         onChange={onSelectedFilterKeysChange}
+        isActive={filterActive}
       />
       {actions ? <div className="controls-actions">{actions}</div> : null}
     </div>

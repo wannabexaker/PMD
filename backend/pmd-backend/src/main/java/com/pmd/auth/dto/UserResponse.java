@@ -22,11 +22,14 @@ public class UserResponse {
 
     private boolean emailVerified;
 
+    private com.pmd.user.model.PeoplePageWidgets peoplePageWidgets;
+
     public UserResponse() {
     }
 
     public UserResponse(String id, String username, String displayName, String email, String firstName,
-                        String lastName, String team, boolean isAdmin, String bio, boolean emailVerified) {
+                        String lastName, String team, boolean isAdmin, String bio, boolean emailVerified,
+                        com.pmd.user.model.PeoplePageWidgets peoplePageWidgets) {
         this.id = id;
         this.username = username;
         this.displayName = displayName;
@@ -37,6 +40,7 @@ public class UserResponse {
         this.isAdmin = isAdmin;
         this.bio = bio;
         this.emailVerified = emailVerified;
+        this.peoplePageWidgets = peoplePageWidgets;
     }
 
     public String getId() {
@@ -117,5 +121,13 @@ public class UserResponse {
 
     public void setEmailVerified(boolean emailVerified) {
         this.emailVerified = emailVerified;
+    }
+
+    public com.pmd.user.model.PeoplePageWidgets getPeoplePageWidgets() {
+        return peoplePageWidgets;
+    }
+
+    public void setPeoplePageWidgets(com.pmd.user.model.PeoplePageWidgets peoplePageWidgets) {
+        this.peoplePageWidgets = peoplePageWidgets;
     }
 }

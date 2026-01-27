@@ -54,6 +54,9 @@ jobs:
           java-version: 21
           cache: maven
 
+      - name: Ensure mvnw executable
+        run: chmod +x mvnw
+
       - name: Test
         run: ./mvnw -q -DskipTests=false test
 
@@ -65,3 +68,5 @@ jobs:
         with:
           name: backend-jar
           path: backend/pmd-backend/target/*.jar
+
+

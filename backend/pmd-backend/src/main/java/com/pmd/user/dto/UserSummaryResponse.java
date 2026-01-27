@@ -14,17 +14,23 @@ public class UserSummaryResponse {
 
     private long activeProjectCount;
 
+    private int recommendedCount;
+
+    private boolean recommendedByMe;
+
     public UserSummaryResponse() {
     }
 
     public UserSummaryResponse(String id, String displayName, String email, String team, boolean isAdmin,
-                               long activeProjectCount) {
+                               long activeProjectCount, int recommendedCount, boolean recommendedByMe) {
         this.id = id;
         this.displayName = displayName;
         this.email = email;
         this.team = team;
         this.isAdmin = isAdmin;
         this.activeProjectCount = activeProjectCount;
+        this.recommendedCount = recommendedCount;
+        this.recommendedByMe = recommendedByMe;
     }
 
     public String getId() {
@@ -73,5 +79,21 @@ public class UserSummaryResponse {
 
     public void setActiveProjectCount(long activeProjectCount) {
         this.activeProjectCount = activeProjectCount;
+    }
+
+    public int getRecommendedCount() {
+        return recommendedCount;
+    }
+
+    public void setRecommendedCount(int recommendedCount) {
+        this.recommendedCount = recommendedCount;
+    }
+
+    public boolean isRecommendedByMe() {
+        return recommendedByMe;
+    }
+
+    public void setRecommendedByMe(boolean recommendedByMe) {
+        this.recommendedByMe = recommendedByMe;
     }
 }

@@ -14,6 +14,9 @@ export type Project = {
   description?: string | null
   status?: ProjectStatus | null
   memberIds?: string[] | null
+  createdByUserId?: string | null
+  createdByName?: string | null
+  createdByTeam?: string | null
   createdAt?: string | null
   updatedAt?: string | null
   comments?: ProjectCommentResponse[] | null
@@ -26,6 +29,18 @@ export type UserSummary = {
   team?: string | null
   isAdmin?: boolean | null
   activeProjectCount?: number | null
+  recommendedCount?: number | null
+  recommendedByMe?: boolean | null
+}
+
+export type PeoplePageWidgetsConfig = {
+  statuses?: string[]
+}
+
+export type PeoplePageWidgets = {
+  visible: string[]
+  order?: string[]
+  config?: Record<string, PeoplePageWidgetsConfig>
 }
 
 export type User = {
@@ -38,13 +53,14 @@ export type User = {
   team?: string | null
   bio?: string | null
   isAdmin?: boolean | null
+  peoplePageWidgets?: PeoplePageWidgets | null
 }
 
 export type CreateProjectPayload = {
   name: string
   description?: string
   status: ProjectStatus
-  memberIds: string[]
+  memberIds?: string[]
 }
 
 export type LoginPayload = {
@@ -143,6 +159,17 @@ export type WorkspaceDashboardStatsResponse = {
     selectedTeams: string[]
     assignedToMe: boolean
   }
+}
+
+export type RecommendationToggleResponse = {
+  personId: string
+  recommendedCount: number
+  recommendedByMe: boolean
+}
+
+export type RandomAssignResponse = {
+  project: Project
+  assignedPerson: UserSummary
 }
 
 export type UserStatsResponse = {

@@ -6,12 +6,15 @@ import com.pmd.project.dto.ProjectCommentResponse;
 import com.pmd.project.dto.DashboardStatsResponse;
 import com.pmd.project.dto.ProjectRequest;
 import com.pmd.project.dto.ProjectResponse;
+import com.pmd.project.dto.RandomAssignResponse;
 import com.pmd.project.model.Project;
 import com.pmd.project.model.ProjectComment;
 import com.pmd.project.model.ProjectStatus;
 import com.pmd.project.repository.ProjectRepository;
+import com.pmd.user.dto.UserSummaryResponse;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
+import com.pmd.user.service.UserService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -20,9 +23,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -30,20 +37,35 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class ProjectService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
+
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final UserService userService;
     private final ApplicationEventPublisher eventPublisher;
     private final AccessPolicy accessPolicy;
+    private final MongoTemplate mongoTemplate;
 
     public ProjectService(ProjectRepository projectRepository, UserRepository userRepository,
-                          ApplicationEventPublisher eventPublisher, AccessPolicy accessPolicy) {
+                          UserService userService, ApplicationEventPublisher eventPublisher,
+                          AccessPolicy accessPolicy, MongoTemplate mongoTemplate) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
+        this.userService = userService;
         this.eventPublisher = eventPublisher;
         this.accessPolicy = accessPolicy;
+        this.mongoTemplate = mongoTemplate;
     }
 
     public ProjectResponse create(ProjectRequest request, User requester) {
+        log.debug(
+            "Project create db={}, collection={}, requesterId={}, status={}, memberCount={}",
+            mongoTemplate.getDb().getName(),
+            mongoTemplate.getCollectionName(Project.class),
+            requester.getId(),
+            request.getStatus(),
+            request.getMemberIds() != null ? request.getMemberIds().size() : 0
+        );
         Project project = new Project();
         project.setName(request.getName());
         project.setDescription(request.getDescription());
@@ -57,17 +79,53 @@ public class ProjectService {
         validateAssignees(requester, project, request.getMemberIds());
 
         Project saved = projectRepository.save(project);
-        return toResponse(saved);
+        ProjectResponse response = toResponse(saved);
+        log.debug(
+            "Project created id={}, createdByUserId={}, createdByTeam={}, memberIds={}",
+            saved.getId(),
+            saved.getCreatedByUserId(),
+            saved.getCreatedByTeam(),
+            saved.getMemberIds()
+        );
+        return response;
     }
 
-    public List<ProjectResponse> findAll(User requester) {
+    public List<ProjectResponse> findAll(User requester, boolean assignedToMe) {
         boolean isAdmin = accessPolicy.isAdmin(requester);
         List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        log.debug(
+            "Project list db={}, collection={}, sort=createdAt DESC, isAdmin={}, assignedToMe={}, fetched={}",
+            mongoTemplate.getDb().getName(),
+            mongoTemplate.getCollectionName(Project.class),
+            isAdmin,
+            assignedToMe,
+            projects.size()
+        );
         if (!isAdmin) {
             Map<String, Boolean> authorAdminFlags = loadAuthorAdminFlags(projects);
+            int before = projects.size();
             projects = projects.stream()
                 .filter(project -> isVisibleToNonAdmin(project, authorAdminFlags))
                 .toList();
+            log.debug(
+                "Project list nonAdminFilter applied filter=hideAdminAuthored, before={}, after={}",
+                before,
+                projects.size()
+            );
+        }
+        if (assignedToMe) {
+            String requesterId = requester.getId();
+            int before = projects.size();
+            projects = projects.stream()
+                .filter(project -> requesterId != null && (project.getMemberIds() != null)
+                    && project.getMemberIds().contains(requesterId))
+                .toList();
+            log.debug(
+                "Project list assignedToMe filter applied memberId={}, before={}, after={}",
+                requesterId,
+                before,
+                projects.size()
+            );
         }
         return projects.stream()
             .map(this::toResponse)
@@ -77,6 +135,92 @@ public class ProjectService {
     public ProjectResponse findById(String id, User requester) {
         Project project = getByIdForUser(id, requester);
         return toResponse(project);
+    }
+
+    public ProjectResponse randomProject(User requester, String teamId) {
+        boolean isAdmin = accessPolicy.isAdmin(requester);
+        List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        if (!isAdmin) {
+            Map<String, Boolean> authorAdminFlags = loadAuthorAdminFlags(projects);
+            projects = projects.stream()
+                .filter(project -> isVisibleToNonAdmin(project, authorAdminFlags))
+                .toList();
+        }
+        projects = projects.stream()
+            .filter(this::isRandomEligibleProject)
+            .toList();
+
+        if (teamId != null && !teamId.isBlank()) {
+            List<User> teamCandidates = userService.findAssignableUsers(null, teamId, isAdmin);
+            if (teamCandidates.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "No eligible people for that team");
+            }
+        }
+
+        if (projects.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No eligible projects available");
+        }
+
+        int index = ThreadLocalRandom.current().nextInt(projects.size());
+        Project chosen = projects.get(index);
+        log.debug(
+            "Random project selected projectId={}, teamId={}, candidateCount={}",
+            chosen.getId(),
+            teamId,
+            projects.size()
+        );
+        return toResponse(chosen);
+    }
+
+    public RandomAssignResponse randomAssign(String projectId, User requester, String teamId) {
+        Project project = getByIdForUser(projectId, requester);
+        if (!isRandomEligibleProject(project)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Project is not eligible for random assignment");
+        }
+        boolean isAdmin = accessPolicy.isAdmin(requester);
+        List<User> candidates = userService.findAssignableUsers(null, teamId, isAdmin).stream()
+            .filter(user -> user.getId() != null)
+            .filter(user -> project.getMemberIds() == null || !project.getMemberIds().contains(user.getId()))
+            .toList();
+        if (candidates.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No eligible people available to assign");
+        }
+
+        Map<String, Long> activeCounts = userService.findActiveProjectCounts(candidates, isAdmin);
+        long minCount = candidates.stream()
+            .mapToLong(user -> activeCounts.getOrDefault(user.getId(), 0L))
+            .min()
+            .orElse(0L);
+        List<User> minimalCandidates = candidates.stream()
+            .filter(user -> activeCounts.getOrDefault(user.getId(), 0L) == minCount)
+            .toList();
+        User chosen = minimalCandidates.get(ThreadLocalRandom.current().nextInt(minimalCandidates.size()));
+
+        List<String> previousMemberIds = project.getMemberIds() != null
+            ? new ArrayList<>(project.getMemberIds())
+            : List.of();
+        List<String> nextMemberIds = project.getMemberIds() != null
+            ? new ArrayList<>(project.getMemberIds())
+            : new ArrayList<>();
+        if (!nextMemberIds.contains(chosen.getId())) {
+            nextMemberIds.add(chosen.getId());
+        }
+        project.setMemberIds(nextMemberIds);
+        project.setUpdatedAt(Instant.now());
+
+        Project saved = projectRepository.save(project);
+        publishAssignmentEvents(saved, previousMemberIds, requester.getId());
+        log.debug(
+            "Random assign projectId={}, assignedUserId={}, teamId={}, minCount={}, minimalPool={}",
+            saved.getId(),
+            chosen.getId(),
+            teamId,
+            minCount,
+            minimalCandidates.size()
+        );
+        ProjectResponse response = toResponse(saved);
+        UserSummaryResponse assignedPerson = toUserSummary(chosen, activeCounts.getOrDefault(chosen.getId(), 0L), requester);
+        return new RandomAssignResponse(response, assignedPerson);
     }
 
     public ProjectResponse update(String id, ProjectRequest request, String assignedByUserId, User requester) {
@@ -194,6 +338,15 @@ public class ProjectService {
                 .toList();
         }
 
+        String createdByUserId = project.getCreatedByUserId();
+        String createdByTeam = project.getCreatedByTeam();
+        String createdByName = null;
+        if (createdByUserId != null) {
+            createdByName = userRepository.findById(createdByUserId)
+                .map(User::getDisplayName)
+                .orElse(null);
+        }
+
         return new ProjectResponse(
             project.getId(),
             project.getName(),
@@ -202,7 +355,10 @@ public class ProjectService {
             project.getMemberIds(),
             commentResponses,
             project.getCreatedAt(),
-            project.getUpdatedAt()
+            project.getUpdatedAt(),
+            createdByUserId,
+            createdByName,
+            createdByTeam
         );
     }
 
@@ -227,6 +383,27 @@ public class ProjectService {
             comment.getMessage(),
             comment.getTimeSpentMinutes(),
             comment.getCreatedAt()
+        );
+    }
+
+    private boolean isRandomEligibleProject(Project project) {
+        ProjectStatus status = project.getStatus() != null ? project.getStatus() : ProjectStatus.NOT_STARTED;
+        return status != ProjectStatus.ARCHIVED && status != ProjectStatus.CANCELED;
+    }
+
+    private UserSummaryResponse toUserSummary(User user, long activeProjectCount, User requester) {
+        boolean recommendedByMe = requester.getId() != null
+            && user.getRecommendedByUserIds() != null
+            && user.getRecommendedByUserIds().contains(requester.getId());
+        return new UserSummaryResponse(
+            user.getId(),
+            user.getDisplayName(),
+            user.getEmail(),
+            user.getTeam(),
+            userService.isAdminTeam(user),
+            activeProjectCount,
+            user.getRecommendedCount(),
+            recommendedByMe
         );
     }
 

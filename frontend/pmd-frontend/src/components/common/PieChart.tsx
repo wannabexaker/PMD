@@ -16,7 +16,12 @@ export function PieChart({ data, emptyLabel = 'No data yet.' }: PieChartProps) {
   }
   const radius = 42
   const circumference = 2 * Math.PI * radius
-  let offset = 0
+  const dashValues = data.map((slice) => (slice.value / total) * circumference)
+  const cumulative = dashValues.reduce<number[]>((acc, dash, index) => {
+    const previous = index === 0 ? 0 : acc[index - 1]
+    acc.push(previous + dash)
+    return acc
+  }, [])
 
   return (
     <div className="pie-chart">
@@ -24,10 +29,10 @@ export function PieChart({ data, emptyLabel = 'No data yet.' }: PieChartProps) {
         <circle cx="60" cy="60" r={radius} stroke="var(--border)" strokeWidth="14" fill="none" />
         {data.map((slice, index) => {
           if (slice.value === 0) return null
-          const dash = (slice.value / total) * circumference
+          const dash = dashValues[index]
           const dashArray = `${dash} ${circumference - dash}`
-          const dashOffset = circumference - offset
-          offset += dash
+          const previous = index === 0 ? 0 : cumulative[index - 1]
+          const dashOffset = circumference - previous
           return (
             <circle
               key={`${slice.label}-${index}`}
@@ -59,3 +64,4 @@ export function PieChart({ data, emptyLabel = 'No data yet.' }: PieChartProps) {
     </div>
   )
 }
+

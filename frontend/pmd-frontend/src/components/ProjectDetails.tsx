@@ -1,7 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CreateProjectPayload, Project, UserSummary } from '../types'
 import { fetchProject, updateProject } from '../api/projects'
-import { useAuth } from '../auth/AuthContext'
+import { useAuth } from '../auth/authUtils'
 import { ProjectComments } from './ProjectComments'
 import { PmdLoader } from './common/PmdLoader'
 
@@ -26,7 +26,7 @@ const MAX_PROJECT_TITLE_LENGTH = 32
 function formatProjectTitle(value?: string | null) {
   if (!value) return '-'
   return value.length > MAX_PROJECT_TITLE_LENGTH
-    ? value.slice(0, MAX_PROJECT_TITLE_LENGTH) + '�'
+    ? value.slice(0, MAX_PROJECT_TITLE_LENGTH) + '?'
     : value
 }
 
@@ -77,11 +77,11 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
     })
   }, [users, search, teamFilter])
 
-  const initializeSelected = (currentProject: Project) => {
+  const initializeSelected = useCallback((currentProject: Project) => {
     const ids = currentProject.memberIds ?? []
     const mapped = ids.map((id) => usersById.get(id)).filter(Boolean) as UserSummary[]
     setSelectedMembers(mapped)
-  }
+  }, [usersById])
 
   useEffect(() => {
     if (!projectId) {
@@ -115,7 +115,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
     return () => {
       active = false
     }
-  }, [projectId, usersById])
+  }, [projectId, initializeSelected])
 
   useEffect(() => {
     if (!toast) {
@@ -281,7 +281,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
             <div className="card members-panel">
               <div className="panel-header">
                 <h3 className="truncate" title={project.name ?? ''}>
-                  Members � {formatProjectTitle(project.name)}
+                  Members ? {formatProjectTitle(project.name)}
                 </h3>
                 <span className="muted">{selectedMembers.length} selected</span>
               </div>
@@ -315,7 +315,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
                       const alreadyAdded = selectedMembers.some((member) => member.id === user.id)
                       return (
                         <div
-                          key={user.id ?? user.email ?? Math.random()}
+                          key={user.id ?? user.email ?? 'user-' + index}
                           className={`member-row draggable${index === highlightIndex ? ' highlighted' : ''}`}
                           draggable
                           onDragStart={(event) => handleDragStart(event, user.id)}
@@ -357,9 +357,9 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
                     <p className="muted">Drop people here or click Add.</p>
                   ) : (
                     <div className="member-chips">
-                      {selectedMembers.map((member) => (
+                      {selectedMembers.map((member, index) => (
                         <span
-                          key={member.id ?? member.email ?? Math.random()}
+                          key={member.id ?? member.email ?? 'member-' + index}
                           className="chip"
                           draggable
                           onDragStart={(event) => handleDragStart(event, member.id)}
@@ -371,7 +371,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
                             className="chip-remove"
                             onClick={() => handleRemoveMember(member.id)}
                           >
-                            �
+                            ?
                           </button>
                         </span>
                       ))}
@@ -402,10 +402,5 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
     </section>
   )
 }
-
-
-
-
-
 
 

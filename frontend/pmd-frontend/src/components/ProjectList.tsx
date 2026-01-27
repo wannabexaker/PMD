@@ -56,11 +56,11 @@ export function ProjectList({
       <ProjectEditor users={users} onSave={onCreate} submitLabel="Create Project" />
       <ul className="list">
         {projects.length === 0 ? <li className="muted">No projects yet.</li> : null}
-        {projects.map((project) => {
+        {projects.map((project, index) => {
           const id = project.id ?? ''
           const isEditing = editingId === id
           return (
-            <li key={id || project.name || Math.random()} className="card">
+            <li key={project.id ?? project.name ?? 'project-' + index} className="card">
               <div className="row space">
                 <div>
                   <strong className="truncate" title={project.name ?? ''}>
@@ -126,3 +126,4 @@ export function ProjectList({
     </section>
   )
 }
+
