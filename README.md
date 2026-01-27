@@ -1,54 +1,59 @@
-# PMD CI/CD
+# PMD — Project Management Demo
 
-This repo includes GitHub Actions workflows, Dockerfiles, and a production compose file.
+This is a demo project I built to learn and practice full‑stack development.  
+It’s a small project management dashboard where you can create projects, assign people, and visualize workload.
 
-## GitHub Actions
+## What the app does
 
-- CI workflow runs on PRs and pushes to `main`.
-- Release workflow builds and pushes Docker images to GHCR on `main` and supports manual deploy via SSH.
+PMD is a lightweight project management dashboard with:
 
-### Required GitHub Secrets
+- **Projects**: create, edit, update status, archive/restore, delete.
+- **Assignments**: assign people to projects with drag & drop and quick actions.
+- **People directory**: view users, see their project load, and filter by team.
+- **Dashboard**: counts, status breakdowns, and workload charts.
+- **Recommendations**: star/recommend people and see who recommended them.
+- **Random tools**: pick a random project or randomly assign a person (server‑side logic).
 
-Create these in the repo settings (values not included here):
+## What it contains (modules)
 
-- `GHCR_PAT` (optional if `GITHUB_TOKEN` has package write access)
-- `SSH_HOST` (for deploy job)
-- `SSH_USER` (for deploy job)
-- `SSH_KEY` (for deploy job, private key)
-- `SSH_PORT` (optional, defaults to 22)
+Frontend (React + Vite):
+- Dashboard view with status columns and analytics
+- Assign view with 3‑panel layout (projects / available / assigned)
+- People directory with stats + widgets
+- Auth screens (login / register / confirm email)
+- Profile screen
 
-## Docker Images
+Backend (Spring Boot):
+- REST API for projects, users, assignments, stats
+- MongoDB persistence
+- Basic auth + JWT
+- Seed data for demo usage
 
-Images pushed to GHCR:
+## Tech stack
 
-- `ghcr.io/<owner>/pmd-frontend:latest` and `:sha`
-- `ghcr.io/<owner>/pmd-backend:latest` and `:sha`
+- **Frontend**: React, TypeScript, Vite, CSS (no UI framework)
+- **Backend**: Java 21, Spring Boot, MongoDB
+- **Infra**: Docker + docker‑compose (for local running)
 
-## Production Compose
+## Run locally (quick start)
 
-`docker-compose.prod.yml` expects these environment variables (use a `.env` file on the server):
-
-- `GHCR_OWNER` (GitHub org/user name for image pulls)
-- `SPRING_DATA_MONGODB_URI` (defaults to `mongodb://mongo:27017/pmd`)
-- `PMD_JWT_SECRET` (required)
-- `PMD_JWT_EXPIRATIONSECONDS` (default `86400`)
-- `PMD_MAIL_FROM` (default `no-reply@pmd.local`)
-- `SPRING_MAIL_HOST` (default `localhost`)
-- `SPRING_MAIL_PORT` (default `1025`)
-
-Example `.env`:
-
+### Backend
 ```
-GHCR_OWNER=your-org
-PMD_JWT_SECRET=change-me
+cd backend/pmd-backend
+./mvnw spring-boot:run
 ```
 
-## Manual Deploy (workflow_dispatch)
+### Frontend
+```
+cd frontend/pmd-frontend
+npm install
+npm run dev
+```
 
-The release workflow has a manual `deploy` option:
+The frontend expects the backend at `http://localhost:8080`.
 
-- It SSHes to the host and runs:
-  - `docker compose -f docker-compose.prod.yml pull`
-  - `docker compose -f docker-compose.prod.yml up -d`
+## Notes
 
-Ensure the remote path contains `docker-compose.prod.yml` (default `/opt/pmd`).
+- This repository is **a demo** made for learning.
+- It is not production‑hardened and will evolve as I experiment.
+
