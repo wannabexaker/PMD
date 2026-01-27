@@ -1136,6 +1136,7 @@ button {
 .people-grid {
   display: grid;
   gap: 12px;
+  padding: 10px 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -1143,10 +1144,12 @@ button {
   text-align: left;
   cursor: pointer;
   display: grid;
-  grid-template-rows: auto auto;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
-  padding: 12px 14px;
+  min-height: 78px;
+  padding: 10px 14px;
 }
 
 .people-card.draggable {
@@ -1188,13 +1191,36 @@ button {
 
 .people-card-main {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
-.active-count {
-  font-size: 0.75rem;
+.people-card-main strong {
+  line-height: 1.2;
+}
+
+.people-card-main .muted {
+  line-height: 1.25;
+  font-size: 0.9rem;
+}
+
+.people-card-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: stretch;
+}
+
+.people-card-handle {
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
   color: var(--muted);
+  user-select: none;
+}
+
+.people-card-add {
+  flex: 0 0 auto;
 }
 
 .admin-panel {
@@ -2010,3 +2036,4 @@ button {
     grid-column: span 1;
   }
 }
+

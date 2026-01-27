@@ -417,21 +417,27 @@ export function AssignPage({
                         <span className="muted truncate" title={user.team ?? 'Team'}>
                           {user.team ?? 'Team'}
                         </span>
-                        <span className="active-count" title={`Active projects: ${activeCount}`}>
-                          Active: {activeCount}
-                        </span>
                       </div>
-                      <button
-                        type="button"
-                        className="btn btn-icon btn-ghost"
-                        aria-label={`Add ${user.displayName ?? 'person'} to project`}
-                        title="Add"
-                        data-tooltip="Add"
-                        onClick={() => handleAddMember(user)}
-                        disabled={alreadyAdded || !hasSelectedProject}
-                      >
-                        +
-                      </button>
+                      <div className="people-card-actions">
+                        <span className="people-card-handle" aria-hidden="true">
+                          ::
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-icon btn-ghost people-card-add"
+                          aria-label={`Add ${user.displayName ?? 'person'} to project`}
+                          title="Add"
+                          data-tooltip="Add"
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleAddMember(user)
+                          }}
+                          disabled={alreadyAdded || !hasSelectedProject}
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
                   )
                 })
