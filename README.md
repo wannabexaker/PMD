@@ -52,6 +52,15 @@ npm run dev
 
 The frontend expects the backend at `http://localhost:8080`.
 
+## Local development - one command run
+
+`
+docker compose -f docker-compose.local.yml up -d
+`
+
+- Frontend: http://localhost:5173
+- Backend: http://localhost:8080
+
 ## Notes
 
 - This repository is **a demo** made for learning.

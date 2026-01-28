@@ -1,0 +1,28 @@
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER:-wannabexaker}/pmd-backend:latest
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/pmd
+      PMD_JWT_SECRET: dev-secret
+      PMD_JWT_EXPIRATIONSECONDS: 86400
+    depends_on:
+      - mongo
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:-wannabexaker}/pmd-frontend:latest
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:

@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       deploy:
@@ -50,6 +52,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+            ${{ github.ref_type == 'tag' && format('{0}/{1}:{2}', env.REGISTRY, env.IMAGE_FRONTEND, github.ref_name) || '' }}
 
       - name: Build and push backend
         uses: docker/build-push-action@v6
@@ -60,6 +63,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:${{ github.sha }}
+            ${{ github.ref_type == 'tag' && format('{0}/{1}:{2}', env.REGISTRY, env.IMAGE_BACKEND, github.ref_name) || '' }}
 
   deploy:
     runs-on: ubuntu-latest
