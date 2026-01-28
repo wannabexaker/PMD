@@ -50,7 +50,15 @@ npm install
 npm run dev
 ```
 
-The frontend expects the backend at `http://localhost:8080`.
+Defaults:
+- Backend runs with the `local` profile (Mongo at `mongodb://localhost:27017/pmd`).
+- Frontend uses `VITE_API_BASE_URL` if set, otherwise `http://localhost:8080`.
+
+Optional (override API base for frontend):
+```
+# in frontend/pmd-frontend/.env.local
+VITE_API_BASE_URL=http://localhost:8080
+```
 
 ## Local development - one command run
 
@@ -77,7 +85,7 @@ docker compose -f docker-compose.local.yml down --remove-orphans -v
 - Frontend: http://localhost:5173
 - Backend: http://localhost:8080
 - MailHog (email dev inbox): http://localhost:8025
-- The backend seeder now runs automatically (`dev` profile + `PMD_SEED_DEMO=true`), so the 11 demo users/projects appear after startup.
+- The compose stack uses the `docker` Spring profile and `PMD_SEED_DEMO=true`, so demo users/projects appear after startup.
 
 ## Notes
 

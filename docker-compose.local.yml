@@ -24,7 +24,7 @@ services:
       SPRING_MAIL_HOST: mailhog
       SPRING_MAIL_PORT: 1025
       PMD_SEED_DEMO: "true"
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: docker
       PMD_JWT_SECRET: "pmd-dev-secret-32-bytes-minimum-rotate-in-prod-2026-01-28"
       PMD_JWT_EXPIRATIONSECONDS: 86400
     depends_on:

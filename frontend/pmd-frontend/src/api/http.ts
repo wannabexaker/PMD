@@ -1,4 +1,6 @@
-export const API_BASE_URL = 'http://localhost:8080'
+const ENV_API_BASE_URL = (import.meta as ImportMeta).env?.VITE_API_BASE_URL as string | undefined
+export const API_BASE_URL =
+  ENV_API_BASE_URL && ENV_API_BASE_URL.trim().length > 0 ? ENV_API_BASE_URL : 'http://localhost:8080'
 const TOKEN_KEY = 'pmd_token'
 const TOKEN_EXP_KEY = 'pmd_token_exp'
 
@@ -74,10 +76,7 @@ export async function requestJson<T>(path: string, options?: RequestInit): Promi
       },
     })
   } catch {
-    throw new ApiError(
-      'Cannot reach server. Check backend is running at http://localhost:8080 and try again.',
-      0
-    )
+    throw new ApiError(`Cannot reach server. Check backend is running at ${API_BASE_URL} and try again.`, 0)
   }
 
   const text = await response.text()

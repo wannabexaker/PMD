@@ -5,7 +5,7 @@ import type { LoginPayload, Project, RegisterPayload, User, UserSummary } from '
 import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
 import { fetchMe, login, register } from './api/auth'
-import { clearAuthToken, getAuthToken, isApiError } from './api/http'
+import { API_BASE_URL, clearAuthToken, getAuthToken, isApiError } from './api/http'
 import { DashboardPage } from './components/DashboardPage'
 import { AssignPage } from './components/AssignPage'
 import { PeoplePage } from './components/PeoplePage'
@@ -160,7 +160,7 @@ function App() {
         } else if (err.status >= 500) {
           setAuthError('Server error. Try again in a moment.')
         } else if (err.status === 0) {
-          setAuthError('Cannot reach server (http://localhost:8080).')
+          setAuthError(`Cannot reach server (${API_BASE_URL}).`)
         } else {
           setAuthError(err.message)
         }
@@ -186,7 +186,7 @@ function App() {
         } else if (err.status >= 500) {
           setAuthError('Server error. Try again in a moment.')
         } else if (err.status === 0) {
-          setAuthError('Cannot reach server (http://localhost:8080).')
+          setAuthError(`Cannot reach server (${API_BASE_URL}).`)
         } else {
           setAuthError(err.message)
         }

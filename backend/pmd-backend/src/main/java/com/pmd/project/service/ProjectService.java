@@ -18,10 +18,8 @@ import com.pmd.user.service.UserService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -91,28 +89,15 @@ public class ProjectService {
     }
 
     public List<ProjectResponse> findAll(User requester, boolean assignedToMe) {
-        boolean isAdmin = accessPolicy.isAdmin(requester);
         List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
         log.debug(
             "Project list db={}, collection={}, sort=createdAt DESC, isAdmin={}, assignedToMe={}, fetched={}",
             mongoTemplate.getDb().getName(),
             mongoTemplate.getCollectionName(Project.class),
-            isAdmin,
+            accessPolicy.isAdmin(requester),
             assignedToMe,
             projects.size()
         );
-        if (!isAdmin) {
-            Map<String, Boolean> authorAdminFlags = loadAuthorAdminFlags(projects);
-            int before = projects.size();
-            projects = projects.stream()
-                .filter(project -> isVisibleToNonAdmin(project, authorAdminFlags))
-                .toList();
-            log.debug(
-                "Project list nonAdminFilter applied filter=hideAdminAuthored, before={}, after={}",
-                before,
-                projects.size()
-            );
-        }
         if (assignedToMe) {
             String requesterId = requester.getId();
             int before = projects.size();
@@ -138,20 +123,13 @@ public class ProjectService {
     }
 
     public ProjectResponse randomProject(User requester, String teamId) {
-        boolean isAdmin = accessPolicy.isAdmin(requester);
         List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
-        if (!isAdmin) {
-            Map<String, Boolean> authorAdminFlags = loadAuthorAdminFlags(projects);
-            projects = projects.stream()
-                .filter(project -> isVisibleToNonAdmin(project, authorAdminFlags))
-                .toList();
-        }
         projects = projects.stream()
             .filter(this::isRandomEligibleProject)
             .toList();
 
         if (teamId != null && !teamId.isBlank()) {
-            List<User> teamCandidates = userService.findAssignableUsers(null, teamId, isAdmin);
+            List<User> teamCandidates = userService.findAssignableUsers(null, teamId, accessPolicy.isAdmin(requester));
             if (teamCandidates.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "No eligible people for that team");
             }
@@ -248,15 +226,8 @@ public class ProjectService {
     }
 
     public DashboardStatsResponse getMyDashboardStats(User requester) {
-        boolean isAdmin = accessPolicy.isAdmin(requester);
         String userId = requester.getId();
         List<Project> projects = projectRepository.findByMemberIdsContaining(userId);
-        if (!isAdmin) {
-            Map<String, Boolean> authorAdminFlags = loadAuthorAdminFlags(projects);
-            projects = projects.stream()
-                .filter(project -> isVisibleToNonAdmin(project, authorAdminFlags))
-                .toList();
-        }
 
         Map<ProjectStatus, Long> statusCounts = new EnumMap<>(ProjectStatus.class);
         long activeCount = 0;
@@ -369,9 +340,6 @@ public class ProjectService {
 
     private Project getByIdForUser(String id, User requester) {
         Project project = getByIdOrThrow(id);
-        if (!accessPolicy.isAdmin(requester) && isAuthoredByAdmin(project)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
-        }
         accessPolicy.assertCanViewProject(requester, project);
         return project;
     }
@@ -446,39 +414,4 @@ public class ProjectService {
         }
     }
 
-    private boolean isVisibleToNonAdmin(Project project, Map<String, Boolean> authorAdminFlags) {
-        String authorId = project.getCreatedByUserId();
-        if (authorId == null) {
-            return true;
-        }
-        Boolean isAdminAuthor = authorAdminFlags.get(authorId);
-        return isAdminAuthor == null || !isAdminAuthor;
-    }
-
-    private boolean isAuthoredByAdmin(Project project) {
-        String authorId = project.getCreatedByUserId();
-        if (authorId == null) {
-            return false;
-        }
-        return userRepository.findById(authorId)
-            .map(accessPolicy::isAdmin)
-            .orElse(false);
-    }
-
-    private Map<String, Boolean> loadAuthorAdminFlags(List<Project> projects) {
-        Set<String> authorIds = projects.stream()
-            .map(Project::getCreatedByUserId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        if (authorIds.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Boolean> flags = new HashMap<>();
-        for (User user : userRepository.findAllById(authorIds)) {
-            if (user.getId() != null) {
-                flags.put(user.getId(), accessPolicy.isAdmin(user));
-            }
-        }
-        return flags;
-    }
 }

@@ -1,6 +1,8 @@
 spring:
   application:
     name: pmd-backend
+  profiles:
+    default: local
 
   mail:
     host: ${SPRING_MAIL_HOST:localhost}
