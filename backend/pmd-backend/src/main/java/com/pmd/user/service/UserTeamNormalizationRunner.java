@@ -2,6 +2,7 @@ package com.pmd.user.service;
 
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
+import com.pmd.util.StartupMongoRetry;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,20 +23,22 @@ public class UserTeamNormalizationRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        List<User> users = userRepository.findAll();
-        boolean updated = false;
-        for (User user : users) {
-            String team = user.getTeam();
-            if (team != null && (team.equalsIgnoreCase("admin") || team.equalsIgnoreCase("admins"))) {
-                if (!"admin".equals(team)) {
-                    user.setTeam("admin");
-                    updated = true;
+        StartupMongoRetry.runWithRetry(logger, "user team normalization", () -> {
+            List<User> users = userRepository.findAll();
+            boolean updated = false;
+            for (User user : users) {
+                String team = user.getTeam();
+                if (team != null && (team.equalsIgnoreCase("admin") || team.equalsIgnoreCase("admins"))) {
+                    if (!"admin".equals(team)) {
+                        user.setTeam("admin");
+                        updated = true;
+                    }
                 }
             }
-        }
-        if (updated) {
-            userRepository.saveAll(users);
-            logger.info("Normalized admin team to 'admin' for existing users.");
-        }
+            if (updated) {
+                userRepository.saveAll(users);
+                logger.info("Normalized admin team to 'admin' for existing users.");
+            }
+        });
     }
 }

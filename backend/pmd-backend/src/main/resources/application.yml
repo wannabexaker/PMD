@@ -2,10 +2,6 @@ spring:
   application:
     name: pmd-backend
 
-  data:
-    mongodb:
-      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/pmd}
-
   mail:
     host: ${SPRING_MAIL_HOST:localhost}
     port: ${SPRING_MAIL_PORT:1025}
@@ -20,8 +16,8 @@ pmd:
   mail:
     from: no-reply@pmd.local
   jwt:
-    secret: "pmd-local-dev-secret-change-me-please-32chars"
-    expirationSeconds: 86400
+    secret: ${PMD_JWT_SECRET:}
+    expirationSeconds: ${PMD_JWT_EXPIRATIONSECONDS:86400}
 
 server:
   port: 8080
