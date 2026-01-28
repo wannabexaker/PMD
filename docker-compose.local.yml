@@ -1,42 +1,44 @@
 services:
   mongo:
     image: mongo:7
+    container_name: pmd-mongo
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 5s
 
   backend:
     image: ghcr.io/${GHCR_OWNER:-wannabexaker}/pmd-backend:latest
+    container_name: pmd-backend
     ports:
       - "8080:8080"
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/pmd
-      SPRING_APPLICATION_JSON: "{\"spring\":{\"data\":{\"mongodb\":{\"uri\":\"mongodb://mongo:27017/pmd\"}}}}"
-      PMD_JWT_SECRET: "pmd-local-dev-jwt-secret-please-change-32chars"
+      PMD_JWT_SECRET: "change-me-to-a-very-long-secret-key-at-least-32-characters"
       PMD_JWT_EXPIRATIONSECONDS: 86400
     depends_on:
       mongo:
         condition: service_healthy
 
-  mailhog:
-    image: mailhog/mailhog:latest
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-
   frontend:
     image: ghcr.io/${GHCR_OWNER:-wannabexaker}/pmd-frontend:latest
+    container_name: pmd-frontend
     ports:
       - "5173:80"
     depends_on:
       - backend
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: pmd-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
 
 volumes:
   mongo_data:
