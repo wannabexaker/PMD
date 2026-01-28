@@ -1,0 +1,13 @@
+Demo seed accounts (passwords as of commit):
+
+1. admin1@pmd.local / admin321  (Enterprise admin)
+2. elon.musk@pmd.local / Tesla321!  (SpaceX & Tesla leadership)
+3. jeff.bezos@pmd.local / Blue321!  (Amazon + Blue Origin)
+4. sundar.pichai@pmd.local / Google321!  (Google / AI)
+5. satya.nadella@pmd.local / Azure321!  (Microsoft Azure)
+6. tim.cook@pmd.local / Apple321!  (Apple hardware)
+7. mark.zuckerberg@pmd.local / Meta321!  (Meta / Horizon)
+8. jensen.huang@pmd.local / Nvidia321!  (NVIDIA AI / chips)
+9. ginni.romeo@pmd.local / IBM321!  (IBM enterprise)
+10. safra.catz@pmd.local / Oracle321!  (Oracle cloud)
+11. melinda.gates@pmd.local / Gates321!  (Philanthropy tech)

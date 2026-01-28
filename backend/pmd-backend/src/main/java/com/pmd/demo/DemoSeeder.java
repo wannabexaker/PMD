@@ -8,9 +8,12 @@ import com.pmd.user.repository.UserRepository;
 import com.pmd.user.service.UserService;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -25,6 +28,42 @@ import org.springframework.stereotype.Component;
 public class DemoSeeder implements ApplicationRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(DemoSeeder.class);
+
+    private static final List<SeedUser> SEED_USERS = List.of(
+        new SeedUser("elon.musk@pmd.local", "Tesla321!", "Elon", "Musk", "SpaceX & Tesla", "Space transportation & energy"),
+        new SeedUser("jeff.bezos@pmd.local", "Blue321!", "Jeff", "Bezos", "Amazon & Blue Origin", "Heavy lift & e-commerce"),
+        new SeedUser("sundar.pichai@pmd.local", "Google321!", "Sundar", "Pichai", "Google", "AI and search"),
+        new SeedUser("satya.nadella@pmd.local", "Azure321!", "Satya", "Nadella", "Microsoft", "Cloud + productivity"),
+        new SeedUser("tim.cook@pmd.local", "Apple321!", "Tim", "Cook", "Apple", "Consumer hardware"),
+        new SeedUser("mark.zuckerberg@pmd.local", "Meta321!", "Mark", "Zuckerberg", "Meta", "Social + VR"),
+        new SeedUser("jensen.huang@pmd.local", "Nvidia321!", "Jensen", "Huang", "NVIDIA", "GPUs + AI"),
+        new SeedUser("ginni.romeo@pmd.local", "IBM321!", "Ginni", "Rometty", "IBM", "Enterprise software"),
+        new SeedUser("safra.catz@pmd.local", "Oracle321!", "Safra", "Catz", "Oracle", "Database clouds"),
+        new SeedUser("melinda.gates@pmd.local", "Gates321!", "Melinda", "Gates", "Philanthropy", "Tech for good")
+    );
+
+    private static final List<SeedProject> SEED_PROJECTS = List.of(
+        new SeedProject("Starship Reuse Initiative", "Reusable launch pipeline for orbital cargo", ProjectStatus.IN_PROGRESS,
+            List.of("elon.musk@pmd.local"), "elon.musk@pmd.local"),
+        new SeedProject("Prime Robotics Labs", "Autonomous fulfillment fleet for Prime warehouses",
+            ProjectStatus.NOT_STARTED, List.of("jeff.bezos@pmd.local", "elon.musk@pmd.local"), "jeff.bezos@pmd.local"),
+        new SeedProject("Gemini AI Studio", "Next-gen multimodal AI across Google workspace",
+            ProjectStatus.IN_PROGRESS, List.of("sundar.pichai@pmd.local"), "sundar.pichai@pmd.local"),
+        new SeedProject("Azure Quantum Explorer", "Commercial quantum development environment",
+            ProjectStatus.NOT_STARTED, List.of("satya.nadella@pmd.local"), "satya.nadella@pmd.local"),
+        new SeedProject("Apple AR Glasses", "Lightweight AR hardware with personal AI",
+            ProjectStatus.IN_PROGRESS, List.of("tim.cook@pmd.local"), "tim.cook@pmd.local"),
+        new SeedProject("Meta Horizon Campus", "Immersive collaboration for distributed teams",
+            ProjectStatus.NOT_STARTED, List.of("mark.zuckerberg@pmd.local"), "mark.zuckerberg@pmd.local"),
+        new SeedProject("AI Research Superchip", "NVIDIA Hopper follow-up for exascale training",
+            ProjectStatus.COMPLETED, List.of("jensen.huang@pmd.local", "sundar.pichai@pmd.local"), "jensen.huang@pmd.local"),
+        new SeedProject("IBM Hybrid Cloud Fabric", "Secure hybrid cloud for regulated industries",
+            ProjectStatus.IN_PROGRESS, List.of("ginni.romeo@pmd.local"), "ginni.romeo@pmd.local"),
+        new SeedProject("Oracle Autonomous Supply Chain", "Digital twin planning with autonomous ops",
+            ProjectStatus.NOT_STARTED, List.of("safra.catz@pmd.local"), "safra.catz@pmd.local"),
+        new SeedProject("Global Health Data Commons", "Philanthropy-backed health insights platform",
+            ProjectStatus.COMPLETED, List.of("melinda.gates@pmd.local", "sundar.pichai@pmd.local"), "melinda.gates@pmd.local")
+    );
 
     private final Environment environment;
     private final UserService userService;
@@ -49,7 +88,7 @@ public class DemoSeeder implements ApplicationRunner {
         if (!shouldSeed()) {
             return;
         }
-        // Demo seed: only runs in dev profile or PMD_SEED_DEMO=true.
+        logger.info("Starting demo seed run.");
         User admin = userService.ensureAdminSeedUser(
             "admin1@pmd.local",
             passwordEncoder.encode("admin321"),
@@ -58,34 +97,34 @@ public class DemoSeeder implements ApplicationRunner {
             ""
         );
 
-        User user1 = ensureUser("user1@pmd.local", "User123!", "John", "Doe", "Web Developer Team", "");
-        User user2 = ensureUser("user2@pmd.local", "User123!", "Maria", "Stone", "Project Manager", "");
-        User user3 = ensureUser("user3@pmd.local", "User123!", "Nikos", "Papas", "QA", "");
+        Map<String, User> seededUsers = new LinkedHashMap<>();
+        seededUsers.put(admin.getEmail(), admin);
+        for (SeedUser seedUser : SEED_USERS) {
+            User user = ensureUser(seedUser);
+            seededUsers.put(user.getEmail(), user);
+        }
 
-        Project projectA = ensureProject(
-            "Project A",
-            "Demo project A",
-            ProjectStatus.IN_PROGRESS,
-            admin
-        );
-        Project projectB = ensureProject(
-            "Website Refresh",
-            "Demo website refresh project",
-            ProjectStatus.NOT_STARTED,
-            user2
-        );
-        Project projectC = ensureProject(
-            "Migration Cleanup",
-            "Demo migration cleanup project",
-            ProjectStatus.COMPLETED,
-            user2
-        );
+        for (SeedProject projectSeed : SEED_PROJECTS) {
+            User author = seededUsers.get(projectSeed.authorEmail());
+            Project project = ensureProject(
+                projectSeed.name(),
+                projectSeed.description(),
+                projectSeed.status(),
+                author
+            );
+            if (project != null) {
+                List<User> assignees = new ArrayList<>();
+                for (String email : projectSeed.assignees()) {
+                    User member = seededUsers.get(email);
+                    if (member != null) {
+                        assignees.add(member);
+                    }
+                }
+                ensureAssignments(project, assignees);
+            }
+        }
 
-        ensureAssignments(projectA, List.of(admin));
-        ensureAssignments(projectB, List.of(user1, user3));
-        ensureAssignments(projectC, List.of(user1, user2));
-
-        logger.info("Demo seed completed.");
+        logger.info("Demo seed completed with {} users and {} projects.", seededUsers.size(), SEED_PROJECTS.size());
     }
 
     private boolean shouldSeed() {
@@ -101,29 +140,29 @@ public class DemoSeeder implements ApplicationRunner {
         return false;
     }
 
-    private User ensureUser(String email, String rawPassword, String firstName, String lastName, String team, String bio) {
-        Optional<User> existing = userRepository.findByEmail(email);
+    private User ensureUser(SeedUser seedUser) {
+        Optional<User> existing = userRepository.findByEmail(seedUser.email());
         if (existing.isPresent()) {
             User user = existing.get();
             boolean changed = false;
             if (isBlank(user.getFirstName())) {
-                user.setFirstName(firstName);
+                user.setFirstName(seedUser.firstName());
                 changed = true;
             }
             if (isBlank(user.getLastName())) {
-                user.setLastName(lastName);
+                user.setLastName(seedUser.lastName());
                 changed = true;
             }
             if (user.getBio() == null) {
-                user.setBio(bio);
+                user.setBio(seedUser.bio());
                 changed = true;
             }
             if (isBlank(user.getTeam())) {
-                user.setTeam(team);
+                user.setTeam(seedUser.team());
                 changed = true;
             }
             if (isBlank(user.getPasswordHash())) {
-                user.setPasswordHash(passwordEncoder.encode(rawPassword));
+                user.setPasswordHash(passwordEncoder.encode(seedUser.password()));
                 changed = true;
             }
             if (changed) {
@@ -133,14 +172,14 @@ public class DemoSeeder implements ApplicationRunner {
         }
 
         User user = new User();
-        user.setUsername(email);
-        user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode(rawPassword));
-        user.setFirstName(firstName);
-        user.setLastName(lastName);
-        user.setDisplayName(buildDisplayName(firstName, lastName, email));
-        user.setTeam(team);
-        user.setBio(bio);
+        user.setUsername(seedUser.email());
+        user.setEmail(seedUser.email());
+        user.setPasswordHash(passwordEncoder.encode(seedUser.password()));
+        user.setFirstName(seedUser.firstName());
+        user.setLastName(seedUser.lastName());
+        user.setDisplayName(buildDisplayName(seedUser.firstName(), seedUser.lastName(), seedUser.email()));
+        user.setTeam(seedUser.team());
+        user.setBio(seedUser.bio());
         user.setEmailVerified(true);
         return userService.save(user);
     }
@@ -207,5 +246,11 @@ public class DemoSeeder implements ApplicationRunner {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private record SeedUser(String email, String password, String firstName, String lastName, String team, String bio) {
+    }
+
+    private record SeedProject(String name, String description, ProjectStatus status, List<String> assignees, String authorEmail) {
     }
 }
