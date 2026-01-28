@@ -77,6 +77,7 @@ docker compose -f docker-compose.local.yml down --remove-orphans -v
 - Frontend: http://localhost:5173
 - Backend: http://localhost:8080
 - MailHog (email dev inbox): http://localhost:8025
+- The backend seeder now runs automatically (`dev` profile + `PMD_SEED_DEMO=true`), so the 11 demo users/projects appear after startup.
 
 ## Notes
 

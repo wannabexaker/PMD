@@ -21,6 +21,8 @@ services:
       SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/pmd
       SPRING_MAIL_HOST: mailhog
       SPRING_MAIL_PORT: 1025
+      PMD_SEED_DEMO: "true"
+      SPRING_PROFILES_ACTIVE: dev
       PMD_JWT_SECRET: "change-me-to-a-very-long-secret-key-at-least-32-characters"
       PMD_JWT_EXPIRATIONSECONDS: 86400
     depends_on:
