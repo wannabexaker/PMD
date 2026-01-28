@@ -52,7 +52,9 @@ npm run dev
 
 Defaults:
 - Backend runs with the `local` profile (Mongo at `mongodb://localhost:27017/pmd`, port 8099).
-- Frontend uses `VITE_API_BASE_URL` if set, otherwise `http://localhost:8080`.
+- Frontend uses `VITE_API_BASE_URL` if set; otherwise defaults to:
+  - `http://localhost:8099` in dev mode
+  - `http://localhost:8080` in production build
 
 Optional (override API base for frontend):
 ```
