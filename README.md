@@ -54,15 +54,31 @@ The frontend expects the backend at `http://localhost:8080`.
 
 ## Local development - one command run
 
-`
+Start (one command):
+```
 docker compose -f docker-compose.local.yml up -d
-`
+```
+
+Status:
+```
+docker compose -f docker-compose.local.yml ps
+```
+
+Logs:
+```
+docker compose -f docker-compose.local.yml logs --tail=100 backend
+```
+
+Clean reset (including volumes):
+```
+docker compose -f docker-compose.local.yml down --remove-orphans -v
+```
 
 - Frontend: http://localhost:5173
 - Backend: http://localhost:8080
+- MailHog (email dev inbox): http://localhost:8025
 
 ## Notes
 
 - This repository is **a demo** made for learning.
 - It is not production‑hardened and will evolve as I experiment.
-
