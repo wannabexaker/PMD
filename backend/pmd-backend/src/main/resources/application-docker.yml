@@ -1,4 +1,10 @@
+server:
+  port: 8080
+
 spring:
   data:
     mongodb:
       uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongo:27017/pmd}
+pmd:
+  jwt:
+    secret: ${PMD_JWT_SECRET}

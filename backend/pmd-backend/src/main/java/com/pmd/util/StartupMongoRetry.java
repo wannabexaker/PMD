@@ -5,8 +5,8 @@ import org.springframework.dao.DataAccessException;
 
 public final class StartupMongoRetry {
 
-    private static final int MAX_ATTEMPTS = 5;
-    private static final long BACKOFF_MILLIS = 3000;
+    private static final int MAX_ATTEMPTS = 10;
+    private static final long BACKOFF_MILLIS = 6000;
 
     private StartupMongoRetry() {
     }

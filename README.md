@@ -51,7 +51,7 @@ npm run dev
 ```
 
 Defaults:
-- Backend runs with the `local` profile (Mongo at `mongodb://localhost:27017/pmd`).
+- Backend runs with the `local` profile (Mongo at `mongodb://localhost:27017/pmd`, port 8099).
 - Frontend uses `VITE_API_BASE_URL` if set, otherwise `http://localhost:8080`.
 
 Optional (override API base for frontend):
@@ -86,6 +86,36 @@ docker compose -f docker-compose.local.yml down --remove-orphans -v
 - Backend: http://localhost:8080
 - MailHog (email dev inbox): http://localhost:8025
 - The compose stack uses the `docker` Spring profile and `PMD_SEED_DEMO=true`, so demo users/projects appear after startup.
+
+## Profiles and ports
+
+- `local` profile (default for `./mvnw spring-boot:run`)
+  - `server.port=8099`
+  - Mongo: `mongodb://localhost:27017/pmd` (override with `SPRING_DATA_MONGODB_URI`)
+  - Stable dev JWT secret from `application-local.yml`
+- `docker` profile (compose)
+  - `server.port=8080`
+  - Mongo: `mongodb://mongo:27017/pmd`
+  - Requires `PMD_JWT_SECRET` (>= 32 chars)
+
+## Troubleshooting
+
+Find/kill process using a port (Windows):
+```
+netstat -ano | findstr :8099
+taskkill /PID <pid> /F
+```
+
+Override backend port:
+```
+set SERVER_PORT=8099
+./mvnw spring-boot:run
+```
+
+Override JWT secret (docker/prod):
+```
+set PMD_JWT_SECRET=your-32-char-minimum-secret-here
+```
 
 ## Notes
 

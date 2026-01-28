@@ -6,6 +6,7 @@ import com.pmd.project.repository.ProjectRepository;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.user.service.UserService;
+import com.pmd.util.StartupMongoRetry;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,43 +89,45 @@ public class DemoSeeder implements ApplicationRunner {
         if (!shouldSeed()) {
             return;
         }
-        logger.info("Starting demo seed run.");
-        User admin = userService.ensureAdminSeedUser(
-            "admin1@pmd.local",
-            passwordEncoder.encode("admin321"),
-            "admin",
-            "admin",
-            ""
-        );
-
-        Map<String, User> seededUsers = new LinkedHashMap<>();
-        seededUsers.put(admin.getEmail(), admin);
-        for (SeedUser seedUser : SEED_USERS) {
-            User user = ensureUser(seedUser);
-            seededUsers.put(user.getEmail(), user);
-        }
-
-        for (SeedProject projectSeed : SEED_PROJECTS) {
-            User author = seededUsers.get(projectSeed.authorEmail());
-            Project project = ensureProject(
-                projectSeed.name(),
-                projectSeed.description(),
-                projectSeed.status(),
-                author
+        StartupMongoRetry.runWithRetry(logger, "demo seed", () -> {
+            logger.info("Starting demo seed run.");
+            User admin = userService.ensureAdminSeedUser(
+                "admin1@pmd.local",
+                passwordEncoder.encode("admin321"),
+                "admin",
+                "admin",
+                ""
             );
-            if (project != null) {
-                List<User> assignees = new ArrayList<>();
-                for (String email : projectSeed.assignees()) {
-                    User member = seededUsers.get(email);
-                    if (member != null) {
-                        assignees.add(member);
-                    }
-                }
-                ensureAssignments(project, assignees);
-            }
-        }
 
-        logger.info("Demo seed completed with {} users and {} projects.", seededUsers.size(), SEED_PROJECTS.size());
+            Map<String, User> seededUsers = new LinkedHashMap<>();
+            seededUsers.put(admin.getEmail(), admin);
+            for (SeedUser seedUser : SEED_USERS) {
+                User user = ensureUser(seedUser);
+                seededUsers.put(user.getEmail(), user);
+            }
+
+            for (SeedProject projectSeed : SEED_PROJECTS) {
+                User author = seededUsers.get(projectSeed.authorEmail());
+                Project project = ensureProject(
+                    projectSeed.name(),
+                    projectSeed.description(),
+                    projectSeed.status(),
+                    author
+                );
+                if (project != null) {
+                    List<User> assignees = new ArrayList<>();
+                    for (String email : projectSeed.assignees()) {
+                        User member = seededUsers.get(email);
+                        if (member != null) {
+                            assignees.add(member);
+                        }
+                    }
+                    ensureAssignments(project, assignees);
+                }
+            }
+
+            logger.info("Demo seed completed with {} users and {} projects.", seededUsers.size(), SEED_PROJECTS.size());
+        });
     }
 
     private boolean shouldSeed() {

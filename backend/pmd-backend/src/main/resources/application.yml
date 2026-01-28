@@ -18,7 +18,6 @@ pmd:
   mail:
     from: no-reply@pmd.local
   jwt:
-    secret: ${PMD_JWT_SECRET:}
     expirationSeconds: ${PMD_JWT_EXPIRATIONSECONDS:86400}
 
 server:

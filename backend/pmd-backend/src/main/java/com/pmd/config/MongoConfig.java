@@ -19,10 +19,7 @@ public class MongoConfig {
     private final String mongoUri;
 
     public MongoConfig(Environment environment) {
-        String uri = environment.getProperty("SPRING_DATA_MONGODB_URI");
-        if (uri == null || uri.isBlank()) {
-            uri = environment.getProperty("spring.data.mongodb.uri");
-        }
+        String uri = environment.getProperty("spring.data.mongodb.uri");
         if (uri == null || uri.isBlank()) {
             throw new IllegalStateException("SPRING_DATA_MONGODB_URI (or spring.data.mongodb.uri) must be set for MongoDB.");
         }
