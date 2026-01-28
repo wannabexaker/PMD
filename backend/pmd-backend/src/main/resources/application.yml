@@ -4,11 +4,11 @@ spring:
 
   data:
     mongodb:
-      uri: mongodb://localhost:27017/pmd
+      uri: ${SPRING_DATA_MONGODB_URI}
 
   mail:
-    host: localhost
-    port: 1025
+    host: ${SPRING_MAIL_HOST}
+    port: ${SPRING_MAIL_PORT}
     properties:
       mail:
         smtp:
