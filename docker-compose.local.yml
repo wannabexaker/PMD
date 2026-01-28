@@ -13,7 +13,7 @@ services:
       - "8080:8080"
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/pmd
-      PMD_JWT_SECRET: "change-me-to-a-very-long-secret-key-32-chars-min"
+      PMD_JWT_SECRET: "THIS_IS_A_SUPER_LONG_JWT_SECRET_KEY_AT_LEAST_64_CHARS_LONG_1234567890"
       PMD_JWT_EXPIRATIONSECONDS: 86400
     depends_on:
       - mongo
