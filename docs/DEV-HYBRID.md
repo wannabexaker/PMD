@@ -10,7 +10,7 @@ This is the default local dev workflow. The full dockerized app is still availab
 ## 1) Start dependencies (Docker)
 
 ```powershell
-scripts\pmd-deps-up.ps1
+scripts\pmd_up_deps.ps1
 ```
 
 Services:
@@ -20,7 +20,7 @@ Services:
 ## 2) Start backend locally
 
 ```powershell
-scripts\pmd-backend-dev.ps1
+scripts\pmd_up_backend_dev.ps1
 ```
 
 Defaults (override via backend/pmd-backend/.env):
@@ -34,7 +34,7 @@ Health check:
 ## 3) Start frontend locally
 
 ```powershell
-scripts\pmd-frontend-dev.ps1
+scripts\pmd_up_frontend_dev.ps1
 ```
 
 Default URL:
@@ -46,14 +46,14 @@ Backend API base (override via frontend/pmd-frontend/.env):
 ## 4) One-command dev (deps + FE + BE)
 
 ```powershell
-scripts\pmd-dev.ps1
+scripts\pmd_up_dev.ps1
 ```
 
 ## Stop/Reset deps
 
 ```powershell
-scripts\pmd-deps-down.ps1
-scripts\pmd-deps-reset.ps1
+scripts\pmd_down_deps.ps1
+scripts\pmd_reset_deps.ps1
 ```
 
 ## Notes
