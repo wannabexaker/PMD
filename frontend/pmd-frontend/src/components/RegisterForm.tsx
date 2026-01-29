@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Logo } from './Logo'
 import type { RegisterPayload } from '../types'
 import { useTeams } from '../teams/TeamsContext'
+import { useToast } from '../shared/ui/toast/ToastProvider'
 
 type RegisterFormProps = {
   onRegister: (payload: RegisterPayload) => Promise<void>
@@ -12,6 +13,7 @@ type RegisterFormProps = {
 
 export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: RegisterFormProps) {
   const { teams, loading: teamsLoading } = useTeams()
+  const { showToast } = useToast()
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
     password: '',
@@ -21,33 +23,17 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
     teamId: '',
     bio: '',
   })
-  const [formError, setFormError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [confirmTouched, setConfirmTouched] = useState(false)
-  const errorTimerRef = useRef<number | null>(null)
-
-  const clearErrorTimer = () => {
-    if (errorTimerRef.current) {
-      window.clearTimeout(errorTimerRef.current)
-      errorTimerRef.current = null
-    }
-  }
-
-  const setTimedFormError = (message: string) => {
-    clearErrorTimer()
-    setFormError(message)
-    errorTimerRef.current = window.setTimeout(() => {
-      setFormError(null)
-      errorTimerRef.current = null
-    }, 10000)
-  }
 
   useEffect(() => {
-    return () => {
-      clearErrorTimer()
+    if (!error) {
+      return
     }
-  }, [])
+    showToast({ type: 'error', message: error })
+  }, [error, showToast])
 
   useEffect(() => {
     if (form.teamId || teams.length === 0) {
@@ -80,37 +66,38 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault()
-    clearErrorTimer()
-    setFormError(null)
+    setFieldErrors({})
 
-    if (!form.email.trim() || !form.password.trim()) {
-      setTimedFormError('Email and password are required.')
-      return
+    const errors: Record<string, string> = {}
+    if (!form.email.trim()) {
+      errors.email = 'Email is required.'
     }
-
-    if (!form.firstName.trim() || !form.lastName.trim()) {
-      setTimedFormError('Name and surname are required.')
-      return
+    if (!form.password.trim()) {
+      errors.password = 'Password is required.'
+    } else if (form.password.trim().length < 6) {
+      errors.password = 'Password must be at least 6 characters.'
     }
-
-    if (form.password.trim().length < 6) {
-      setTimedFormError('Password must be at least 6 characters.')
-      return
+    if (!form.confirmPassword.trim()) {
+      errors.confirmPassword = 'Please confirm your password.'
+    } else if (form.password !== form.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match.'
     }
-
-    if (form.password !== form.confirmPassword) {
-      setConfirmTouched(true)
-      setFormError(null)
-      return
+    if (!form.firstName.trim()) {
+      errors.firstName = 'Name is required.'
     }
-
-    if ((form.bio ?? '').length > 256) {
-      setTimedFormError('Bio must be 256 characters or less.')
-      return
+    if (!form.lastName.trim()) {
+      errors.lastName = 'Surname is required.'
     }
-
     if (!form.teamId) {
-      setTimedFormError('Please select a team.')
+      errors.teamId = 'Please select a team.'
+    }
+    if ((form.bio ?? '').length > 256) {
+      errors.bio = 'Bio must be 256 characters or less.'
+    }
+    if (Object.keys(errors).length > 0) {
+      setConfirmTouched(true)
+      setFieldErrors(errors)
+      showToast({ type: 'error', message: 'Please fix highlighted fields.' })
       return
     }
 
@@ -125,9 +112,10 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
         bio: form.bio?.trim() || '',
       })
       setShowSuccess(true)
+      showToast({ type: 'success', message: 'Account created. Check your email to confirm.' })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed'
-      setTimedFormError(message)
+      showToast({ type: 'error', message })
     }
   }
 
@@ -137,8 +125,6 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
     form.password.length > 0 &&
     form.password !== form.confirmPassword
   const mismatchId = 'confirm-password-mismatch'
-
-  const displayError = formError ?? error
 
   return (
     <section className="panel auth-card">
@@ -179,6 +165,7 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                 onChange={handleChange}
                 required
               />
+              <span className="field-error">{fieldErrors.email ?? ''}</span>
             </div>
             <div className="form-field">
               <label htmlFor="password">Password</label>
@@ -201,6 +188,7 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                   {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
               </div>
+              <span className="field-error">{fieldErrors.password ?? ''}</span>
             </div>
             <div className="form-field confirm-password-field">
               <label htmlFor="confirmPassword">Confirm password</label>
@@ -230,19 +218,19 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                   {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
               </div>
-              {passwordMismatch ? (
-                <span id={mismatchId} className="inline-error inline-error-overlay" aria-live="polite">
-                  Passwords do not match.
-                </span>
-              ) : null}
+              <span id={mismatchId} className="field-error" aria-live="polite">
+                {fieldErrors.confirmPassword ?? ''}
+              </span>
             </div>
             <div className="form-field">
               <label htmlFor="firstName">Name</label>
               <input id="firstName" name="firstName" value={form.firstName} onChange={handleChange} required />
+              <span className="field-error">{fieldErrors.firstName ?? ''}</span>
             </div>
             <div className="form-field">
               <label htmlFor="lastName">Surname</label>
               <input id="lastName" name="lastName" value={form.lastName} onChange={handleChange} required />
+              <span className="field-error">{fieldErrors.lastName ?? ''}</span>
             </div>
             <div className="form-field form-span-2">
               <label htmlFor="teamId">Team</label>
@@ -261,14 +249,15 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                   </option>
                 ))}
               </select>
+              <span className="field-error">{fieldErrors.teamId ?? ''}</span>
             </div>
             <div className="form-field form-span-2">
               <label htmlFor="bio">Bio</label>
               <textarea id="bio" name="bio" value={form.bio} onChange={handleChange} rows={3} maxLength={256} />
               <span className="muted">{(form.bio ?? '').length}/256</span>
+              <span className="field-error">{fieldErrors.bio ?? ''}</span>
             </div>
           </div>
-          {displayError ? <p className="error">{displayError}</p> : null}
           <div className="form-field form-span-2">
             <button type="submit" className="btn btn-primary full-width" disabled={loading}>
               {loading ? 'Creating...' : 'Create account'}

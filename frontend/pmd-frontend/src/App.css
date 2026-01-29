@@ -312,6 +312,50 @@ body {
   width: auto;
 }
 
+.toast-container {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  gap: 10px;
+  z-index: 1200;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  min-width: 240px;
+  max-width: 360px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 0.9rem;
+}
+
+.toast-success {
+  border-left: 4px solid #22c55e;
+}
+
+.toast-error {
+  border-left: 4px solid #ef4444;
+}
+
+.toast-info {
+  border-left: 4px solid #38bdf8;
+}
+
+.toast-message {
+  display: block;
+}
+
+.field-error {
+  min-height: 16px;
+  font-size: 0.82rem;
+  color: var(--danger);
+}
+
 .input-with-icon {
   position: relative;
   display: grid;

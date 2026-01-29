@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Logo } from './Logo'
 import type { LoginPayload } from '../types'
+import { useToast } from '../shared/ui/toast/ToastProvider'
 
 type LoginFormProps = {
   onLogin: (payload: LoginPayload) => Promise<void>
@@ -21,13 +22,21 @@ function getSavedEmail() {
 
 export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: LoginFormProps) {
   const [form, setForm] = useState<LoginPayload>(() => ({ username: getSavedEmail(), password: '', remember: false }))
-  const [formError, setFormError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
+  const { showToast } = useToast()
 
+  useEffect(() => {
+    if (!error) {
+      return
+    }
+    showToast({ type: 'error', message: error })
+  }, [error, showToast])
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
+    setFieldErrors((prev) => ({ ...prev, [name]: '' }))
     if (name === 'username') {
       localStorage.setItem(EMAIL_KEY, value)
     }
@@ -40,10 +49,18 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault()
-    setFormError(null)
+    setFieldErrors({})
 
-    if (!form.username.trim() || !form.password) {
-      setFormError('Email and password are required.')
+    const errors: Record<string, string> = {}
+    if (!form.username.trim()) {
+      errors.username = 'Email is required.'
+    }
+    if (!form.password) {
+      errors.password = 'Password is required.'
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      showToast({ type: 'error', message: 'Please fix highlighted fields.' })
       return
     }
 
@@ -66,7 +83,6 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
           Register
         </button>
       </div>
-      {error ? <div className="banner error">{error}</div> : null}
       <form className="form auth-form" onSubmit={handleSubmit}>
         <div className="form-grid">
           <div className="form-field">
@@ -79,6 +95,7 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
               onChange={handleChange}
               required
             />
+            <span className="field-error">{fieldErrors.username ?? ''}</span>
           </div>
           <div className="form-field">
             <label htmlFor="password">Password</label>
@@ -100,6 +117,7 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
                 {showPassword ? <EyeOffIcon /> : <EyeIcon />}
               </button>
             </div>
+            <span className="field-error">{fieldErrors.password ?? ''}</span>
           </div>
         </div>
         <div className="form-meta">
@@ -113,7 +131,6 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
             Remember me
           </label>
         </div>
-        {formError ? <p className="error">{formError}</p> : null}
         <button type="submit" className="btn btn-primary full-width" disabled={loading}>
           {loading ? 'Signing in...' : 'Login'}
         </button>
