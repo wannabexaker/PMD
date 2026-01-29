@@ -4,6 +4,7 @@ import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.auth.policy.AccessPolicy;
 import com.pmd.project.model.ProjectStatus;
+import com.pmd.workspace.repository.WorkspaceMemberRepository;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
@@ -26,11 +27,14 @@ public class UserService {
     private final UserRepository userRepository;
     private final AccessPolicy accessPolicy;
     private final MongoTemplate mongoTemplate;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
 
-    public UserService(UserRepository userRepository, AccessPolicy accessPolicy, MongoTemplate mongoTemplate) {
+    public UserService(UserRepository userRepository, AccessPolicy accessPolicy, MongoTemplate mongoTemplate,
+                       WorkspaceMemberRepository workspaceMemberRepository) {
         this.userRepository = userRepository;
         this.accessPolicy = accessPolicy;
         this.mongoTemplate = mongoTemplate;
+        this.workspaceMemberRepository = workspaceMemberRepository;
     }
 
     public User findById(String id) {
@@ -80,8 +84,8 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public List<User> findAssignableUsers(String query, String teamId, boolean includeAdmins) {
-        List<User> users = includeAdmins ? userRepository.findAll() : userRepository.findByIsAdminFalse();
+    public List<User> findAssignableUsers(String workspaceId, String query, String teamId, boolean includeAdmins) {
+        List<User> users = listUsersForWorkspace(workspaceId, includeAdmins);
         String normalizedQuery = query != null ? query.trim().toLowerCase(Locale.ROOT) : "";
         String normalizedTeamId = teamId != null ? teamId.trim() : "";
 
@@ -105,6 +109,27 @@ public class UserService {
             .toList();
     }
 
+    public List<User> listUsersForWorkspace(String workspaceId, boolean includeAdmins) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return List.of();
+        }
+        List<String> userIds = workspaceMemberRepository.findByWorkspaceId(workspaceId).stream()
+            .map(member -> member.getUserId())
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+        List<User> users = userRepository.findAllById(userIds);
+        if (includeAdmins) {
+            return users;
+        }
+        return users.stream()
+            .filter(user -> !user.isAdmin())
+            .toList();
+    }
+
     public boolean isAdmin(org.springframework.security.core.Authentication authentication) {
         if (authentication == null || authentication.getPrincipal() == null) {
             return false;
@@ -125,7 +150,7 @@ public class UserService {
         return user != null && user.isAdmin();
     }
 
-    public Map<String, Long> findActiveProjectCounts(List<User> users, boolean includeAdminProjects) {
+    public Map<String, Long> findActiveProjectCounts(String workspaceId, List<User> users, boolean includeAdminProjects) {
         if (users == null || users.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -136,7 +161,8 @@ public class UserService {
         if (userIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        Criteria criteria = Criteria.where("status").in(ProjectStatus.NOT_STARTED, ProjectStatus.IN_PROGRESS);
+        Criteria criteria = Criteria.where("workspaceId").is(workspaceId)
+            .and("status").in(ProjectStatus.NOT_STARTED, ProjectStatus.IN_PROGRESS);
         Aggregation aggregation = Aggregation.newAggregation(
             Aggregation.match(criteria),
             Aggregation.unwind("memberIds"),

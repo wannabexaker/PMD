@@ -10,15 +10,18 @@ public class PersonResponse {
 
     private String email;
 
+    private String workspaceId;
+
     private Instant createdAt;
 
     public PersonResponse() {
     }
 
-    public PersonResponse(String id, String displayName, String email, Instant createdAt) {
+    public PersonResponse(String id, String displayName, String email, String workspaceId, Instant createdAt) {
         this.id = id;
         this.displayName = displayName;
         this.email = email;
+        this.workspaceId = workspaceId;
         this.createdAt = createdAt;
     }
 
@@ -44,6 +47,14 @@ public class PersonResponse {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getWorkspaceId() {
+        return workspaceId;
+    }
+
+    public void setWorkspaceId(String workspaceId) {
+        this.workspaceId = workspaceId;
     }
 
     public Instant getCreatedAt() {

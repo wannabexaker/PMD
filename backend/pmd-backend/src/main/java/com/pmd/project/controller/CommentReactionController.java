@@ -6,6 +6,7 @@ import com.pmd.project.dto.ProjectCommentReactionRequest;
 import com.pmd.project.service.ProjectCommentService;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -19,32 +20,39 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/api/comments")
+@RequestMapping("/api/workspaces/{workspaceId}/comments")
 public class CommentReactionController {
 
     private final ProjectCommentService commentService;
     private final UserService userService;
+    private final WorkspaceService workspaceService;
 
-    public CommentReactionController(ProjectCommentService commentService, UserService userService) {
+    public CommentReactionController(ProjectCommentService commentService, UserService userService,
+                                     WorkspaceService workspaceService) {
         this.commentService = commentService;
         this.userService = userService;
+        this.workspaceService = workspaceService;
     }
 
     @PostMapping("/{commentId}/reactions")
     public ProjectCommentItemResponse toggleReaction(
+        @PathVariable String workspaceId,
         @PathVariable String commentId,
         @Valid @RequestBody ProjectCommentReactionRequest request,
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
-        return commentService.toggleReaction(commentId, request, requester);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        return commentService.toggleReaction(workspaceId, commentId, request, requester);
     }
 
     @DeleteMapping("/{commentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteComment(@PathVariable String commentId, Authentication authentication) {
+    public void deleteComment(@PathVariable String workspaceId, @PathVariable String commentId,
+                              Authentication authentication) {
         User requester = getRequester(authentication);
-        commentService.deleteComment(commentId, requester);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        commentService.deleteComment(workspaceId, commentId, requester);
     }
 
     private User getRequester(Authentication authentication) {

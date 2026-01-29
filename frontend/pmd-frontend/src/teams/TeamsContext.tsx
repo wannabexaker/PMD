@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { Team, User } from '../types'
 import { createTeam as createTeamApi, fetchTeams, updateTeam as updateTeamApi } from '../api/teams'
 import { isApiError } from '../api/http'
+import { useWorkspace } from '../workspaces/WorkspaceContext'
 
 type TeamsContextValue = {
   teams: Team[]
@@ -17,15 +18,22 @@ type TeamsContextValue = {
 const TeamsContext = createContext<TeamsContextValue | null>(null)
 
 export function TeamsProvider({ user, children }: { user: User | null; children: ReactNode }) {
+  const { activeWorkspaceId } = useWorkspace()
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
+    if (!activeWorkspaceId || !user) {
+      setTeams([])
+      setError(null)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchTeams()
+      const data = await fetchTeams(activeWorkspaceId)
       const sorted = [...data].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       setTeams(sorted)
     } catch (err) {
@@ -38,12 +46,16 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
 
   const createTeam = useCallback(
     async (name: string) => {
+      if (!activeWorkspaceId) {
+        setError('Select a workspace first.')
+        return null
+      }
       if (!name.trim()) {
         setError('Team name is required.')
         return null
       }
       try {
-        const created = await createTeamApi(name.trim())
+        const created = await createTeamApi(activeWorkspaceId, name.trim())
         setTeams((prev) => {
           const next = [created, ...prev.filter((team) => team.id !== created.id)]
           return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
@@ -59,12 +71,16 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
         return null
       }
     },
-    []
+    [activeWorkspaceId]
   )
 
   const updateTeam = useCallback(async (id: string, payload: { name?: string; isActive?: boolean }) => {
+    if (!activeWorkspaceId) {
+      setError('Select a workspace first.')
+      return null
+    }
     try {
-      const updated = await updateTeamApi(id, payload)
+      const updated = await updateTeamApi(activeWorkspaceId, id, payload)
       setTeams((prev) => {
         const next = prev.map((team) => (team.id === updated.id ? updated : team))
         return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
@@ -75,7 +91,7 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
       setError(message)
       return null
     }
-  }, [])
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     refresh()

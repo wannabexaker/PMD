@@ -5,6 +5,8 @@ import com.pmd.team.repository.TeamRepository;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.util.StartupMongoRetry;
+import com.pmd.workspace.model.Workspace;
+import com.pmd.workspace.repository.WorkspaceRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,59 +41,69 @@ public class TeamSeeder implements ApplicationRunner {
     private final TeamRepository teamRepository;
     private final TeamService teamService;
     private final UserRepository userRepository;
+    private final WorkspaceRepository workspaceRepository;
 
-    public TeamSeeder(TeamRepository teamRepository, TeamService teamService, UserRepository userRepository) {
+    public TeamSeeder(TeamRepository teamRepository, TeamService teamService, UserRepository userRepository,
+                      WorkspaceRepository workspaceRepository) {
         this.teamRepository = teamRepository;
         this.teamService = teamService;
         this.userRepository = userRepository;
+        this.workspaceRepository = workspaceRepository;
     }
 
     @Override
     public void run(ApplicationArguments args) {
         StartupMongoRetry.runWithRetry(logger, "team seed", () -> {
-            List<Team> existingTeams = teamRepository.findAll();
-            Map<String, Team> teamsBySlug = existingTeams.stream()
-                .filter(team -> team.getSlug() != null)
-                .collect(Collectors.toMap(
-                    team -> team.getSlug().toLowerCase(Locale.ROOT),
-                    Function.identity(),
-                    (a, b) -> a
-                ));
-            Map<String, Team> teamsByName = existingTeams.stream()
-                .filter(team -> team.getName() != null)
-                .collect(Collectors.toMap(
-                    team -> team.getName().toLowerCase(Locale.ROOT),
-                    Function.identity(),
-                    (a, b) -> a
-                ));
             String createdBy = userRepository.findAll().stream()
                 .filter(User::isAdmin)
                 .map(User::getId)
                 .findFirst()
                 .orElse(null);
             Instant now = Instant.now();
-            List<Team> teams = new ArrayList<>();
-            for (String name : DEFAULT_TEAMS) {
-                if (name == null || name.isBlank()) {
-                    continue;
+            List<Workspace> workspaces = workspaceRepository.findAll();
+            for (Workspace workspace : workspaces) {
+                List<Team> existingTeams = teamRepository.findByWorkspaceIdAndIsActiveTrue(
+                    workspace.getId(),
+                    org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "name")
+                );
+                Map<String, Team> teamsBySlug = existingTeams.stream()
+                    .filter(team -> team.getSlug() != null)
+                    .collect(Collectors.toMap(
+                        team -> team.getSlug().toLowerCase(Locale.ROOT),
+                        Function.identity(),
+                        (a, b) -> a
+                    ));
+                Map<String, Team> teamsByName = existingTeams.stream()
+                    .filter(team -> team.getName() != null)
+                    .collect(Collectors.toMap(
+                        team -> team.getName().toLowerCase(Locale.ROOT),
+                        Function.identity(),
+                        (a, b) -> a
+                    ));
+                List<Team> teams = new ArrayList<>();
+                for (String name : DEFAULT_TEAMS) {
+                    if (name == null || name.isBlank()) {
+                        continue;
+                    }
+                    String trimmed = name.trim();
+                    String slug = teamService.slugify(trimmed);
+                    if (teamsBySlug.containsKey(slug.toLowerCase(Locale.ROOT))
+                        || teamsByName.containsKey(trimmed.toLowerCase(Locale.ROOT))) {
+                        continue;
+                    }
+                    Team team = new Team();
+                    team.setName(trimmed);
+                    team.setSlug(slug);
+                    team.setWorkspaceId(workspace.getId());
+                    team.setActive(true);
+                    team.setCreatedAt(now);
+                    team.setCreatedBy(createdBy);
+                    teams.add(team);
                 }
-                String trimmed = name.trim();
-                String slug = teamService.slugify(trimmed);
-                if (teamsBySlug.containsKey(slug.toLowerCase(Locale.ROOT))
-                    || teamsByName.containsKey(trimmed.toLowerCase(Locale.ROOT))) {
-                    continue;
+                if (!teams.isEmpty()) {
+                    teamRepository.saveAll(teams);
+                    logger.info("Seeded {} default teams for workspace {}", teams.size(), workspace.getId());
                 }
-                Team team = new Team();
-                team.setName(trimmed);
-                team.setSlug(slug);
-                team.setActive(true);
-                team.setCreatedAt(now);
-                team.setCreatedBy(createdBy);
-                teams.add(team);
-            }
-            if (!teams.isEmpty()) {
-                teamRepository.saveAll(teams);
-                logger.info("Seeded {} default teams.", teams.size());
             }
         });
     }

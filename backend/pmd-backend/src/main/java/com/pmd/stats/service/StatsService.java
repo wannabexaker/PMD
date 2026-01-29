@@ -13,7 +13,7 @@ import com.pmd.stats.dto.StatSlice;
 import com.pmd.stats.dto.UserStatsResponse;
 import com.pmd.stats.dto.WorkspaceDashboardStatsResponse;
 import com.pmd.user.model.User;
-import com.pmd.user.repository.UserRepository;
+import com.pmd.user.service.UserService;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -22,33 +22,38 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class StatsService {
 
     private final ProjectRepository projectRepository;
-    private final UserRepository userRepository;
     private final AccessPolicy accessPolicy;
     private final TeamService teamService;
+    private final UserService userService;
 
-    public StatsService(ProjectRepository projectRepository, UserRepository userRepository,
-                        AccessPolicy accessPolicy, TeamService teamService) {
+    public StatsService(ProjectRepository projectRepository,
+                        AccessPolicy accessPolicy, TeamService teamService, UserService userService) {
         this.projectRepository = projectRepository;
-        this.userRepository = userRepository;
         this.accessPolicy = accessPolicy;
         this.teamService = teamService;
+        this.userService = userService;
     }
 
-    public WorkspaceDashboardStatsResponse getWorkspaceDashboardStats(User requester, List<String> teamFilters,
+    public WorkspaceDashboardStatsResponse getWorkspaceDashboardStats(String workspaceId, User requester, List<String> teamFilters,
                                                                       boolean assignedToMe) {
         boolean isAdmin = accessPolicy.isAdmin(requester);
-        List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
-        List<User> visibleUsers = isAdmin ? userRepository.findAll() : userRepository.findByIsAdminFalse();
+        List<Project> projects = projectRepository.findByWorkspaceId(
+            workspaceId,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+        List<User> visibleUsers = userService.listUsersForWorkspace(workspaceId, isAdmin);
         Map<String, String> userTeams = new HashMap<>();
         Map<String, String> teamLabels = new HashMap<>();
-        List<Team> activeTeams = teamService.findActiveTeams();
+        List<Team> activeTeams = teamService.findActiveTeams(workspaceId);
         for (Team team : activeTeams) {
             if (team.getId() != null) {
                 teamLabels.put(team.getId(), team.getName());
@@ -112,14 +117,15 @@ public class StatsService {
         );
     }
 
-    public UserStatsResponse getUserStats(User requester, User target) {
+    public UserStatsResponse getUserStats(String workspaceId, User requester, User target) {
+        assertUserInWorkspace(workspaceId, target);
         accessPolicy.assertCanViewUser(requester, target);
-        List<Project> projects = projectRepository.findByMemberIdsContaining(target.getId());
+        List<Project> projects = projectRepository.findByWorkspaceIdAndMemberIdsContaining(workspaceId, target.getId());
 
         List<StatSlice> statusBreakdown = buildStatusBreakdown(projects);
         List<StatSlice> activeInactiveBreakdown = buildActiveInactiveBreakdown(projects);
 
-        UserStatsResponse.TeamAverages teamAverages = buildTeamAverages(requester, target);
+        UserStatsResponse.TeamAverages teamAverages = buildTeamAverages(workspaceId, requester, target);
 
         return new UserStatsResponse(
             target.getId(),
@@ -131,12 +137,12 @@ public class StatsService {
         );
     }
 
-    public PeopleOverviewStatsResponse getPeopleOverview(User requester) {
+    public PeopleOverviewStatsResponse getPeopleOverview(String workspaceId, User requester) {
         boolean isAdmin = accessPolicy.isAdmin(requester);
-        List<User> visibleUsers = isAdmin ? userRepository.findAll() : userRepository.findByIsAdminFalse();
+        List<User> visibleUsers = userService.listUsersForWorkspace(workspaceId, isAdmin);
         Map<String, String> teamLabels = new HashMap<>();
         Map<String, String> userTeams = new HashMap<>();
-        for (Team team : teamService.findActiveTeams()) {
+        for (Team team : teamService.findActiveTeams(workspaceId)) {
             if (team.getId() != null) {
                 teamLabels.put(team.getId(), team.getName());
             }
@@ -152,7 +158,10 @@ public class StatsService {
             userTeams.put(user.getId(), teamId);
         }
 
-        List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<Project> projects = projectRepository.findByWorkspaceId(
+            workspaceId,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        );
 
         Map<String, Long> peopleCounts = new HashMap<>();
         for (User user : visibleUsers) {
@@ -191,9 +200,10 @@ public class StatsService {
         return new PeopleOverviewStatsResponse(pies);
     }
 
-    public PeopleUserStatsResponse getPeopleUserStats(User requester, User target) {
+    public PeopleUserStatsResponse getPeopleUserStats(String workspaceId, User requester, User target) {
+        assertUserInWorkspace(workspaceId, target);
         accessPolicy.assertCanViewUser(requester, target);
-        List<Project> projects = projectRepository.findByMemberIdsContaining(target.getId());
+        List<Project> projects = projectRepository.findByWorkspaceIdAndMemberIdsContaining(workspaceId, target.getId());
         List<StatSlice> statusBreakdown = buildStatusBreakdown(projects);
         List<StatSlice> activeInactiveBreakdown = buildActiveInactiveBreakdown(projects);
 
@@ -213,12 +223,14 @@ public class StatsService {
             .toList();
     }
 
-    private UserStatsResponse.TeamAverages buildTeamAverages(User requester, User target) {
+    private UserStatsResponse.TeamAverages buildTeamAverages(String workspaceId, User requester, User target) {
         String teamId = target.getTeamId();
         if (teamId == null || teamId.isBlank()) {
             return null;
         }
-        List<User> teamUsers = userRepository.findByTeamId(teamId);
+        List<User> teamUsers = userService.listUsersForWorkspace(workspaceId, accessPolicy.isAdmin(requester)).stream()
+            .filter(user -> teamId.equals(user.getTeamId()))
+            .toList();
         List<String> teamUserIds = teamUsers.stream()
             .map(User::getId)
             .filter(Objects::nonNull)
@@ -226,7 +238,10 @@ public class StatsService {
         if (teamUserIds.isEmpty()) {
             return null;
         }
-        List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<Project> projects = projectRepository.findByWorkspaceId(
+            workspaceId,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        );
         Map<String, Long> activeAssignmentsByUser = new HashMap<>();
         for (Project project : projects) {
             ProjectStatus status = project.getStatus() != null ? project.getStatus() : ProjectStatus.NOT_STARTED;
@@ -371,5 +386,16 @@ public class StatsService {
             return "";
         }
         return team.trim();
+    }
+
+    private void assertUserInWorkspace(String workspaceId, User target) {
+        if (target == null || target.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+        boolean exists = userService.listUsersForWorkspace(workspaceId, true).stream()
+            .anyMatch(user -> target.getId().equals(user.getId()));
+        if (!exists) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
     }
 }

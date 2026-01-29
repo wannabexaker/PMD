@@ -26,20 +26,20 @@ public class TeamService {
         this.teamRepository = teamRepository;
     }
 
-    public List<Team> findActiveTeams() {
-        return teamRepository.findByIsActiveTrue(Sort.by(Sort.Direction.ASC, "name"));
+    public List<Team> findActiveTeams(String workspaceId) {
+        return teamRepository.findByWorkspaceIdAndIsActiveTrue(workspaceId, Sort.by(Sort.Direction.ASC, "name"));
     }
 
-    public Optional<Team> findById(String id) {
-        return teamRepository.findById(id);
+    public Optional<Team> findById(String workspaceId, String id) {
+        return teamRepository.findByIdAndWorkspaceId(id, workspaceId);
     }
 
-    public Optional<Team> findBySlug(String slug) {
-        return teamRepository.findBySlug(slug);
+    public Optional<Team> findBySlug(String workspaceId, String slug) {
+        return teamRepository.findBySlugAndWorkspaceId(slug, workspaceId);
     }
 
-    public Team requireActiveTeam(String id) {
-        Team team = teamRepository.findById(id)
+    public Team requireActiveTeam(String workspaceId, String id) {
+        Team team = teamRepository.findByIdAndWorkspaceId(id, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
         if (!team.isActive()) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Team is inactive");
@@ -47,43 +47,45 @@ public class TeamService {
         return team;
     }
 
-    public Team createTeam(TeamRequest request, User creator) {
+    public Team createTeam(TeamRequest request, User creator, String workspaceId) {
         String name = request.getName() != null ? request.getName().trim() : "";
         if (name.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Team name is required");
         }
-        if (teamRepository.existsByNameIgnoreCase(name)) {
+        if (teamRepository.existsByNameIgnoreCaseAndWorkspaceId(name, workspaceId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Team name already exists");
         }
         String slug = slugify(name);
         if (slug.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid team name");
         }
-        if (teamRepository.existsBySlug(slug)) {
+        if (teamRepository.existsBySlugAndWorkspaceId(slug, workspaceId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Team slug already exists");
         }
         Team team = new Team();
         team.setName(name);
         team.setSlug(slug);
+        team.setWorkspaceId(workspaceId);
         team.setActive(true);
         team.setCreatedAt(Instant.now());
         team.setCreatedBy(creator != null ? creator.getId() : null);
         return teamRepository.save(team);
     }
 
-    public Team updateTeam(String id, String name, Boolean isActive) {
-        Team team = teamRepository.findById(id)
+    public Team updateTeam(String workspaceId, String id, String name, Boolean isActive) {
+        Team team = teamRepository.findByIdAndWorkspaceId(id, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
         if (name != null) {
             String trimmed = name.trim();
             if (trimmed.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Team name is required");
             }
-            if (!trimmed.equalsIgnoreCase(team.getName()) && teamRepository.existsByNameIgnoreCase(trimmed)) {
+            if (!trimmed.equalsIgnoreCase(team.getName())
+                && teamRepository.existsByNameIgnoreCaseAndWorkspaceId(trimmed, workspaceId)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Team name already exists");
             }
             String slug = slugify(trimmed);
-            if (!slug.equals(team.getSlug()) && teamRepository.existsBySlug(slug)) {
+            if (!slug.equals(team.getSlug()) && teamRepository.existsBySlugAndWorkspaceId(slug, workspaceId)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Team slug already exists");
             }
             team.setName(trimmed);

@@ -10,6 +10,7 @@ import com.pmd.project.dto.RandomProjectRequest;
 import com.pmd.auth.security.UserPrincipal;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -27,79 +28,98 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
-@RequestMapping("/api/projects")
+@RequestMapping("/api/workspaces/{workspaceId}/projects")
 public class ProjectController {
 
     private final ProjectService projectService;
     private final UserService userService;
+    private final WorkspaceService workspaceService;
 
-    public ProjectController(ProjectService projectService, UserService userService) {
+    public ProjectController(ProjectService projectService, UserService userService,
+                             WorkspaceService workspaceService) {
         this.projectService = projectService;
         this.userService = userService;
+        this.workspaceService = workspaceService;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ProjectResponse create(@Valid @RequestBody ProjectRequest request, Authentication authentication) {
+    public ProjectResponse create(@PathVariable String workspaceId,
+                                  @Valid @RequestBody ProjectRequest request,
+                                  Authentication authentication) {
         User requester = getRequester(authentication);
-        return projectService.create(request, requester);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        return projectService.create(workspaceId, request, requester);
     }
 
     @GetMapping
     public List<ProjectResponse> findAll(
+        @PathVariable String workspaceId,
         @RequestParam(name = "assignedToMe", defaultValue = "false") boolean assignedToMe,
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
-        return projectService.findAll(requester, assignedToMe);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        return projectService.findAll(workspaceId, requester, assignedToMe);
     }
 
     @GetMapping("/my-stats")
-    public DashboardStatsResponse myStats(Authentication authentication) {
+    public DashboardStatsResponse myStats(@PathVariable String workspaceId, Authentication authentication) {
         User requester = getRequester(authentication);
-        return projectService.getMyDashboardStats(requester);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        return projectService.getMyDashboardStats(workspaceId, requester);
     }
 
     @PostMapping("/random")
     public ProjectResponse randomProject(
+        @PathVariable String workspaceId,
         @RequestBody(required = false) RandomProjectRequest request,
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
+        workspaceService.requireActiveMembership(workspaceId, requester);
         String teamId = request != null ? request.getTeamId() : null;
-        return projectService.randomProject(requester, teamId);
+        return projectService.randomProject(workspaceId, requester, teamId);
     }
 
     @GetMapping("/{id}")
-    public ProjectResponse findById(@PathVariable String id, Authentication authentication) {
+    public ProjectResponse findById(@PathVariable String workspaceId, @PathVariable String id,
+                                    Authentication authentication) {
         User requester = getRequester(authentication);
-        return projectService.findById(id, requester);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        return projectService.findById(workspaceId, id, requester);
     }
 
     @PutMapping("/{id}")
-    public ProjectResponse update(@PathVariable String id, @Valid @RequestBody ProjectRequest request,
+    public ProjectResponse update(@PathVariable String workspaceId,
+                                  @PathVariable String id,
+                                  @Valid @RequestBody ProjectRequest request,
                                   Authentication authentication) {
         User requester = getRequester(authentication);
+        workspaceService.requireActiveMembership(workspaceId, requester);
         String assignedByUserId = requester.getId();
-        return projectService.update(id, request, assignedByUserId, requester);
+        return projectService.update(workspaceId, id, request, assignedByUserId, requester);
     }
 
     @PostMapping("/{id}/random-assign")
     public RandomAssignResponse randomAssign(
+        @PathVariable String workspaceId,
         @PathVariable String id,
         @RequestBody(required = false) RandomAssignRequest request,
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
+        workspaceService.requireActiveMembership(workspaceId, requester);
         String teamId = request != null ? request.getTeamId() : null;
-        return projectService.randomAssign(id, requester, teamId);
+        return projectService.randomAssign(workspaceId, id, requester, teamId);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable String id, Authentication authentication) {
+    public void delete(@PathVariable String workspaceId, @PathVariable String id, Authentication authentication) {
         User requester = getRequester(authentication);
-        projectService.delete(id, requester);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        projectService.delete(workspaceId, id, requester);
     }
 
     private User getRequester(Authentication authentication) {

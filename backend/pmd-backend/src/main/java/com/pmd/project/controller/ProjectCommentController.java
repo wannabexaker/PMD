@@ -6,6 +6,7 @@ import com.pmd.project.dto.ProjectCommentItemResponse;
 import com.pmd.project.service.ProjectCommentService;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.data.domain.Page;
@@ -22,38 +23,45 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/api/projects/{projectId}/comments")
+@RequestMapping("/api/workspaces/{workspaceId}/projects/{projectId}/comments")
 public class ProjectCommentController {
 
     private final ProjectCommentService commentService;
     private final UserService userService;
+    private final WorkspaceService workspaceService;
 
-    public ProjectCommentController(ProjectCommentService commentService, UserService userService) {
+    public ProjectCommentController(ProjectCommentService commentService, UserService userService,
+                                    WorkspaceService workspaceService) {
         this.commentService = commentService;
         this.userService = userService;
+        this.workspaceService = workspaceService;
     }
 
     @GetMapping
     public List<ProjectCommentItemResponse> list(
+        @PathVariable String workspaceId,
         @PathVariable String projectId,
         @RequestParam(name = "page", defaultValue = "0") int page,
         @RequestParam(name = "size", defaultValue = "50") int size,
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
-        Page<ProjectCommentItemResponse> result = commentService.listComments(projectId, page, size, requester);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        Page<ProjectCommentItemResponse> result = commentService.listComments(workspaceId, projectId, page, size, requester);
         return result.getContent();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ProjectCommentItemResponse create(
+        @PathVariable String workspaceId,
         @PathVariable String projectId,
         @Valid @RequestBody ProjectCommentCreateRequest request,
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
-        return commentService.addComment(projectId, request, requester);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        return commentService.addComment(workspaceId, projectId, request, requester);
     }
 
     private User getRequester(Authentication authentication) {

@@ -45,8 +45,9 @@ public class ProjectCommentService {
         this.userRepository = userRepository;
     }
 
-    public Page<ProjectCommentItemResponse> listComments(String projectId, int page, int size, User requester) {
-        Project project = getProjectForUser(projectId, requester);
+    public Page<ProjectCommentItemResponse> listComments(String workspaceId, String projectId, int page, int size,
+                                                         User requester) {
+        Project project = getProjectForUser(workspaceId, projectId, requester);
         accessPolicy.assertCanViewProject(requester, project);
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         PageRequest pageRequest = PageRequest.of(Math.max(page, 0), safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -54,8 +55,9 @@ public class ProjectCommentService {
             .map(this::toResponse);
     }
 
-    public ProjectCommentItemResponse addComment(String projectId, ProjectCommentCreateRequest request, User requester) {
-        Project project = getProjectForUser(projectId, requester);
+    public ProjectCommentItemResponse addComment(String workspaceId, String projectId,
+                                                 ProjectCommentCreateRequest request, User requester) {
+        Project project = getProjectForUser(workspaceId, projectId, requester);
         accessPolicy.assertCanViewProject(requester, project);
         if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message is required");
@@ -81,10 +83,10 @@ public class ProjectCommentService {
         return toResponse(saved);
     }
 
-    public ProjectCommentItemResponse toggleReaction(String commentId, ProjectCommentReactionRequest request,
-                                                     User requester) {
+    public ProjectCommentItemResponse toggleReaction(String workspaceId, String commentId,
+                                                     ProjectCommentReactionRequest request, User requester) {
         ProjectCommentEntity comment = findCommentOrThrow(commentId);
-        Project project = getProjectForUser(comment.getProjectId(), requester);
+        Project project = getProjectForUser(workspaceId, comment.getProjectId(), requester);
         accessPolicy.assertCanViewProject(requester, project);
 
         CommentReactionType type = Optional.ofNullable(request.getType())
@@ -118,9 +120,9 @@ public class ProjectCommentService {
         return toResponse(saved);
     }
 
-    public void deleteComment(String commentId, User requester) {
+    public void deleteComment(String workspaceId, String commentId, User requester) {
         ProjectCommentEntity comment = findCommentOrThrow(commentId);
-        Project project = getProjectForUser(comment.getProjectId(), requester);
+        Project project = getProjectForUser(workspaceId, comment.getProjectId(), requester);
         accessPolicy.assertCanViewProject(requester, project);
         boolean isAdmin = accessPolicy.isAdmin(requester);
         if (!isAdmin && !requester.getId().equals(comment.getAuthorUserId())) {
@@ -129,8 +131,8 @@ public class ProjectCommentService {
         commentRepository.delete(comment);
     }
 
-    private Project getProjectForUser(String projectId, User requester) {
-        Project project = projectRepository.findById(projectId)
+    private Project getProjectForUser(String workspaceId, String projectId, User requester) {
+        Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
         if (!accessPolicy.isAdmin(requester) && isAuthoredByAdmin(project)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");

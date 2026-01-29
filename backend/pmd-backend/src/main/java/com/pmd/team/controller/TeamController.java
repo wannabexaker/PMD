@@ -9,6 +9,7 @@ import com.pmd.team.model.Team;
 import com.pmd.team.service.TeamService;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -24,46 +25,56 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/api/teams")
+@RequestMapping("/api/workspaces/{workspaceId}/teams")
 public class TeamController {
 
     private final TeamService teamService;
     private final UserService userService;
     private final AccessPolicy accessPolicy;
+    private final WorkspaceService workspaceService;
 
-    public TeamController(TeamService teamService, UserService userService, AccessPolicy accessPolicy) {
+    public TeamController(TeamService teamService, UserService userService, AccessPolicy accessPolicy,
+                          WorkspaceService workspaceService) {
         this.teamService = teamService;
         this.userService = userService;
         this.accessPolicy = accessPolicy;
+        this.workspaceService = workspaceService;
     }
 
     @GetMapping
-    public List<TeamResponse> listTeams() {
-        return teamService.findActiveTeams().stream()
+    public List<TeamResponse> listTeams(@PathVariable String workspaceId, Authentication authentication) {
+        User requester = getRequester(authentication);
+        workspaceService.requireActiveMembership(workspaceId, requester);
+        return teamService.findActiveTeams(workspaceId).stream()
             .map(this::toResponse)
             .toList();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public TeamResponse createTeam(@Valid @RequestBody TeamRequest request, Authentication authentication) {
+    public TeamResponse createTeam(@PathVariable String workspaceId,
+                                   @Valid @RequestBody TeamRequest request,
+                                   Authentication authentication) {
         User requester = getRequester(authentication);
+        workspaceService.requireActiveMembership(workspaceId, requester);
         if (!accessPolicy.isAdmin(requester)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only");
         }
-        Team team = teamService.createTeam(request, requester);
+        Team team = teamService.createTeam(request, requester, workspaceId);
         return toResponse(team);
     }
 
     @PatchMapping("/{id}")
-    public TeamResponse updateTeam(@PathVariable String id,
+    public TeamResponse updateTeam(@PathVariable String workspaceId,
+                                   @PathVariable String id,
                                    @RequestBody TeamUpdateRequest request,
                                    Authentication authentication) {
         User requester = getRequester(authentication);
+        workspaceService.requireActiveMembership(workspaceId, requester);
         if (!accessPolicy.isAdmin(requester)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only");
         }
-        Team team = teamService.updateTeam(id, request.getName(), request.getIsActive());
+        Team team = teamService.updateTeam(workspaceId, id, request.getName(), request.getIsActive());
         return toResponse(team);
     }
 
@@ -72,6 +83,7 @@ public class TeamController {
             team.getId(),
             team.getName(),
             team.getSlug(),
+            team.getWorkspaceId(),
             team.isActive(),
             team.getCreatedAt(),
             team.getCreatedBy()

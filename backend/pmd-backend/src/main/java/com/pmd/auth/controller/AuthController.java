@@ -12,14 +12,11 @@ import com.pmd.auth.security.JwtService;
 import com.pmd.auth.service.EmailVerificationTokenService;
 import com.pmd.notification.WelcomeEmailService;
 import com.pmd.auth.security.UserPrincipal;
-import com.pmd.team.model.Team;
-import com.pmd.team.service.TeamService;
 import com.pmd.user.model.PeoplePageWidgets;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
 import jakarta.validation.Valid;
 import java.util.Map;
-import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -43,18 +40,15 @@ public class AuthController {
     private final JwtService jwtService;
     private final WelcomeEmailService welcomeEmailService;
     private final EmailVerificationTokenService emailVerificationTokenService;
-    private final TeamService teamService;
 
     public AuthController(UserService userService, PasswordEncoder passwordEncoder, JwtService jwtService,
                           WelcomeEmailService welcomeEmailService,
-                          EmailVerificationTokenService emailVerificationTokenService,
-                          TeamService teamService) {
+                          EmailVerificationTokenService emailVerificationTokenService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.welcomeEmailService = welcomeEmailService;
         this.emailVerificationTokenService = emailVerificationTokenService;
-        this.teamService = teamService;
     }
 
     @PostMapping("/login")
@@ -92,9 +86,8 @@ public class AuthController {
         user.setEmail(request.getEmail());
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
-        Team resolved = resolveTeam(request.getTeamId(), request.getTeam());
-        user.setTeamId(resolved != null ? resolved.getId() : null);
-        user.setTeam(resolved != null ? resolved.getName() : null);
+        user.setTeamId(request.getTeamId());
+        user.setTeam(request.getTeam());
         user.setBio(request.getBio());
         user.setDisplayName(buildDisplayName(user));
 
@@ -125,9 +118,10 @@ public class AuthController {
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         user.setEmail(request.getEmail());
-        Team resolved = resolveTeam(request.getTeamId(), request.getTeam());
-        user.setTeamId(resolved != null ? resolved.getId() : null);
-        user.setTeam(resolved != null ? resolved.getName() : null);
+        if (request.getTeamId() != null || request.getTeam() != null) {
+            user.setTeamId(request.getTeamId());
+            user.setTeam(request.getTeam());
+        }
         user.setBio(request.getBio());
         user.setDisplayName(buildDisplayName(user));
 
@@ -173,47 +167,14 @@ public class AuthController {
             user.getEmail(),
             user.getFirstName(),
             user.getLastName(),
-            teamNameFor(user),
+            user.getTeam(),
             user.getTeamId(),
-            teamNameFor(user),
+            user.getTeam(),
             user.isAdmin(),
             user.getBio(),
             user.isEmailVerified(),
             widgets
         );
-    }
-
-    private Team resolveTeam(String teamId, String teamName) {
-        if (teamId != null && !teamId.isBlank()) {
-            return teamService.requireActiveTeam(teamId.trim());
-        }
-        if (teamName != null && !teamName.isBlank()) {
-            String trimmed = teamName.trim();
-            Optional<Team> bySlug = teamService.findBySlug(teamService.slugify(trimmed));
-            if (bySlug.isPresent()) {
-                Team team = bySlug.get();
-                if (!team.isActive()) {
-                    throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Team is inactive");
-                }
-                return team;
-            }
-            for (Team team : teamService.findActiveTeams()) {
-                if (team.getName().equalsIgnoreCase(trimmed)) {
-                    return team;
-                }
-            }
-        }
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Team is required");
-    }
-
-    private String teamNameFor(User user) {
-        if (user == null) {
-            return null;
-        }
-        if (user.getTeamId() == null) {
-            return user.getTeam();
-        }
-        return teamService.findById(user.getTeamId()).map(Team::getName).orElse(user.getTeam());
     }
 
     private String buildDisplayName(User user) {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Logo } from './Logo'
 import type { RegisterPayload } from '../types'
-import { useTeams } from '../teams/TeamsContext'
 import { useToast } from '../shared/ui/toast/ToastProvider'
 
 type RegisterFormProps = {
@@ -12,7 +11,6 @@ type RegisterFormProps = {
 }
 
 export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: RegisterFormProps) {
-  const { teams, loading: teamsLoading } = useTeams()
   const { showToast } = useToast()
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
@@ -20,7 +18,6 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
     confirmPassword: '',
     firstName: '',
     lastName: '',
-    teamId: '',
     bio: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -34,16 +31,6 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
     }
     showToast({ type: 'error', message: error })
   }, [error, showToast])
-
-  useEffect(() => {
-    if (form.teamId || teams.length === 0) {
-      return
-    }
-    const firstTeam = teams.find((team) => team.id)
-    if (firstTeam?.id) {
-      setForm((prev) => ({ ...prev, teamId: firstTeam.id as string }))
-    }
-  }, [teams, form.teamId])
 
   useEffect(() => {
     if (!showSuccess) {
@@ -88,9 +75,6 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
     if (!form.lastName.trim()) {
       errors.lastName = 'Surname is required.'
     }
-    if (!form.teamId) {
-      errors.teamId = 'Please select a team.'
-    }
     if ((form.bio ?? '').length > 256) {
       errors.bio = 'Bio must be 256 characters or less.'
     }
@@ -108,7 +92,6 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
         confirmPassword: form.confirmPassword.trim(),
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        teamId: form.teamId,
         bio: form.bio?.trim() || '',
       })
       setShowSuccess(true)
@@ -231,25 +214,6 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
               <label htmlFor="lastName">Surname</label>
               <input id="lastName" name="lastName" value={form.lastName} onChange={handleChange} required />
               <span className="field-error">{fieldErrors.lastName ?? ''}</span>
-            </div>
-            <div className="form-field form-span-2">
-              <label htmlFor="teamId">Team</label>
-              <select
-                id="teamId"
-                name="teamId"
-                value={form.teamId}
-                onChange={handleChange}
-                required
-                disabled={teamsLoading && teams.length === 0}
-              >
-                <option value="">{teamsLoading ? 'Loading teams...' : 'Select team'}</option>
-                {teams.map((team) => (
-                  <option key={team.id ?? team.name} value={team.id ?? ''}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-              <span className="field-error">{fieldErrors.teamId ?? ''}</span>
             </div>
             <div className="form-field form-span-2">
               <label htmlFor="bio">Bio</label>

@@ -3,6 +3,7 @@ package com.pmd.project.model;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document("projects")
@@ -31,12 +32,15 @@ public class Project {
 
     private String teamId;
 
+    @Indexed
+    private String workspaceId;
+
     public Project() {
     }
 
     public Project(String id, String name, String description, ProjectStatus status, List<String> memberIds,
                    List<ProjectComment> comments, Instant createdAt, Instant updatedAt, String createdByUserId,
-                   String createdByTeam, String teamId) {
+                   String createdByTeam, String teamId, String workspaceId) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -48,6 +52,7 @@ public class Project {
         this.createdByUserId = createdByUserId;
         this.createdByTeam = createdByTeam;
         this.teamId = teamId;
+        this.workspaceId = workspaceId;
     }
 
     public String getId() {
@@ -136,5 +141,13 @@ public class Project {
 
     public void setTeamId(String teamId) {
         this.teamId = teamId;
+    }
+
+    public String getWorkspaceId() {
+        return workspaceId;
+    }
+
+    public void setWorkspaceId(String workspaceId) {
+        this.workspaceId = workspaceId;
     }
 }

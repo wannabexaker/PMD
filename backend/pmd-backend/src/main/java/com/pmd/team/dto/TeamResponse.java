@@ -7,6 +7,7 @@ public class TeamResponse {
     private String id;
     private String name;
     private String slug;
+    private String workspaceId;
     private boolean isActive;
     private Instant createdAt;
     private String createdBy;
@@ -14,10 +15,12 @@ public class TeamResponse {
     public TeamResponse() {
     }
 
-    public TeamResponse(String id, String name, String slug, boolean isActive, Instant createdAt, String createdBy) {
+    public TeamResponse(String id, String name, String slug, String workspaceId, boolean isActive,
+                        Instant createdAt, String createdBy) {
         this.id = id;
         this.name = name;
         this.slug = slug;
+        this.workspaceId = workspaceId;
         this.isActive = isActive;
         this.createdAt = createdAt;
         this.createdBy = createdBy;
@@ -45,6 +48,14 @@ public class TeamResponse {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public String getWorkspaceId() {
+        return workspaceId;
+    }
+
+    public void setWorkspaceId(String workspaceId) {
+        this.workspaceId = workspaceId;
     }
 
     public boolean isActive() {

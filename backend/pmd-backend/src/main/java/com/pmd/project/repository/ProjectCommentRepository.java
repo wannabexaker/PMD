@@ -10,4 +10,5 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 public interface ProjectCommentRepository extends MongoRepository<ProjectCommentEntity, String> {
     Page<ProjectCommentEntity> findByProjectId(String projectId, Pageable pageable);
     List<ProjectCommentEntity> findByAuthorUserIdAndCreatedAtGreaterThanEqual(String authorUserId, Instant createdAt);
+    void deleteByProjectIdIn(List<String> projectIds);
 }

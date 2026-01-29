@@ -32,13 +32,15 @@ public class ProjectResponse {
 
     private String teamName;
 
+    private String workspaceId;
+
     public ProjectResponse() {
     }
 
     public ProjectResponse(String id, String name, String description, ProjectStatus status, List<String> memberIds,
                            List<ProjectCommentResponse> comments, Instant createdAt, Instant updatedAt,
                            String createdByUserId, String createdByName, String createdByTeam,
-                           String teamId, String teamName) {
+                           String teamId, String teamName, String workspaceId) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -52,6 +54,7 @@ public class ProjectResponse {
         this.createdByTeam = createdByTeam;
         this.teamId = teamId;
         this.teamName = teamName;
+        this.workspaceId = workspaceId;
     }
 
     public String getId() {
@@ -156,5 +159,13 @@ public class ProjectResponse {
 
     public void setTeamName(String teamName) {
         this.teamName = teamName;
+    }
+
+    public String getWorkspaceId() {
+        return workspaceId;
+    }
+
+    public void setWorkspaceId(String workspaceId) {
+        this.workspaceId = workspaceId;
     }
 }

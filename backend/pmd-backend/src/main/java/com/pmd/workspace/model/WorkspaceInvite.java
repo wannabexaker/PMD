@@ -1,0 +1,97 @@
+package com.pmd.workspace.model;
+
+import java.time.Instant;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document("workspace_invites")
+public class WorkspaceInvite {
+
+    @Id
+    private String id;
+
+    @Indexed
+    private String workspaceId;
+
+    @Indexed(unique = true)
+    private String token;
+
+    private String invitedEmail;
+
+    private Instant expiresAt;
+
+    private Instant createdAt;
+
+    private String createdByUserId;
+
+    public WorkspaceInvite() {
+    }
+
+    public WorkspaceInvite(String id, String workspaceId, String token, String invitedEmail,
+                           Instant expiresAt, Instant createdAt, String createdByUserId) {
+        this.id = id;
+        this.workspaceId = workspaceId;
+        this.token = token;
+        this.invitedEmail = invitedEmail;
+        this.expiresAt = expiresAt;
+        this.createdAt = createdAt;
+        this.createdByUserId = createdByUserId;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getWorkspaceId() {
+        return workspaceId;
+    }
+
+    public void setWorkspaceId(String workspaceId) {
+        this.workspaceId = workspaceId;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+    }
+
+    public String getInvitedEmail() {
+        return invitedEmail;
+    }
+
+    public void setInvitedEmail(String invitedEmail) {
+        this.invitedEmail = invitedEmail;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Instant expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getCreatedByUserId() {
+        return createdByUserId;
+    }
+
+    public void setCreatedByUserId(String createdByUserId) {
+        this.createdByUserId = createdByUserId;
+    }
+}

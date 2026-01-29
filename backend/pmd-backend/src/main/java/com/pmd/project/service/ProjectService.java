@@ -59,7 +59,7 @@ public class ProjectService {
         this.teamService = teamService;
     }
 
-    public ProjectResponse create(ProjectRequest request, User requester) {
+    public ProjectResponse create(String workspaceId, ProjectRequest request, User requester) {
         log.debug(
             "Project create db={}, collection={}, requesterId={}, status={}, memberCount={}",
             mongoTemplate.getDb().getName(),
@@ -68,7 +68,7 @@ public class ProjectService {
             request.getStatus(),
             request.getMemberIds() != null ? request.getMemberIds().size() : 0
         );
-        Team team = teamService.requireActiveTeam(request.getTeamId());
+        Team team = teamService.requireActiveTeam(workspaceId, request.getTeamId());
         Project project = new Project();
         project.setName(request.getName());
         project.setDescription(request.getDescription());
@@ -79,6 +79,7 @@ public class ProjectService {
         project.setCreatedByUserId(requester.getId());
         project.setCreatedByTeam(team.getName());
         project.setTeamId(team.getId());
+        project.setWorkspaceId(workspaceId);
 
         validateAssignees(requester, project, request.getMemberIds());
 
@@ -94,8 +95,11 @@ public class ProjectService {
         return response;
     }
 
-    public List<ProjectResponse> findAll(User requester, boolean assignedToMe) {
-        List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+    public List<ProjectResponse> findAll(String workspaceId, User requester, boolean assignedToMe) {
+        List<Project> projects = projectRepository.findByWorkspaceId(
+            workspaceId,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        );
         log.debug(
             "Project list db={}, collection={}, sort=createdAt DESC, isAdmin={}, assignedToMe={}, fetched={}",
             mongoTemplate.getDb().getName(),
@@ -123,19 +127,27 @@ public class ProjectService {
             .toList();
     }
 
-    public ProjectResponse findById(String id, User requester) {
-        Project project = getByIdForUser(id, requester);
+    public ProjectResponse findById(String workspaceId, String id, User requester) {
+        Project project = getByIdForUser(workspaceId, id, requester);
         return toResponse(project);
     }
 
-    public ProjectResponse randomProject(User requester, String teamId) {
-        List<Project> projects = projectRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+    public ProjectResponse randomProject(String workspaceId, User requester, String teamId) {
+        List<Project> projects = projectRepository.findByWorkspaceId(
+            workspaceId,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        );
         projects = projects.stream()
             .filter(this::isRandomEligibleProject)
             .toList();
 
         if (teamId != null && !teamId.isBlank()) {
-            List<User> teamCandidates = userService.findAssignableUsers(null, teamId, accessPolicy.isAdmin(requester));
+            List<User> teamCandidates = userService.findAssignableUsers(
+                workspaceId,
+                null,
+                teamId,
+                accessPolicy.isAdmin(requester)
+            );
             if (teamCandidates.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "No eligible people for that team");
             }
@@ -156,13 +168,13 @@ public class ProjectService {
         return toResponse(chosen);
     }
 
-    public RandomAssignResponse randomAssign(String projectId, User requester, String teamId) {
-        Project project = getByIdForUser(projectId, requester);
+    public RandomAssignResponse randomAssign(String workspaceId, String projectId, User requester, String teamId) {
+        Project project = getByIdForUser(workspaceId, projectId, requester);
         if (!isRandomEligibleProject(project)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Project is not eligible for random assignment");
         }
         boolean isAdmin = accessPolicy.isAdmin(requester);
-        List<User> candidates = userService.findAssignableUsers(null, teamId, isAdmin).stream()
+        List<User> candidates = userService.findAssignableUsers(workspaceId, null, teamId, isAdmin).stream()
             .filter(user -> user.getId() != null)
             .filter(user -> project.getMemberIds() == null || !project.getMemberIds().contains(user.getId()))
             .toList();
@@ -170,7 +182,7 @@ public class ProjectService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "No eligible people available to assign");
         }
 
-        Map<String, Long> activeCounts = userService.findActiveProjectCounts(candidates, isAdmin);
+        Map<String, Long> activeCounts = userService.findActiveProjectCounts(workspaceId, candidates, isAdmin);
         long minCount = candidates.stream()
             .mapToLong(user -> activeCounts.getOrDefault(user.getId(), 0L))
             .min()
@@ -203,13 +215,19 @@ public class ProjectService {
             minimalCandidates.size()
         );
         ProjectResponse response = toResponse(saved);
-        UserSummaryResponse assignedPerson = toUserSummary(chosen, activeCounts.getOrDefault(chosen.getId(), 0L), requester);
+        UserSummaryResponse assignedPerson = toUserSummary(
+            workspaceId,
+            chosen,
+            activeCounts.getOrDefault(chosen.getId(), 0L),
+            requester
+        );
         return new RandomAssignResponse(response, assignedPerson);
     }
 
-    public ProjectResponse update(String id, ProjectRequest request, String assignedByUserId, User requester) {
-        Team team = teamService.requireActiveTeam(request.getTeamId());
-        Project project = getByIdForUser(id, requester);
+    public ProjectResponse update(String workspaceId, String id, ProjectRequest request, String assignedByUserId,
+                                  User requester) {
+        Team team = teamService.requireActiveTeam(workspaceId, request.getTeamId());
+        Project project = getByIdForUser(workspaceId, id, requester);
         List<String> previousMemberIds = project.getMemberIds() != null
             ? new ArrayList<>(project.getMemberIds())
             : List.of();
@@ -228,14 +246,14 @@ public class ProjectService {
         return toResponse(saved);
     }
 
-    public void delete(String id, User requester) {
-        Project project = getByIdForUser(id, requester);
+    public void delete(String workspaceId, String id, User requester) {
+        Project project = getByIdForUser(workspaceId, id, requester);
         projectRepository.delete(project);
     }
 
-    public DashboardStatsResponse getMyDashboardStats(User requester) {
+    public DashboardStatsResponse getMyDashboardStats(String workspaceId, User requester) {
         String userId = requester.getId();
-        List<Project> projects = projectRepository.findByMemberIdsContaining(userId);
+        List<Project> projects = projectRepository.findByWorkspaceIdAndMemberIdsContaining(workspaceId, userId);
 
         Map<ProjectStatus, Long> statusCounts = new EnumMap<>(ProjectStatus.class);
         long activeCount = 0;
@@ -327,7 +345,7 @@ public class ProjectService {
         }
         String teamName = createdByTeam;
         if (project.getTeamId() != null) {
-            teamName = teamService.findById(project.getTeamId())
+            teamName = teamService.findById(project.getWorkspaceId(), project.getTeamId())
                 .map(Team::getName)
                 .orElse(createdByTeam);
         }
@@ -345,17 +363,18 @@ public class ProjectService {
             createdByName,
             createdByTeam,
             project.getTeamId(),
-            teamName
+            teamName,
+            project.getWorkspaceId()
         );
     }
 
-    private Project getByIdOrThrow(String id) {
-        return projectRepository.findById(id)
+    private Project getByIdOrThrow(String workspaceId, String id) {
+        return projectRepository.findByIdAndWorkspaceId(id, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
     }
 
-    private Project getByIdForUser(String id, User requester) {
-        Project project = getByIdOrThrow(id);
+    private Project getByIdForUser(String workspaceId, String id, User requester) {
+        Project project = getByIdOrThrow(workspaceId, id);
         accessPolicy.assertCanViewProject(requester, project);
         return project;
     }
@@ -375,12 +394,12 @@ public class ProjectService {
         return status != ProjectStatus.ARCHIVED && status != ProjectStatus.CANCELED;
     }
 
-    private UserSummaryResponse toUserSummary(User user, long activeProjectCount, User requester) {
+    private UserSummaryResponse toUserSummary(String workspaceId, User user, long activeProjectCount, User requester) {
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
         String teamName = user.getTeamId() != null
-            ? teamService.findById(user.getTeamId()).map(Team::getName).orElse(user.getTeam())
+            ? teamService.findById(workspaceId, user.getTeamId()).map(Team::getName).orElse(user.getTeam())
             : user.getTeam();
         return new UserSummaryResponse(
             user.getId(),
@@ -400,7 +419,13 @@ public class ProjectService {
         if (accessPolicy.isAdmin(requester) || memberIds == null || memberIds.isEmpty()) {
             return;
         }
-        List<User> users = userRepository.findAllById(memberIds);
+        List<User> workspaceUsers = userService.listUsersForWorkspace(project.getWorkspaceId(), false);
+        List<User> users = workspaceUsers.stream()
+            .filter(user -> memberIds.contains(user.getId()))
+            .toList();
+        if (users.size() != memberIds.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Assignees must belong to the workspace");
+        }
         for (User user : users) {
             accessPolicy.assertCanAssignUserToProject(requester, user, project);
         }

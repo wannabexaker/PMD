@@ -19,6 +19,7 @@ export type Project = {
   createdByTeam?: string | null
   teamId?: string | null
   teamName?: string | null
+  workspaceId?: string | null
   createdAt?: string | null
   updatedAt?: string | null
   comments?: ProjectCommentResponse[] | null
@@ -28,6 +29,7 @@ export type Team = {
   id?: string | null
   name?: string | null
   slug?: string | null
+  workspaceId?: string | null
   isActive?: boolean | null
   createdAt?: string | null
   createdBy?: string | null
@@ -37,6 +39,7 @@ export type Person = {
   id?: string | null
   displayName?: string | null
   email?: string | null
+  workspaceId?: string | null
   createdAt?: string | null
 }
 
@@ -98,7 +101,6 @@ export type RegisterPayload = {
   confirmPassword: string
   firstName: string
   lastName: string
-  teamId?: string
   bio?: string
 }
 
@@ -108,6 +110,16 @@ export type UpdateProfilePayload = {
   lastName: string
   teamId?: string
   bio?: string
+}
+
+export type Workspace = {
+  id?: string | null
+  name?: string | null
+  slug?: string | null
+  role?: 'OWNER' | 'ADMIN' | 'MEMBER' | (string & {})
+  status?: 'ACTIVE' | 'PENDING' | (string & {})
+  createdAt?: string | null
+  demo?: boolean | null
 }
 
 export type AuthResponse = {

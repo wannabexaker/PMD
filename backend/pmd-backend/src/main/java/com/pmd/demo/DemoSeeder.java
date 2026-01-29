@@ -3,8 +3,6 @@ package com.pmd.demo;
 import com.pmd.project.model.Project;
 import com.pmd.project.model.ProjectStatus;
 import com.pmd.project.repository.ProjectRepository;
-import com.pmd.team.model.Team;
-import com.pmd.team.service.TeamService;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.user.service.UserService;
@@ -72,20 +70,17 @@ public class DemoSeeder implements ApplicationRunner {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final PasswordEncoder passwordEncoder;
-    private final TeamService teamService;
 
     public DemoSeeder(Environment environment,
                       UserService userService,
                       UserRepository userRepository,
                       ProjectRepository projectRepository,
-                      PasswordEncoder passwordEncoder,
-                      TeamService teamService) {
+                      PasswordEncoder passwordEncoder) {
         this.environment = environment;
         this.userService = userService;
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.passwordEncoder = passwordEncoder;
-        this.teamService = teamService;
     }
 
     @Override
@@ -169,12 +164,7 @@ public class DemoSeeder implements ApplicationRunner {
                 changed = true;
             }
             if (user.getTeamId() == null) {
-                Team team = resolveTeam(seedUser.team());
-                if (team != null) {
-                    user.setTeamId(team.getId());
-                    user.setTeam(team.getName());
-                    changed = true;
-                }
+                user.setTeamId(null);
             }
             if (isBlank(user.getPasswordHash())) {
                 user.setPasswordHash(passwordEncoder.encode(seedUser.password()));
@@ -193,9 +183,8 @@ public class DemoSeeder implements ApplicationRunner {
         user.setFirstName(seedUser.firstName());
         user.setLastName(seedUser.lastName());
         user.setDisplayName(buildDisplayName(seedUser.firstName(), seedUser.lastName(), seedUser.email()));
-        Team team = resolveTeam(seedUser.team());
-        user.setTeam(team != null ? team.getName() : seedUser.team());
-        user.setTeamId(team != null ? team.getId() : null);
+        user.setTeam(seedUser.team());
+        user.setTeamId(null);
         user.setBio(seedUser.bio());
         user.setEmailVerified(true);
         return userService.save(user);
@@ -249,14 +238,6 @@ public class DemoSeeder implements ApplicationRunner {
             return last;
         }
         return fallback;
-    }
-
-    private Team resolveTeam(String teamName) {
-        if (teamName == null || teamName.isBlank()) {
-            return null;
-        }
-        String slug = teamService.slugify(teamName);
-        return teamService.findBySlug(slug).orElse(null);
     }
 
     private boolean isBlank(String value) {

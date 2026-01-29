@@ -19,30 +19,31 @@ public class PersonService {
         this.personRepository = personRepository;
     }
 
-    public PersonResponse create(PersonRequest request) {
+    public PersonResponse create(String workspaceId, PersonRequest request) {
         Person person = new Person();
         person.setDisplayName(request.getDisplayName());
         person.setEmail(request.getEmail());
+        person.setWorkspaceId(workspaceId);
         person.setCreatedAt(Instant.now());
 
         Person saved = personRepository.save(person);
         return toResponse(saved);
     }
 
-    public List<PersonResponse> findAll() {
-        return personRepository.findAll().stream()
+    public List<PersonResponse> findAll(String workspaceId) {
+        return personRepository.findByWorkspaceId(workspaceId).stream()
             .map(this::toResponse)
             .toList();
     }
 
-    public PersonResponse findById(String id) {
-        Person person = personRepository.findById(id)
+    public PersonResponse findById(String workspaceId, String id) {
+        Person person = personRepository.findByIdAndWorkspaceId(id, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Person not found"));
         return toResponse(person);
     }
 
-    public PersonResponse update(String id, PersonRequest request) {
-        Person person = personRepository.findById(id)
+    public PersonResponse update(String workspaceId, String id, PersonRequest request) {
+        Person person = personRepository.findByIdAndWorkspaceId(id, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Person not found"));
         person.setDisplayName(request.getDisplayName());
         person.setEmail(request.getEmail());
@@ -50,8 +51,8 @@ public class PersonService {
         return toResponse(saved);
     }
 
-    public void delete(String id) {
-        Person person = personRepository.findById(id)
+    public void delete(String workspaceId, String id) {
+        Person person = personRepository.findByIdAndWorkspaceId(id, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Person not found"));
         personRepository.delete(person);
     }
@@ -61,6 +62,7 @@ public class PersonService {
             person.getId(),
             person.getDisplayName(),
             person.getEmail(),
+            person.getWorkspaceId(),
             person.getCreatedAt()
         );
     }
