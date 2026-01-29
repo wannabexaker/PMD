@@ -83,6 +83,14 @@ export function AssignPage({
     return () => window.clearTimeout(timer)
   }, [toast])
 
+  useEffect(() => {
+    if (!error || !error.toLowerCase().includes('recommend yourself')) {
+      return
+    }
+    const timer = window.setTimeout(() => setError(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [error])
+
   const availableTeams = useMemo(() => {
     return teams.map((team) => team.id).filter(Boolean) as string[]
   }, [teams])
@@ -609,8 +617,13 @@ export function AssignPage({
                       onChange={handleProjectTeamFilterChange}
                       ariaLabel="Filter projects by team"
                     />
-                    <select value={randomTeamId} onChange={(event) => setRandomTeamId(event.target.value)}>
-                      <option value="">All teams</option>
+                    <select
+                      value={randomTeamId}
+                      onChange={(event) => setRandomTeamId(event.target.value)}
+                      aria-label="Random team scope"
+                      title="Random team scope"
+                    >
+                      <option value="">Random team</option>
                       {availableTeams.map((teamId) => (
                         <option key={teamId} value={teamId}>
                           {teamById.get(teamId)?.name ?? teamId}

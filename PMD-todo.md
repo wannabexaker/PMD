@@ -777,3 +777,25 @@ TODO
 
 DONE
 - [x] Added .bat wrappers for deps/dev scripts.
+
+## 2026-01-29 - Script naming cleanup
+
+DONE
+- [x] Renamed hybrid dev scripts to pmd_up_ / pmd_down_ prefix.
+
+## 2026-01-29 - Workspace settings + last workspace
+
+DONE
+- [x] Settings Workspaces panel (create/join/demo/reset).
+- [x] Persist last workspace in localStorage (pmd:lastWorkspaceId).
+- [x] Sidebar disabled when no workspace (redirect to Settings).
+
+TODO
+- [ ] Manual UI verification for workspace join via URL token.
+
+## 2026-01-29 - Frontend polish
+
+DONE
+- [x] Settings Workspaces unified with demo group + scroll.
+- [x] Compact Create Project layout.
+- [x] Assign duplicate team filter cleaned + self-recommend message auto-hide.

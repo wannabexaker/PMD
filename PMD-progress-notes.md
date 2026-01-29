@@ -826,3 +826,31 @@ Notes
 ## 2026-01-29 - Hybrid dev .bat wrappers
 
 Added optional .bat wrappers for PowerShell scripts in scripts/.
+
+## 2026-01-29 - Script naming cleanup
+
+Renamed scripts to use pmd_up_ / pmd_down_ prefix for clarity (e.g. pmd_up_deps, pmd_up_backend_dev, pmd_up_frontend_dev, pmd_up_dev).
+Updated docs/DEV-HYBRID.md accordingly.
+
+## 2026-01-29 - Workspace management in Settings + last workspace
+
+Updates
+- Added Workspaces panel in Settings (current workspace, create, join via token/link, demo enter/reset).
+- Join accepts token or full URL containing ?token= and extracts token.
+- Active workspace persists to localStorage key `pmd:lastWorkspaceId` (migrates legacy key on read).
+- Logout/unauthorized clears `pmd:lastWorkspaceId` and workspace state.
+- Sidebar nav is disabled when no active workspace (redirects to Settings).
+- Routes redirect to Settings when no workspace is selected.
+
+Verification steps
+- Login -> if last workspace exists, auto-selects it; otherwise lands in Settings.
+- Settings -> create/join/demo works and selects workspace.
+- No workspace: Dashboard/Assign/People/Admin/Profile links are disabled and send to Settings.
+- Logout clears last workspace key.
+
+## 2026-01-29 - Frontend polish (settings/workspaces, create project, assign)
+
+- Settings: merged Demo + Workspaces into one Workspaces section with Demo workspaces and Your workspaces groups; demo actions moved inside demo group; list area scrollable.
+- Settings: current workspace shows Current badge; demo entries show Demo badge.
+- Create Project: compact layout (max-width, tighter gaps, description rows).
+- Assign: removed duplicate-looking team filter by renaming random scope dropdown; auto-hide self-recommend error after 5s.

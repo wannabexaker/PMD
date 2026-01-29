@@ -197,6 +197,10 @@ body {
   gap: 8px;
 }
 
+.workspace-list.compact {
+  gap: 6px;
+}
+
 .workspace-item {
   display: flex;
   align-items: center;
@@ -208,6 +212,60 @@ body {
   background: var(--surface2);
   cursor: pointer;
   text-align: left;
+}
+
+.workspace-item.compact {
+  padding: 8px 12px;
+  cursor: default;
+}
+
+.workspace-groups {
+  display: grid;
+  gap: 12px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.workspace-group-header h4 {
+  margin: 0;
+}
+
+.workspace-group-header p {
+  margin: 0;
+}
+
+.workspace-divider {
+  height: 1px;
+  background: var(--border);
+  opacity: 0.6;
+}
+
+.workspace-badges {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.workspace-current {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.workspace-current-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .workspace-item:hover {
@@ -321,6 +379,31 @@ body {
 
 .form-grid.two-col {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.create-project-form {
+  max-width: 860px;
+  width: 100%;
+}
+
+.create-project-form .form-grid {
+  gap: 10px;
+}
+
+.create-project-form .form-field {
+  gap: 4px;
+}
+
+.create-project-form .member-filters {
+  gap: 6px;
+}
+
+.create-project-form .member-results {
+  margin-top: 6px;
+}
+
+.create-project-form .member-chips {
+  padding: 6px;
 }
 
 .form-span-2 {
@@ -872,6 +955,10 @@ button {
   text-decoration: none;
   padding: 8px 10px;
   border-radius: 8px;
+}
+
+.drawer-nav a.disabled {
+  opacity: 0.45;
 }
 
 .drawer-nav a.active {

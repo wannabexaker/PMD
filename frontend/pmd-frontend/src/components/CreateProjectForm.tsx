@@ -125,7 +125,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
     currentUser?.displayName ?? currentUser?.email ?? currentUser?.username ?? 'You'
 
   return (
-    <form className="form" onSubmit={handleSubmit}>
+    <form className="form create-project-form" onSubmit={handleSubmit}>
       <div className="form-grid two-col">
         <div className="form-field">
           <label htmlFor="name">Name</label>
@@ -212,7 +212,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
             name="description"
             value={form.description}
             onChange={handleChange}
-            rows={3}
+            rows={4}
           />
         </div>
         <div className="form-field form-span-2">
