@@ -15,10 +15,12 @@ import { LoginForm } from './components/LoginForm'
 import { RegisterForm } from './components/RegisterForm'
 import { ProfilePanel } from './components/ProfilePanel'
 import { SettingsPage } from './components/SettingsPage'
+import { WorkspacePicker } from './components/WorkspacePicker'
 import { Logo } from './components/Logo'
 import { ThemeToggle } from './components/ThemeToggle'
 import { PmdLoader } from './components/common/PmdLoader'
 import { TeamsProvider } from './teams/TeamsContext'
+import { WorkspaceProvider, useWorkspace } from './workspaces/WorkspaceContext'
 import { DEFAULT_UI_PREFERENCES, loadUiPreferences, saveUiPreferences } from './ui/uiPreferences'
 import {
   clearAssignSelectedProjectId,
@@ -33,6 +35,10 @@ import {
 import './App.css'
 
 function App() {
+  return <AppStateful />
+}
+
+function AppStateful() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authError, setAuthError] = useState<string | null>(null)
@@ -53,12 +59,126 @@ function App() {
     return prefs.rememberAssignProject ? getAssignSelectedProjectId() : null
   })
   const [uiPreferences, setUiPreferences] = useState(() => loadUiPreferences())
-  const previousPathRef = useRef<string>(location.pathname)
   const [backendStatus, setBackendStatus] = useState<'online' | 'offline'>('online')
   const [backendMessage, setBackendMessage] = useState<string | null>(null)
 
+  return (
+    <AuthProvider user={currentUser}>
+      <WorkspaceProvider>
+        <TeamsProvider user={currentUser}>
+          <AppView
+            currentUser={currentUser}
+            setCurrentUser={setCurrentUser}
+            authLoading={authLoading}
+            setAuthLoading={setAuthLoading}
+            authError={authError}
+            setAuthError={setAuthError}
+            theme={theme}
+            setTheme={setTheme}
+            menuOpen={menuOpen}
+            setMenuOpen={setMenuOpen}
+            users={users}
+            setUsers={setUsers}
+            projects={projects}
+            setProjects={setProjects}
+            usersLoading={usersLoading}
+            setUsersLoading={setUsersLoading}
+            projectLoading={projectLoading}
+            setProjectLoading={setProjectLoading}
+            usersError={usersError}
+            setUsersError={setUsersError}
+            projectError={projectError}
+            setProjectError={setProjectError}
+            dashboardSelectedProjectId={dashboardSelectedProjectId}
+            setDashboardSelectedProjectIdState={setDashboardSelectedProjectIdState}
+            assignSelectedProjectId={assignSelectedProjectId}
+            setAssignSelectedProjectIdState={setAssignSelectedProjectIdState}
+            uiPreferences={uiPreferences}
+            setUiPreferences={setUiPreferences}
+            backendStatus={backendStatus}
+            setBackendStatus={setBackendStatus}
+            backendMessage={backendMessage}
+            setBackendMessage={setBackendMessage}
+          />
+        </TeamsProvider>
+      </WorkspaceProvider>
+    </AuthProvider>
+  )
+}
+
+type AppViewProps = {
+  currentUser: User | null
+  setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>
+  authLoading: boolean
+  setAuthLoading: React.Dispatch<React.SetStateAction<boolean>>
+  authError: string | null
+  setAuthError: React.Dispatch<React.SetStateAction<string | null>>
+  theme: 'dark' | 'light'
+  setTheme: React.Dispatch<React.SetStateAction<'dark' | 'light'>>
+  menuOpen: boolean
+  setMenuOpen: React.Dispatch<React.SetStateAction<boolean>>
+  users: UserSummary[]
+  setUsers: React.Dispatch<React.SetStateAction<UserSummary[]>>
+  projects: Project[]
+  setProjects: React.Dispatch<React.SetStateAction<Project[]>>
+  usersLoading: boolean
+  setUsersLoading: React.Dispatch<React.SetStateAction<boolean>>
+  projectLoading: boolean
+  setProjectLoading: React.Dispatch<React.SetStateAction<boolean>>
+  usersError: string | null
+  setUsersError: React.Dispatch<React.SetStateAction<string | null>>
+  projectError: string | null
+  setProjectError: React.Dispatch<React.SetStateAction<string | null>>
+  dashboardSelectedProjectId: string | null
+  setDashboardSelectedProjectIdState: React.Dispatch<React.SetStateAction<string | null>>
+  assignSelectedProjectId: string | null
+  setAssignSelectedProjectIdState: React.Dispatch<React.SetStateAction<string | null>>
+  uiPreferences: ReturnType<typeof loadUiPreferences>
+  setUiPreferences: React.Dispatch<React.SetStateAction<ReturnType<typeof loadUiPreferences>>>
+  backendStatus: 'online' | 'offline'
+  setBackendStatus: React.Dispatch<React.SetStateAction<'online' | 'offline'>>
+  backendMessage: string | null
+  setBackendMessage: React.Dispatch<React.SetStateAction<string | null>>
+}
+
+function AppView({
+  currentUser,
+  setCurrentUser,
+  authLoading,
+  setAuthLoading,
+  authError,
+  setAuthError,
+  theme,
+  setTheme,
+  menuOpen,
+  setMenuOpen,
+  users,
+  setUsers,
+  projects,
+  setProjects,
+  usersLoading,
+  setUsersLoading,
+  projectLoading,
+  setProjectLoading,
+  usersError,
+  setUsersError,
+  projectError,
+  setProjectError,
+  dashboardSelectedProjectId,
+  setDashboardSelectedProjectIdState,
+  assignSelectedProjectId,
+  setAssignSelectedProjectIdState,
+  uiPreferences,
+  setUiPreferences,
+  backendStatus,
+  setBackendStatus,
+  backendMessage,
+  setBackendMessage,
+}: AppViewProps) {
+  const { activeWorkspaceId, activeWorkspace, workspaces, setActiveWorkspaceId } = useWorkspace()
   const location = useLocation()
   const navigate = useNavigate()
+  const previousPathRef = useRef<string>(location.pathname)
   const isAuthed = Boolean(currentUser)
   const isAdmin = Boolean(currentUser?.isAdmin)
   const isAssignRoute = location.pathname === '/assign'
@@ -75,13 +195,19 @@ function App() {
     const user = await fetchMe()
     setCurrentUser(user)
     setAuthLoading(false)
-  }, [])
+  }, [setAuthError, setAuthLoading, setCurrentUser])
 
   const loadUsers = useCallback(async () => {
+    if (!activeWorkspaceId) {
+      setUsers([])
+      setUsersLoading(false)
+      setUsersError(null)
+      return
+    }
     setUsersError(null)
     setUsersLoading(true)
     try {
-      const data = await fetchUsers()
+      const data = await fetchUsers(activeWorkspaceId)
       setUsers(data)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load users'
@@ -92,13 +218,19 @@ function App() {
     } finally {
       setUsersLoading(false)
     }
-  }, [currentUser])
+  }, [activeWorkspaceId, setUsers, setUsersError, setUsersLoading])
 
   const loadProjects = useCallback(async () => {
+    if (!activeWorkspaceId) {
+      setProjects([])
+      setProjectLoading(false)
+      setProjectError(null)
+      return
+    }
     setProjectError(null)
     setProjectLoading(true)
     try {
-      const data = await fetchProjects()
+      const data = await fetchProjects(activeWorkspaceId)
       setProjects(data)
       if (dashboardSelectedProjectId && !data.some((project) => project.id === dashboardSelectedProjectId)) {
         setDashboardSelectedProjectIdState(null)
@@ -116,7 +248,16 @@ function App() {
     } finally {
       setProjectLoading(false)
     }
-  }, [dashboardSelectedProjectId, assignSelectedProjectId])
+  }, [
+    activeWorkspaceId,
+    assignSelectedProjectId,
+    dashboardSelectedProjectId,
+    setAssignSelectedProjectIdState,
+    setDashboardSelectedProjectIdState,
+    setProjectError,
+    setProjectLoading,
+    setProjects,
+  ])
 
   const handleProjectCreated = useCallback(
     (project?: Project) => {
@@ -125,7 +266,7 @@ function App() {
       }
       loadProjects()
     },
-    [loadProjects]
+    [loadProjects, setProjects]
   )
 
   useEffect(() => {
@@ -144,7 +285,7 @@ function App() {
     } else {
       clearDashboardSelectedProjectId()
     }
-  }, [dashboardSelectedProjectId, uiPreferences.rememberDashboardProject])
+  }, [dashboardSelectedProjectId, uiPreferences.rememberDashboardProject, setDashboardSelectedProjectIdState])
 
   useEffect(() => {
     if (uiPreferences.rememberAssignProject) {
@@ -158,7 +299,7 @@ function App() {
     } else {
       clearAssignSelectedProjectId()
     }
-  }, [assignSelectedProjectId, uiPreferences.rememberAssignProject])
+  }, [assignSelectedProjectId, uiPreferences.rememberAssignProject, setAssignSelectedProjectIdState])
 
   useEffect(() => {
     loadMe()
@@ -174,13 +315,14 @@ function App() {
       setDashboardSelectedProjectIdState(null)
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
+      setActiveWorkspaceId(null)
       navigate('/login')
     }
     window.addEventListener('pmd:unauthorized', handleUnauthorized)
     return () => {
       window.removeEventListener('pmd:unauthorized', handleUnauthorized)
     }
-  }, [navigate])
+  }, [navigate, setActiveWorkspaceId, setAssignSelectedProjectIdState, setCurrentUser, setDashboardSelectedProjectIdState])
 
   useEffect(() => {
     const handleOffline = (event: Event) => {
@@ -201,7 +343,7 @@ function App() {
     const handleOnline = () => {
       setBackendStatus('online')
       setBackendMessage(null)
-      if (currentUser) {
+      if (currentUser && activeWorkspaceId) {
         loadUsers()
         loadProjects()
       }
@@ -212,12 +354,27 @@ function App() {
       window.removeEventListener('pmd:offline', handleOffline)
       window.removeEventListener('pmd:online', handleOnline)
     }
-  }, [currentUser, loadProjects, loadUsers])
+  }, [
+    activeWorkspaceId,
+    currentUser,
+    loadProjects,
+    loadUsers,
+    setAssignSelectedProjectIdState,
+    setBackendMessage,
+    setBackendStatus,
+    setDashboardSelectedProjectIdState,
+    setProjectError,
+    setProjectLoading,
+    setProjects,
+    setUsers,
+    setUsersError,
+    setUsersLoading,
+  ])
 
   useEffect(() => {
     setMenuOpen(false)
     setAuthError(null)
-  }, [location.pathname])
+  }, [location.pathname, setAuthError, setMenuOpen])
 
   useEffect(() => {
     const previousPath = previousPathRef.current
@@ -235,7 +392,7 @@ function App() {
       }
     }
     previousPathRef.current = location.pathname
-  }, [location.pathname, uiPreferences])
+  }, [location.pathname, uiPreferences, setAssignSelectedProjectIdState, setDashboardSelectedProjectIdState])
 
   useEffect(() => {
     if (!menuOpen) {
@@ -253,15 +410,25 @@ function App() {
       document.body.style.overflow = ''
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [menuOpen])
+  }, [menuOpen, setMenuOpen])
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser || !activeWorkspaceId) {
       return
     }
     loadUsers()
     loadProjects()
-  }, [currentUser, loadUsers, loadProjects])
+  }, [currentUser, activeWorkspaceId, loadUsers, loadProjects])
+
+  useEffect(() => {
+    if (!currentUser || activeWorkspaceId) {
+      return
+    }
+    setUsers([])
+    setProjects([])
+    setUsersLoading(false)
+    setProjectLoading(false)
+  }, [currentUser, activeWorkspaceId, setProjects, setProjectLoading, setUsers, setUsersLoading])
 
   const handleLogin = async (payload: LoginPayload) => {
     setAuthError(null)
@@ -326,6 +493,7 @@ function App() {
     setDashboardSelectedProjectIdState(null)
     setAssignSelectedProjectIdState(null)
     clearUiSelections()
+    setActiveWorkspaceId(null)
     navigate('/login')
   }
 
@@ -348,7 +516,6 @@ function App() {
     }
   }
 
-
   if (authLoading) {
     return (
       <div className="container">
@@ -358,14 +525,32 @@ function App() {
   }
 
   return (
-    <AuthProvider user={currentUser}>
-      <TeamsProvider user={currentUser}>
+    <>
       <header className="topbar">
         <div className="topbar-inner">
           <div className="brand">
             <Logo size={26} />
           </div>
           <div className="topbar-actions">
+            {isAuthed ? (
+              <div className="workspace-switcher">
+                <select
+                  aria-label="Active workspace"
+                  value={activeWorkspaceId ?? ''}
+                  onChange={(event) => setActiveWorkspaceId(event.target.value || null)}
+                >
+                  <option value="" disabled>
+                    Select workspace
+                  </option>
+                  {workspaces.map((workspace) => (
+                    <option key={workspace.id ?? workspace.name} value={workspace.id ?? ''}>
+                      {workspace.name ?? 'Workspace'}
+                    </option>
+                  ))}
+                </select>
+                {activeWorkspace?.demo ? <span className="pill">Demo</span> : null}
+              </div>
+            ) : null}
             <button
               type="button"
               className={`burger${menuOpen ? ' is-open' : ''}`}
@@ -477,12 +662,13 @@ function App() {
             {backendMessage ?? `Backend unreachable (${API_BASE_URL}).`}
           </div>
         ) : null}
+        {isAuthed && !activeWorkspaceId ? <WorkspacePicker /> : null}
         <Routes>
           <Route path="/" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
           <Route
             path="/dashboard"
             element={
-              isAuthed ? (
+              isAuthed && activeWorkspaceId ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load projects.</p>
@@ -512,7 +698,7 @@ function App() {
           <Route
             path="/assign"
             element={
-              isAuthed ? (
+              isAuthed && activeWorkspaceId ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load assignments.</p>
@@ -546,7 +732,7 @@ function App() {
           <Route
             path="/people"
             element={
-              isAuthed ? (
+              isAuthed && activeWorkspaceId ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load people.</p>
@@ -570,7 +756,7 @@ function App() {
           <Route
             path="/admin"
             element={
-              isAuthed && isAdmin ? (
+              isAuthed && isAdmin && activeWorkspaceId ? (
                 <AdminPanel users={users} projects={projects} />
               ) : (
                 <Navigate to="/dashboard" replace />
@@ -580,7 +766,7 @@ function App() {
           <Route
             path="/profile"
             element={
-              isAuthed && currentUser ? (
+              isAuthed && currentUser && activeWorkspaceId ? (
                 <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate('/dashboard')} />
               ) : (
                 <Navigate to="/login" replace />
@@ -631,8 +817,7 @@ function App() {
           <Route path="*" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
         </Routes>
       </main>
-      </TeamsProvider>
-    </AuthProvider>
+    </>
   )
 }
 
