@@ -15,7 +15,6 @@ import { LoginForm } from './components/LoginForm'
 import { RegisterForm } from './components/RegisterForm'
 import { ProfilePanel } from './components/ProfilePanel'
 import { SettingsPage } from './components/SettingsPage'
-import { WorkspacePicker } from './components/WorkspacePicker'
 import { Logo } from './components/Logo'
 import { ThemeToggle } from './components/ThemeToggle'
 import { PmdLoader } from './components/common/PmdLoader'
@@ -183,6 +182,8 @@ function AppView({
   const isAdmin = Boolean(currentUser?.isAdmin)
   const isAssignRoute = location.pathname === '/assign'
   const backendOffline = backendStatus === 'offline'
+  const hasWorkspace = Boolean(activeWorkspaceId)
+  const workspaceRequired = isAuthed && !hasWorkspace
 
   const loadMe = useCallback(async () => {
     setAuthError(null)
@@ -312,6 +313,9 @@ function AppView({
   useEffect(() => {
     const handleUnauthorized = () => {
       setCurrentUser(null)
+      localStorage.removeItem('pmd.activeWorkspaceId')
+      localStorage.removeItem('pmd:lastWorkspaceId')
+      localStorage.removeItem('pmd_active_workspace_id')
       setDashboardSelectedProjectIdState(null)
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
@@ -502,6 +506,9 @@ function AppView({
 
   const handleLogout = () => {
     clearAuthToken()
+    localStorage.removeItem('pmd.activeWorkspaceId')
+    localStorage.removeItem('pmd:lastWorkspaceId')
+    localStorage.removeItem('pmd_active_workspace_id')
     setCurrentUser(null)
     setDashboardSelectedProjectIdState(null)
     setAssignSelectedProjectIdState(null)
@@ -555,11 +562,19 @@ function AppView({
                   <option value="" disabled>
                     Select workspace
                   </option>
-                  {workspaces.map((workspace) => (
-                    <option key={workspace.id ?? workspace.name} value={workspace.id ?? ''}>
-                      {workspace.name ?? 'Workspace'}
-                    </option>
-                  ))}
+                  {workspaces.map((workspace) => {
+                    const name = workspace.name ?? 'Workspace'
+                    const pending = workspace.status === 'PENDING'
+                    return (
+                      <option
+                        key={workspace.id ?? workspace.name}
+                        value={workspace.id ?? ''}
+                        disabled={pending}
+                      >
+                        {pending ? `${name} (Pending)` : name}
+                      </option>
+                    )
+                  })}
                 </select>
                 {activeWorkspace?.demo ? <span className="pill">Demo</span> : null}
               </div>
@@ -602,38 +617,78 @@ function AppView({
             <>
               <NavLink
                 to="/dashboard"
-                className={({ isActive }) => (isActive ? 'active' : '')}
-                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) => (isActive ? 'active' : '') + (workspaceRequired ? ' disabled' : '')}
+                title={workspaceRequired ? 'Select or join a workspace first' : undefined}
+                onClick={(event) => {
+                  if (workspaceRequired) {
+                    event.preventDefault()
+                    navigate('/settings')
+                    return
+                  }
+                  setMenuOpen(false)
+                }}
               >
                 Dashboard
               </NavLink>
               <NavLink
                 to="/assign"
-                className={({ isActive }) => (isActive ? 'active' : '')}
-                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) => (isActive ? 'active' : '') + (workspaceRequired ? ' disabled' : '')}
+                title={workspaceRequired ? 'Select or join a workspace first' : undefined}
+                onClick={(event) => {
+                  if (workspaceRequired) {
+                    event.preventDefault()
+                    navigate('/settings')
+                    return
+                  }
+                  setMenuOpen(false)
+                }}
               >
                 Assign
               </NavLink>
               <NavLink
                 to="/people"
-                className={({ isActive }) => (isActive ? 'active' : '')}
-                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) => (isActive ? 'active' : '') + (workspaceRequired ? ' disabled' : '')}
+                title={workspaceRequired ? 'Select or join a workspace first' : undefined}
+                onClick={(event) => {
+                  if (workspaceRequired) {
+                    event.preventDefault()
+                    navigate('/settings')
+                    return
+                  }
+                  setMenuOpen(false)
+                }}
               >
                 People
               </NavLink>
               {isAdmin ? (
                 <NavLink
                   to="/admin"
-                  className={({ isActive }) => (isActive ? 'active' : '')}
-                  onClick={() => setMenuOpen(false)}
+                  className={({ isActive }) => (isActive ? 'active' : '') + (workspaceRequired ? ' disabled' : '')}
+                  title={workspaceRequired ? 'Select or join a workspace first' : undefined}
+                  onClick={(event) => {
+                    if (workspaceRequired) {
+                      event.preventDefault()
+                      navigate('/settings')
+                      return
+                    }
+                    setMenuOpen(false)
+                  }}
                 >
                   Admin Panel
                 </NavLink>
               ) : null}
               <NavLink
                 to="/profile"
-                className={({ isActive }) => (isActive ? 'active' : '')}
-                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) => (isActive ? 'active' : '') + (workspaceRequired ? ' disabled' : '')}
+                title={workspaceRequired ? 'Select or join a workspace first' : undefined}
+                onClick={(event) => {
+                  if (workspaceRequired) {
+                    event.preventDefault()
+                    navigate('/settings')
+                    return
+                  }
+                  setMenuOpen(false)
+                }}
               >
                 Profile
               </NavLink>
@@ -675,7 +730,7 @@ function AppView({
             {backendMessage ?? `Backend unreachable (${API_BASE_URL}).`}
           </div>
         ) : null}
-        {isAuthed && activeWorkspaceId && !currentUser?.teamId ? (
+        {isAuthed && hasWorkspace && !currentUser?.teamId ? (
           <div className="banner info" role="status">
             <strong>You are not in a team yet.</strong>
             <div className="muted">Join a team from your profile, or create one if you are an admin.</div>
@@ -697,7 +752,7 @@ function AppView({
             path="/dashboard"
             element={
               isAuthed ? (
-                activeWorkspaceId ? (
+                hasWorkspace ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load projects.</p>
@@ -720,7 +775,7 @@ function AppView({
                   )}
                 </>
                 ) : (
-                  <WorkspacePicker />
+                  <Navigate to="/settings" replace />
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -731,7 +786,7 @@ function AppView({
             path="/assign"
             element={
               isAuthed ? (
-                activeWorkspaceId ? (
+                hasWorkspace ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load assignments.</p>
@@ -758,7 +813,7 @@ function AppView({
                   )}
                 </>
                 ) : (
-                  <WorkspacePicker />
+                  <Navigate to="/settings" replace />
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -769,7 +824,7 @@ function AppView({
             path="/people"
             element={
               isAuthed ? (
-                activeWorkspaceId ? (
+                hasWorkspace ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load people.</p>
@@ -786,7 +841,7 @@ function AppView({
                   ) : null}
                 </>
                 ) : (
-                  <WorkspacePicker />
+                  <Navigate to="/settings" replace />
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -797,12 +852,12 @@ function AppView({
             path="/admin"
             element={
               isAuthed ? (
-                activeWorkspaceId && isAdmin ? (
+                hasWorkspace && isAdmin ? (
                   <AdminPanel users={users} projects={projects} />
-                ) : activeWorkspaceId ? (
+                ) : hasWorkspace ? (
                   <Navigate to="/dashboard" replace />
                 ) : (
-                  <WorkspacePicker />
+                  <Navigate to="/settings" replace />
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -813,10 +868,10 @@ function AppView({
             path="/profile"
             element={
               isAuthed ? (
-                activeWorkspaceId && currentUser ? (
+                hasWorkspace && currentUser ? (
                   <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate('/dashboard')} />
                 ) : (
-                  <WorkspacePicker />
+                  <Navigate to="/settings" replace />
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -827,11 +882,7 @@ function AppView({
             path="/settings"
             element={
               isAuthed ? (
-                activeWorkspaceId ? (
-                  <SettingsPage preferences={uiPreferences} onChange={handlePreferencesChange} />
-                ) : (
-                  <WorkspacePicker />
-                )
+                <SettingsPage preferences={uiPreferences} onChange={handlePreferencesChange} />
               ) : (
                 <Navigate to="/login" replace />
               )

@@ -11,7 +11,9 @@ import {
   resetDemoWorkspace as resetDemoWorkspaceApi,
 } from '../api/workspaces'
 
-const ACTIVE_WORKSPACE_KEY = 'pmd_active_workspace_id'
+const ACTIVE_WORKSPACE_KEY = 'pmd.activeWorkspaceId'
+const LEGACY_WORKSPACE_KEY = 'pmd:lastWorkspaceId'
+const LEGACY_WORKSPACE_KEY_ALT = 'pmd_active_workspace_id'
 
 type WorkspaceContextValue = {
   workspaces: Workspace[]
@@ -31,7 +33,18 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
 function loadStoredWorkspaceId(): string | null {
   try {
-    return localStorage.getItem(ACTIVE_WORKSPACE_KEY)
+    const current = localStorage.getItem(ACTIVE_WORKSPACE_KEY)
+    if (current) {
+      return current
+    }
+    const legacy = localStorage.getItem(LEGACY_WORKSPACE_KEY) ?? localStorage.getItem(LEGACY_WORKSPACE_KEY_ALT)
+    if (legacy) {
+      localStorage.setItem(ACTIVE_WORKSPACE_KEY, legacy)
+      localStorage.removeItem(LEGACY_WORKSPACE_KEY)
+      localStorage.removeItem(LEGACY_WORKSPACE_KEY_ALT)
+      return legacy
+    }
+    return null
   } catch {
     return null
   }
@@ -41,6 +54,8 @@ function persistWorkspaceId(id: string | null) {
   try {
     if (!id) {
       localStorage.removeItem(ACTIVE_WORKSPACE_KEY)
+      localStorage.removeItem(LEGACY_WORKSPACE_KEY)
+      localStorage.removeItem(LEGACY_WORKSPACE_KEY_ALT)
       return
     }
     localStorage.setItem(ACTIVE_WORKSPACE_KEY, id)
@@ -57,9 +72,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(() => loadStoredWorkspaceId())
 
   const setActiveWorkspaceId = useCallback((id: string | null) => {
+    if (!id) {
+      setActiveWorkspaceIdState(null)
+      persistWorkspaceId(null)
+      return
+    }
+    const workspace = workspaces.find((item) => item.id === id)
+    if (workspace && workspace.status === 'PENDING') {
+      return
+    }
     setActiveWorkspaceIdState(id)
     persistWorkspaceId(id)
-  }, [])
+  }, [workspaces])
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -75,11 +99,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const data = await fetchWorkspaces()
       setWorkspaces(data)
       const stored = loadStoredWorkspaceId()
-      if (stored && data.some((workspace) => workspace.id === stored)) {
-        setActiveWorkspaceIdState(stored)
-      } else if (data.length === 1) {
-        setActiveWorkspaceIdState(data[0]?.id ?? null)
-        persistWorkspaceId(data[0]?.id ?? null)
+      const storedWorkspace = stored ? data.find((workspace) => workspace.id === stored) : null
+      if (storedWorkspace && storedWorkspace.status === 'ACTIVE') {
+        setActiveWorkspaceIdState(storedWorkspace.id ?? null)
+      } else {
+        const activeWorkspaces = data.filter((workspace) => workspace.status === 'ACTIVE')
+        if (activeWorkspaces.length === 1) {
+          setActiveWorkspaceIdState(activeWorkspaces[0]?.id ?? null)
+          persistWorkspaceId(activeWorkspaces[0]?.id ?? null)
+        } else {
+          setActiveWorkspaceIdState(null)
+          persistWorkspaceId(null)
+        }
       } else {
         setActiveWorkspaceIdState(null)
         persistWorkspaceId(null)
@@ -123,7 +154,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const next = [joined, ...prev.filter((ws) => ws.id !== joined.id)]
         return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       })
-      setActiveWorkspaceId(joined.id ?? null)
+      if (joined.status === 'ACTIVE') {
+        setActiveWorkspaceId(joined.id ?? null)
+      } else {
+        setActiveWorkspaceId(null)
+      }
       return joined
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join workspace')

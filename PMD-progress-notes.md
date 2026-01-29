@@ -854,3 +854,37 @@ Verification steps
 - Settings: current workspace shows Current badge; demo entries show Demo badge.
 - Create Project: compact layout (max-width, tighter gaps, description rows).
 - Assign: removed duplicate-looking team filter by renaming random scope dropdown; auto-hide self-recommend error after 5s.
+
+## 2026-01-29 - Workspace invites + approvals + People copy
+
+Backend
+- Added WorkspaceInvite fields (code, maxUses, usesCount, revoked) + WorkspaceJoinRequest model.
+- New workspace endpoints:
+  - POST /api/workspaces/{id}/invites
+  - GET /api/workspaces/{id}/invites
+  - POST /api/workspaces/{id}/invites/{inviteId}/revoke
+  - POST /api/workspaces/invites/resolve
+  - GET /api/workspaces/{id}/requests
+  - POST /api/workspaces/{id}/requests/{rid}/approve
+  - POST /api/workspaces/{id}/requests/{rid}/deny
+  - PATCH /api/workspaces/{id}/settings (requireApproval)
+- Join flow: if requireApproval=true, membership becomes PENDING and a join request is created.
+- Invite defaults: expiresAt +7 days, maxUses defaults to 10 if not provided.
+
+Frontend
+- Settings -> Workspaces:
+  - Invite management (create, list, copy link/code, revoke).
+  - Join approval toggle (admin/owner).
+  - Pending requests list (admin/owner).
+  - Join accepts token, code, or full link (?invite= or ?token=).
+  - Pending status badge in workspace lists.
+- Active workspace persistence key is now `pmd.activeWorkspaceId` (legacy keys are migrated/cleared).
+- People page copy: non-admin sees "Workspace members"; admin-only "People records" section.
+- People records API now only fetched for admins (avoids 403 for members).
+
+Verification steps (manual)
+- Admin: create invite -> copy link/code -> revoke works.
+- Member: paste link/code -> join; if approval required, sees Pending badge and cannot enter.
+- Admin: approve/deny pending requests and member becomes active.
+- Login remembers last active workspace; logout clears key.
+- People page: non-admin copy has no admin/internal text.

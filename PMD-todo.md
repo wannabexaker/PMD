@@ -799,3 +799,17 @@ DONE
 - [x] Settings Workspaces unified with demo group + scroll.
 - [x] Compact Create Project layout.
 - [x] Assign duplicate team filter cleaned + self-recommend message auto-hide.
+
+## 2026-01-29 - Workspace invites + approvals + People copy
+
+DONE
+- [x] Add workspace invite endpoints (create/list/revoke/resolve).
+- [x] Add join requests (pending/approve/deny) and requireApproval toggle.
+- [x] Settings UI for invites + pending approvals.
+- [x] Join input accepts token, code, or invite link.
+- [x] Active workspace key updated to pmd.activeWorkspaceId (legacy cleared).
+- [x] People page copy updated for non-admin; admin-only records hidden from members.
+
+TODO
+- [ ] Manual verify: invite join (approval off/on), pending badge, approve/deny flow.
+- [ ] Manual verify: People page for non-admin shows "Workspace members" and no admin-only copy.

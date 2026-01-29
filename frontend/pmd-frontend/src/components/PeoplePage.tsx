@@ -280,7 +280,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
     let active = true
     setPeopleLoading(true)
     setPeopleError(null)
-    if (!activeWorkspaceId) {
+    if (!activeWorkspaceId || !isAdmin) {
       setPeopleRecords([])
       setPeopleLoading(false)
       return () => {
@@ -305,7 +305,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
     return () => {
       active = false
     }
-  }, [activeWorkspaceId])
+  }, [activeWorkspaceId, isAdmin])
 
   useEffect(() => {
     setWidgets(mergeWidgetDefaults(currentUser?.peoplePageWidgets))
@@ -542,17 +542,18 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
       <div className="panel-header">
         <div>
           <h2>People</h2>
+          {!isAdmin ? <p className="muted">Workspace members.</p> : null}
         </div>
       </div>
-      <div className="card">
-        <div className="panel-header">
-          <div>
-            <h3>People records</h3>
-            <p className="muted">Backend people entities (admin-managed).</p>
+      {isAdmin ? (
+        <div className="card">
+          <div className="panel-header">
+            <div>
+              <h3>People records</h3>
+              <p className="muted">Admin-only records used for staffing data.</p>
+            </div>
           </div>
-        </div>
-        {peopleError ? <p className="error">{peopleError}</p> : null}
-        {isAdmin ? (
+          {peopleError ? <p className="error">{peopleError}</p> : null}
           <div className="row space">
             <input
               type="text"
@@ -597,59 +598,55 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
               {savingPerson ? 'Creating...' : 'Create'}
             </button>
           </div>
-        ) : (
-          <p className="muted">Only admins can create or edit people records.</p>
-        )}
-        <ul className="list compact">
-          {peopleLoading ? <li className="muted">Loading people records...</li> : null}
-          {peopleRecords.length === 0 && !peopleLoading ? <li className="muted">No records found.</li> : null}
-          {peopleRecords.map((person) => {
-            const isEditing = editingPersonId === person.id
-            return (
-              <li key={person.id ?? person.email ?? person.displayName} className="row space">
-                {isEditing ? (
-                  <div className="row space">
-                    <input
-                      type="text"
-                      value={editingPersonName}
-                      onChange={(event) => setEditingPersonName(event.target.value)}
-                    />
-                    <input
-                      type="email"
-                      value={editingPersonEmail}
-                      onChange={(event) => setEditingPersonEmail(event.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <strong className="truncate" title={person.displayName ?? ''}>
-                      {person.displayName ?? '-'}
-                    </strong>
-                    <div className="muted truncate" title={person.email ?? ''}>
-                      {person.email ?? ''}
+          <ul className="list compact">
+            {peopleLoading ? <li className="muted">Loading people records...</li> : null}
+            {peopleRecords.length === 0 && !peopleLoading ? <li className="muted">No records found.</li> : null}
+            {peopleRecords.map((person) => {
+              const isEditing = editingPersonId === person.id
+              return (
+                <li key={person.id ?? person.email ?? person.displayName} className="row space">
+                  {isEditing ? (
+                    <div className="row space">
+                      <input
+                        type="text"
+                        value={editingPersonName}
+                        onChange={(event) => setEditingPersonName(event.target.value)}
+                      />
+                      <input
+                        type="email"
+                        value={editingPersonEmail}
+                        onChange={(event) => setEditingPersonEmail(event.target.value)}
+                      />
                     </div>
-                  </div>
-                )}
-                <div className="actions-right">
-                  {isAdmin ? (
-                    isEditing ? (
+                  ) : (
+                    <div>
+                      <strong className="truncate" title={person.displayName ?? ''}>
+                        {person.displayName ?? '-'}
+                      </strong>
+                      <div className="muted truncate" title={person.email ?? ''}>
+                        {person.email ?? ''}
+                      </div>
+                    </div>
+                  )}
+                  <div className="actions-right">
+                    {isEditing ? (
                       <>
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            disabled={savingPerson || !editingPersonName.trim() || !person.id}
-                            onClick={async () => {
-                              if (!person.id) return
-                              if (!activeWorkspaceId) {
-                                setPeopleError('Select a workspace to continue.')
-                                return
-                              }
-                              setSavingPerson(true)
-                              try {
-                                const updated = await updatePerson(activeWorkspaceId, person.id, {
-                                  displayName: editingPersonName.trim(),
-                                  email: editingPersonEmail.trim() || undefined,
-                                })
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={savingPerson || !editingPersonName.trim() || !person.id}
+                          onClick={async () => {
+                            if (!person.id) return
+                            if (!activeWorkspaceId) {
+                              setPeopleError('Select a workspace to continue.')
+                              return
+                            }
+                            setSavingPerson(true)
+                            try {
+                              const updated = await updatePerson(activeWorkspaceId, person.id, {
+                                displayName: editingPersonName.trim(),
+                                email: editingPersonEmail.trim() || undefined,
+                              })
                               setPeopleRecords((prev) =>
                                 prev.map((item) => (item.id === updated.id ? updated : item))
                               )
@@ -715,14 +712,14 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                           Delete
                         </button>
                       </>
-                    )
-                  ) : null}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ) : null}
       <div className="dashboard-controls">
         <ControlsBar
           searchValue={search}
@@ -756,7 +753,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
           <h3>Directory</h3>
           <div className="people-directory-scroll">
             <div className="people-grid people-directory">
-              {visibleUsers.length === 0 ? <div className="muted">No users found.</div> : null}
+              {visibleUsers.length === 0 ? <div className="muted">No people yet in this workspace.</div> : null}
               {visibleUsers.map((user, index) => {
                 const isRecommended = Boolean(user.id && recommendedIds.has(user.id))
                 const recommendedCount = user.recommendedCount ?? 0

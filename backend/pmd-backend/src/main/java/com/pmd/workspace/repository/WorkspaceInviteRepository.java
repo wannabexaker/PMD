@@ -6,4 +6,5 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface WorkspaceInviteRepository extends MongoRepository<WorkspaceInvite, String> {
     Optional<WorkspaceInvite> findByToken(String token);
+    Optional<WorkspaceInvite> findByCode(String code);
 }

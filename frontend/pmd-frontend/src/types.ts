@@ -120,6 +120,40 @@ export type Workspace = {
   status?: 'ACTIVE' | 'PENDING' | (string & {})
   createdAt?: string | null
   demo?: boolean | null
+  requireApproval?: boolean | null
+}
+
+export type WorkspaceInvite = {
+  id?: string | null
+  workspaceId?: string | null
+  token?: string | null
+  code?: string | null
+  expiresAt?: string | null
+  maxUses?: number | null
+  usesCount?: number | null
+  revoked?: boolean | null
+  createdAt?: string | null
+}
+
+export type WorkspaceInviteResolve = {
+  workspaceId?: string | null
+  workspaceName?: string | null
+  token?: string | null
+  code?: string | null
+  expiresAt?: string | null
+  maxUses?: number | null
+  usesCount?: number | null
+  revoked?: boolean | null
+}
+
+export type WorkspaceJoinRequest = {
+  id?: string | null
+  workspaceId?: string | null
+  userId?: string | null
+  userName?: string | null
+  userEmail?: string | null
+  status?: 'PENDING' | 'APPROVED' | 'DENIED' | (string & {})
+  createdAt?: string | null
 }
 
 export type AuthResponse = {

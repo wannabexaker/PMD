@@ -1,56 +1,34 @@
-package com.pmd.workspace.model;
+package com.pmd.workspace.dto;
 
 import java.time.Instant;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
 
-@Document("workspace_invites")
-public class WorkspaceInvite {
+public class WorkspaceInviteResponse {
 
-    @Id
     private String id;
-
-    @Indexed
     private String workspaceId;
-
-    @Indexed(unique = true)
     private String token;
-
-    @Indexed(unique = true)
     private String code;
-
-    private String invitedEmail;
-
     private Instant expiresAt;
-
     private Integer maxUses;
-
     private int usesCount;
-
     private boolean revoked;
-
     private Instant createdAt;
 
-    private String createdByUserId;
-
-    public WorkspaceInvite() {
+    public WorkspaceInviteResponse() {
     }
 
-    public WorkspaceInvite(String id, String workspaceId, String token, String code, String invitedEmail,
-                           Instant expiresAt, Integer maxUses, int usesCount, boolean revoked,
-                           Instant createdAt, String createdByUserId) {
+    public WorkspaceInviteResponse(String id, String workspaceId, String token, String code,
+                                   Instant expiresAt, Integer maxUses, int usesCount,
+                                   boolean revoked, Instant createdAt) {
         this.id = id;
         this.workspaceId = workspaceId;
         this.token = token;
         this.code = code;
-        this.invitedEmail = invitedEmail;
         this.expiresAt = expiresAt;
         this.maxUses = maxUses;
         this.usesCount = usesCount;
         this.revoked = revoked;
         this.createdAt = createdAt;
-        this.createdByUserId = createdByUserId;
     }
 
     public String getId() {
@@ -83,14 +61,6 @@ public class WorkspaceInvite {
 
     public void setCode(String code) {
         this.code = code;
-    }
-
-    public String getInvitedEmail() {
-        return invitedEmail;
-    }
-
-    public void setInvitedEmail(String invitedEmail) {
-        this.invitedEmail = invitedEmail;
     }
 
     public Instant getExpiresAt() {
@@ -131,13 +101,5 @@ public class WorkspaceInvite {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
-    }
-
-    public String getCreatedByUserId() {
-        return createdByUserId;
-    }
-
-    public void setCreatedByUserId(String createdByUserId) {
-        this.createdByUserId = createdByUserId;
     }
 }

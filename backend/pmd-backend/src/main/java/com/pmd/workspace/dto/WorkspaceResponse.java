@@ -13,12 +13,14 @@ public class WorkspaceResponse {
     private WorkspaceMemberStatus status;
     private Instant createdAt;
     private boolean demo;
+    private boolean requireApproval;
 
     public WorkspaceResponse() {
     }
 
     public WorkspaceResponse(String id, String name, String slug, WorkspaceMemberRole role,
-                             WorkspaceMemberStatus status, Instant createdAt, boolean demo) {
+                             WorkspaceMemberStatus status, Instant createdAt, boolean demo,
+                             boolean requireApproval) {
         this.id = id;
         this.name = name;
         this.slug = slug;
@@ -26,6 +28,7 @@ public class WorkspaceResponse {
         this.status = status;
         this.createdAt = createdAt;
         this.demo = demo;
+        this.requireApproval = requireApproval;
     }
 
     public String getId() {
@@ -82,5 +85,13 @@ public class WorkspaceResponse {
 
     public void setDemo(boolean demo) {
         this.demo = demo;
+    }
+
+    public boolean isRequireApproval() {
+        return requireApproval;
+    }
+
+    public void setRequireApproval(boolean requireApproval) {
+        this.requireApproval = requireApproval;
     }
 }

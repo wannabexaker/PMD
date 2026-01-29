@@ -23,16 +23,20 @@ public class Workspace {
 
     private boolean demo;
 
+    private boolean requireApproval;
+
     public Workspace() {
     }
 
-    public Workspace(String id, String name, String slug, Instant createdAt, String createdByUserId, boolean demo) {
+    public Workspace(String id, String name, String slug, Instant createdAt, String createdByUserId, boolean demo,
+                     boolean requireApproval) {
         this.id = id;
         this.name = name;
         this.slug = slug;
         this.createdAt = createdAt;
         this.createdByUserId = createdByUserId;
         this.demo = demo;
+        this.requireApproval = requireApproval;
     }
 
     public String getId() {
@@ -81,5 +85,13 @@ public class Workspace {
 
     public void setDemo(boolean demo) {
         this.demo = demo;
+    }
+
+    public boolean isRequireApproval() {
+        return requireApproval;
+    }
+
+    public void setRequireApproval(boolean requireApproval) {
+        this.requireApproval = requireApproval;
     }
 }
