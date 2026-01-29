@@ -772,3 +772,8 @@ DONE
 
 TODO
 - [ ] (Optional) Add .bat wrappers for ps1 scripts if needed for double-click.
+
+## 2026-01-29 - Hybrid dev .bat wrappers
+
+DONE
+- [x] Added .bat wrappers for deps/dev scripts.

@@ -822,3 +822,7 @@ Added
 
 Notes
 - docker-compose.local.yml remains for full dockerized app; hybrid is default local path.
+
+## 2026-01-29 - Hybrid dev .bat wrappers
+
+Added optional .bat wrappers for PowerShell scripts in scripts/.
