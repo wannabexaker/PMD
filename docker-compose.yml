@@ -2,7 +2,6 @@ services:
   mongo:
     image: mongo:7
     container_name: pmd-mongo
-    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
@@ -13,7 +12,6 @@ services:
   mailhog:
     image: mailhog/mailhog:latest
     container_name: pmd-mailhog
-    restart: unless-stopped
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Web UI

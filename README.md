@@ -128,4 +128,3 @@ set PMD_JWT_SECRET=your-32-char-minimum-secret-here
 
 - This repository is **a demo** made for learning.
 - It is not production-hardened and will evolve as I experiment.
-- Do not run docker compose from `C:\Projects\PMD` (read-only clone). Use `C:\Users\Jiannis\pmd` only.
