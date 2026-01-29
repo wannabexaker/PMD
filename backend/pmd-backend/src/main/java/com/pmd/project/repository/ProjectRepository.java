@@ -9,9 +9,7 @@ import org.springframework.data.domain.Sort;
 public interface ProjectRepository extends MongoRepository<Project, String> {
     List<Project> findByCreatedByUserIdIsNull();
     List<Project> findByCreatedByTeamIsNull();
-    List<Project> findAllByCreatedByTeamNot(String team, Sort sort);
-    Optional<Project> findByIdAndCreatedByTeamNot(String id, String team);
     Optional<Project> findByName(String name);
     List<Project> findByMemberIdsContaining(String memberId);
-    List<Project> findByMemberIdsContainingAndCreatedByTeamNot(String memberId, String team);
+    List<Project> findByTeamIdIsNull();
 }

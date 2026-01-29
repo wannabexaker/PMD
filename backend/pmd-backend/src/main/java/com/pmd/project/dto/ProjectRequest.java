@@ -15,15 +15,19 @@ public class ProjectRequest {
     @NotNull
     private ProjectStatus status;
 
+    @NotBlank
+    private String teamId;
+
     private List<String> memberIds;
 
     public ProjectRequest() {
     }
 
-    public ProjectRequest(String name, String description, ProjectStatus status, List<String> memberIds) {
+    public ProjectRequest(String name, String description, ProjectStatus status, String teamId, List<String> memberIds) {
         this.name = name;
         this.description = description;
         this.status = status;
+        this.teamId = teamId;
         this.memberIds = memberIds;
     }
 
@@ -49,6 +53,14 @@ public class ProjectRequest {
 
     public void setStatus(ProjectStatus status) {
         this.status = status;
+    }
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
     }
 
     public List<String> getMemberIds() {

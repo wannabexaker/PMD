@@ -3,6 +3,14 @@ const MODE = (import.meta as ImportMeta).env?.MODE as string | undefined
 const DEFAULT_API_BASE_URL = MODE === 'development' ? 'http://localhost:8099' : 'http://localhost:8080'
 export const API_BASE_URL =
   ENV_API_BASE_URL && ENV_API_BASE_URL.trim().length > 0 ? ENV_API_BASE_URL : DEFAULT_API_BASE_URL
+const ONLINE_EVENT = 'pmd:online'
+const OFFLINE_EVENT = 'pmd:offline'
+let lastReachability: 'online' | 'offline' | null = null
+
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line no-console
+  console.info('[PMD] API base URL:', API_BASE_URL, 'mode:', MODE ?? 'unknown')
+}
 const TOKEN_KEY = 'pmd_token'
 const TOKEN_EXP_KEY = 'pmd_token_exp'
 
@@ -78,7 +86,16 @@ export async function requestJson<T>(path: string, options?: RequestInit): Promi
       },
     })
   } catch {
+    if (typeof window !== 'undefined' && lastReachability !== 'offline') {
+      lastReachability = 'offline'
+      window.dispatchEvent(new CustomEvent(OFFLINE_EVENT, { detail: { baseUrl: API_BASE_URL } }))
+    }
     throw new ApiError(`Cannot reach server. Check backend is running at ${API_BASE_URL} and try again.`, 0)
+  }
+
+  if (typeof window !== 'undefined' && lastReachability !== 'online') {
+    lastReachability = 'online'
+    window.dispatchEvent(new CustomEvent(ONLINE_EVENT, { detail: { baseUrl: API_BASE_URL } }))
   }
 
   const text = await response.text()

@@ -28,6 +28,9 @@ public class User {
 
     private String team;
 
+    @Indexed
+    private String teamId;
+
     private boolean isAdmin;
 
     private String bio;
@@ -46,7 +49,7 @@ public class User {
     }
 
     public User(String id, String username, String passwordHash, String displayName, String email, String firstName,
-                String lastName, String team, boolean isAdmin, String bio, boolean emailVerified, Instant createdAt,
+                String lastName, String team, String teamId, boolean isAdmin, String bio, boolean emailVerified, Instant createdAt,
                 List<String> recommendedByUserIds, int recommendedCount, PeoplePageWidgets peoplePageWidgets) {
         this.id = id;
         this.username = username;
@@ -56,6 +59,7 @@ public class User {
         this.firstName = firstName;
         this.lastName = lastName;
         this.team = team;
+        this.teamId = teamId;
         this.isAdmin = isAdmin;
         this.bio = bio;
         this.emailVerified = emailVerified;
@@ -127,6 +131,14 @@ public class User {
 
     public void setTeam(String team) {
         this.team = team;
+    }
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
     }
 
     public boolean isAdmin() {

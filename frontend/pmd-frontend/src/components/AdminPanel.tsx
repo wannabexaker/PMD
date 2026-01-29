@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { Project, UserSummary } from '../types'
+import { useTeams } from '../teams/TeamsContext'
 
 const SECTIONS = [
   'User management',
@@ -17,23 +18,11 @@ type AdminPanelProps = {
   projects: Project[]
 }
 
-export function AdminPanel({ users, projects }: AdminPanelProps) {
+export function AdminPanel({ users }: AdminPanelProps) {
   const [active, setActive] = useState<Section>('User management')
-
-  const teams = useMemo(() => {
-    const values = new Set<string>()
-    users.forEach((user) => {
-      if (user.team && (!user.isAdmin || user.team.toLowerCase() !== 'admins')) {
-        values.add(user.team)
-      }
-    })
-    projects.forEach((project) => {
-      if (project.status) {
-        values.add(project.status.toString())
-      }
-    })
-    return Array.from(values).sort()
-  }, [users, projects])
+  const { teams, createTeam, loading: teamsLoading, error: teamsError, teamById } = useTeams()
+  const [newTeamName, setNewTeamName] = useState('')
+  const [creating, setCreating] = useState(false)
 
   return (
     <section className="panel admin-panel">
@@ -67,7 +56,9 @@ export function AdminPanel({ users, projects }: AdminPanelProps) {
                     <div>
                       <strong>{user.displayName ?? '-'}</strong>
                       <div className="muted">{user.email ?? ''}</div>
-                      <div className="muted">{user.team ?? 'Team'}</div>
+                      <div className="muted">
+                        {teamById.get(user.teamId ?? '')?.name ?? user.team ?? 'Team'}
+                      </div>
                     </div>
                     {user.isAdmin ? <span className="admin-badge">Admin</span> : null}
                   </li>
@@ -79,10 +70,39 @@ export function AdminPanel({ users, projects }: AdminPanelProps) {
           {active === 'Teams' ? (
             <div className="card">
               <h3>Teams</h3>
+              <div className="row space">
+                <input
+                  type="text"
+                  placeholder="New team name"
+                  value={newTeamName}
+                  onChange={(event) => setNewTeamName(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={creating || !newTeamName.trim()}
+                  onClick={async () => {
+                    setCreating(true)
+                    const created = await createTeam(newTeamName)
+                    setCreating(false)
+                    if (created?.id) {
+                      setNewTeamName('')
+                    }
+                  }}
+                >
+                  {creating ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+              {teamsError ? <p className="error">{teamsError}</p> : null}
               <ul className="list compact">
-                {teams.length === 0 ? <li className="muted">No teams found.</li> : null}
+                {teamsLoading && teams.length === 0 ? <li className="muted">Loading teams...</li> : null}
+                {teams.length === 0 && !teamsLoading ? <li className="muted">No teams found.</li> : null}
                 {teams.map((team) => (
-                  <li key={team}>{team}</li>
+                  <li key={team.id ?? team.name}>
+                    <span className="truncate" title={team.name ?? ''}>
+                      {team.name ?? '-'}
+                    </span>
+                  </li>
                 ))}
               </ul>
             </div>

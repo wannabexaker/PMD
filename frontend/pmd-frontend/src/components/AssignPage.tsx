@@ -4,6 +4,8 @@ import { deleteProject, fetchProjects, randomAssign, randomProject, updateProjec
 import { fetchRecommendationDetails, toggleRecommendation } from '../api/users'
 import { ControlsBar } from './common/ControlsBar'
 import { isApiError } from '../api/http'
+import { useTeams } from '../teams/TeamsContext'
+import { TeamFilterSelect } from './common/TeamFilterSelect'
 import {
   PROJECT_FOLDERS,
   PROJECT_STATUS_SELECTABLE,
@@ -39,6 +41,7 @@ export function AssignPage({
   onClearSelection,
   onRefresh,
 }: AssignPageProps) {
+  const { teams, teamById } = useTeams()
   const [selectedMembers, setSelectedMembers] = useState<UserSummary[]>([])
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
@@ -51,6 +54,7 @@ export function AssignPage({
   const [projectSearch, setProjectSearch] = useState('')
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
   const [randomTeamId, setRandomTeamId] = useState('')
+  const [projectTeamFilterValue, setProjectTeamFilterValue] = useState('')
   const [assignedToMeProjects, setAssignedToMeProjects] = useState<Project[] | null>(null)
   const [assignedToMeLoading, setAssignedToMeLoading] = useState(false)
   const [recommendationOverrides, setRecommendationOverrides] = useState<
@@ -71,48 +75,28 @@ export function AssignPage({
     return map
   }, [users])
 
-  const teamByUserId = useMemo(() => {
-    const map = new Map<string, string>()
-    users.forEach((user) => {
-      if (user.id && user.team) {
-        map.set(user.id, user.team)
-      }
-    })
-    return map
-  }, [users])
-
   useEffect(() => {
     if (!toast) return
     const timer = window.setTimeout(() => setToast(null), 3000)
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const teams = useMemo(() => {
-    const values = new Set<string>()
-    users.forEach((user) => {
-      const team = user.team
-      if (!team || team.toLowerCase() === 'admin') return
-      values.add(team)
-    })
-    return Array.from(values).sort()
-  }, [users])
-
   const availableTeams = useMemo(() => {
-    return teams
+    return teams.map((team) => team.id).filter(Boolean) as string[]
   }, [teams])
 
   useEffect(() => {
-    if (randomTeamId && !teams.includes(randomTeamId)) {
+    if (randomTeamId && !availableTeams.includes(randomTeamId)) {
       setRandomTeamId('')
     }
-  }, [randomTeamId, teams])
+  }, [randomTeamId, availableTeams])
 
   useEffect(() => {
     if (selectedFilters.length > 0) {
       return
     }
     const allStatuses = PROJECT_FOLDERS.map((folder) => `status:${folder.key}`)
-    const allTeams = availableTeams.map((team) => `team:${team}`)
+    const allTeams = availableTeams.map((teamId) => `team:${teamId}`)
     setSelectedFilters([...allStatuses, ...allTeams])
   }, [availableTeams, selectedFilters.length])
 
@@ -133,14 +117,36 @@ export function AssignPage({
     )
   }, [selectedFilters])
 
+  useEffect(() => {
+    if (selectedTeamSet.size === 1) {
+      setProjectTeamFilterValue(Array.from(selectedTeamSet)[0])
+    } else {
+      setProjectTeamFilterValue('')
+    }
+  }, [selectedTeamSet])
+
   const recommendedOnly = selectedFilters.includes('recommended')
   const assignedToMeOnly = selectedFilters.includes('assignedToMe')
 
   const defaultFilterKeys = useMemo(() => {
     const allStatuses = PROJECT_FOLDERS.map((folder) => `status:${folder.key}`)
-    const allTeams = availableTeams.map((team) => `team:${team}`)
+    const allTeams = availableTeams.map((teamId) => `team:${teamId}`)
     return [...allStatuses, ...allTeams]
   }, [availableTeams])
+
+  const handleProjectTeamFilterChange = (value: string) => {
+    const keep = selectedFilters.filter((key) => !key.startsWith('team:'))
+    const teamFilters = value ? [`team:${value}`] : availableTeams.map((teamId) => `team:${teamId}`)
+    setSelectedFilters([...keep, ...teamFilters])
+  }
+
+  const handleFilterMenuChange = (next: string[]) => {
+    setSelectedFilters((prev) => {
+      const teamFilters = prev.filter((key) => key.startsWith('team:'))
+      const nonTeam = next.filter((key) => !key.startsWith('team:'))
+      return [...nonTeam, ...teamFilters]
+    })
+  }
 
   const isFilterActive = useMemo(() => {
     if (selectedFilters.length === 0) {
@@ -215,13 +221,10 @@ export function AssignPage({
       if (availableTeams.length === 0 || selectedTeamSet.size === 0 || allTeamsSelected) {
         return true
       }
-      const memberIds = project.memberIds ?? []
-      return memberIds.some((id) => {
-        const team = teamByUserId.get(id ?? '')
-        return team ? selectedTeamSet.has(team) : false
-      })
+      const projectTeamId = project.teamId ?? ''
+      return projectTeamId ? selectedTeamSet.has(projectTeamId) : false
     },
-    [selectedTeamSet, availableTeams, teamByUserId]
+    [selectedTeamSet, availableTeams]
   )
 
   const scopedProjects = useMemo(() => {
@@ -269,8 +272,7 @@ export function AssignPage({
   const availableUsers = useMemo(() => {
     const selectedIds = new Set(selectedMembers.map((member) => member.id).filter(Boolean))
     return displayUsers.filter((user) => {
-      const team = (user.team ?? '').toLowerCase()
-      if (team === 'admin') {
+      if (user.isAdmin) {
         return false
       }
       if (user.id && selectedIds.has(user.id)) {
@@ -285,13 +287,15 @@ export function AssignPage({
     return availableUsers.filter((user) => {
       const name = user.displayName?.toLowerCase() ?? ''
       const email = user.email?.toLowerCase() ?? ''
-      const team = user.team ?? ''
-      const matchesQuery = !query || name.includes(query) || email.includes(query) || team.toLowerCase().includes(query)
-      const matchesTeam = !teamFilter || team === teamFilter
+      const teamId = user.teamId ?? ''
+      const teamLabel = teamById.get(teamId)?.name ?? ''
+      const matchesQuery =
+        !query || name.includes(query) || email.includes(query) || teamLabel.toLowerCase().includes(query)
+      const matchesTeam = !teamFilter || teamId === teamFilter
       const matchesRecommended = !recommendedOnly || (user.recommendedCount ?? 0) > 0
       return matchesQuery && matchesTeam && matchesRecommended
     })
-  }, [availableUsers, search, teamFilter, recommendedOnly])
+  }, [availableUsers, search, teamFilter, recommendedOnly, teamById])
 
   const recommendedPool = useMemo(() => {
     if (baseCandidates.length === 0) {
@@ -459,6 +463,7 @@ export function AssignPage({
       name: (project.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
       description: project.description ?? undefined,
       status: overrides.status ?? ((project.status ?? 'NOT_STARTED') as ProjectStatus),
+      teamId: overrides.teamId ?? (project.teamId ?? currentUser?.teamId ?? ''),
       memberIds: overrides.memberIds ?? currentMemberIds,
     }
   }
@@ -584,11 +589,17 @@ export function AssignPage({
                 filters={[]}
                 actions={
                   <div className="assign-random-tools">
+                    <TeamFilterSelect
+                      value={projectTeamFilterValue}
+                      teams={teams}
+                      onChange={handleProjectTeamFilterChange}
+                      ariaLabel="Filter projects by team"
+                    />
                     <select value={randomTeamId} onChange={(event) => setRandomTeamId(event.target.value)}>
                       <option value="">All teams</option>
-                      {availableTeams.map((team) => (
-                        <option key={team} value={team}>
-                          {team}
+                      {availableTeams.map((teamId) => (
+                        <option key={teamId} value={teamId}>
+                          {teamById.get(teamId)?.name ?? teamId}
                         </option>
                       ))}
                     </select>
@@ -605,30 +616,23 @@ export function AssignPage({
                   </div>
                 }
               filterSections={[
-                  {
-                    label: 'Statuses',
-                    options: PROJECT_FOLDERS.map((folder) => ({
-                      id: `status:${folder.key}`,
-                      label: folder.label,
-                    })),
-                  },
-                  {
-                    label: 'Teams',
-                    options: availableTeams.map((team) => ({
-                      id: `team:${team}`,
-                      label: team,
-                    })),
-                  },
-                  {
-                    label: 'Extras',
-                    options: [
-                      { id: 'recommended', label: 'Recommended' },
-                      ...(currentUserId ? [{ id: 'assignedToMe', label: 'Assigned to me' }] : []),
-                    ],
-                  },
-                ]}
+                {
+                  label: 'Statuses',
+                  options: PROJECT_FOLDERS.map((folder) => ({
+                    id: `status:${folder.key}`,
+                    label: folder.label,
+                  })),
+                },
+                {
+                  label: 'Extras',
+                  options: [
+                    { id: 'recommended', label: 'Recommended' },
+                    ...(currentUserId ? [{ id: 'assignedToMe', label: 'Assigned to me' }] : []),
+                  ],
+                },
+              ]}
               selectedFilterKeys={selectedFilters}
-              onSelectedFilterKeysChange={setSelectedFilters}
+              onSelectedFilterKeysChange={handleFilterMenuChange}
               searchAriaLabel="Search projects"
               filterAriaLabel="Filter"
               filterActive={isFilterActive}
@@ -697,14 +701,12 @@ export function AssignPage({
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                 />
-                <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)}>
-                  <option value="">All teams</option>
-                  {teams.map((team) => (
-                    <option key={team} value={team}>
-                      {team}
-                    </option>
-                  ))}
-                </select>
+                <TeamFilterSelect
+                  value={teamFilter}
+                  teams={teams}
+                  onChange={setTeamFilter}
+                  ariaLabel="Filter people by team"
+                />
               </div>
             </div>
           </div>
@@ -738,8 +740,11 @@ export function AssignPage({
                         <span className="muted truncate" title={user.email ?? ''}>
                           {user.email ?? ''}
                         </span>
-                        <span className="muted truncate" title={user.team ?? 'Team'}>
-                          {user.team ?? 'Team'}
+                        <span
+                          className="muted truncate"
+                          title={teamById.get(user.teamId ?? '')?.name ?? 'Team'}
+                        >
+                          {teamById.get(user.teamId ?? '')?.name ?? 'Team'}
                         </span>
                       </div>
                       <div className="people-card-actions">

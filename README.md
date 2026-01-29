@@ -66,7 +66,7 @@ VITE_API_BASE_URL=http://localhost:8080
 
 Start (one command):
 ```
-docker compose -f docker-compose.local.yml up -d
+scripts\\pmd-start.ps1
 ```
 
 Status:
@@ -81,7 +81,7 @@ docker compose -f docker-compose.local.yml logs --tail=100 backend
 
 Clean reset (including volumes):
 ```
-docker compose -f docker-compose.local.yml down --remove-orphans -v
+scripts\\pmd-reset.ps1
 ```
 
 - Frontend: http://localhost:5173
@@ -123,3 +123,9 @@ set PMD_JWT_SECRET=your-32-char-minimum-secret-here
 
 - This repository is **a demo** made for learning.
 - It is not production‑hardened and will evolve as I experiment.
+
+## Notes
+
+- This repository is **a demo** made for learning.
+- It is not production-hardened and will evolve as I experiment.
+- Do not run docker compose from `C:\Projects\PMD` (read-only clone). Use `C:\Users\Jiannis\pmd` only.

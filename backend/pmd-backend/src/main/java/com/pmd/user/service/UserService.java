@@ -52,20 +52,16 @@ public class UserService {
     }
 
     public User save(User user) {
-        String normalizedTeam = normalizeTeam(user.getTeam());
-        if (normalizedTeam != null) {
-            user.setTeam(normalizedTeam);
-        }
         if (user.getId() != null) {
             User existing = userRepository.findById(user.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-            if (isAdminTeam(existing) && !"admin".equals(user.getTeam())) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin team is immutable");
+            if (existing.isAdmin() && !user.isAdmin()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin role is immutable");
             }
         } else if (user.getEmail() != null) {
             userRepository.findByEmail(user.getEmail()).ifPresent(existing -> {
-                if (isAdminTeam(existing) && !"admin".equals(user.getTeam())) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin team is immutable");
+                if (existing.isAdmin() && !user.isAdmin()) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin role is immutable");
                 }
             });
         }
@@ -81,17 +77,16 @@ public class UserService {
         } else {
             user.setPeoplePageWidgets(user.getPeoplePageWidgets().mergeWithDefaults());
         }
-        user.setAdmin(isAdminTeam(user));
         return userRepository.save(user);
     }
 
-    public List<User> findAssignableUsers(String query, String team, boolean includeAdmins) {
-        List<User> users = includeAdmins ? userRepository.findAll() : userRepository.findByTeamNot("admin");
+    public List<User> findAssignableUsers(String query, String teamId, boolean includeAdmins) {
+        List<User> users = includeAdmins ? userRepository.findAll() : userRepository.findByIsAdminFalse();
         String normalizedQuery = query != null ? query.trim().toLowerCase(Locale.ROOT) : "";
-        String normalizedTeam = team != null ? team.trim().toLowerCase(Locale.ROOT) : "";
+        String normalizedTeamId = teamId != null ? teamId.trim() : "";
 
         return users.stream()
-            .filter(user -> includeAdmins || !isAdminTeam(user))
+            .filter(user -> includeAdmins || !user.isAdmin())
             .filter(user -> {
                 if (normalizedQuery.isEmpty()) {
                     return true;
@@ -101,11 +96,11 @@ public class UserService {
                 return displayName.contains(normalizedQuery) || email.contains(normalizedQuery);
             })
             .filter(user -> {
-                if (normalizedTeam.isEmpty()) {
+                if (normalizedTeamId.isEmpty()) {
                     return true;
                 }
-                String userTeam = user.getTeam() != null ? user.getTeam().toLowerCase(Locale.ROOT) : "";
-                return userTeam.equals(normalizedTeam);
+                String userTeamId = user.getTeamId() != null ? user.getTeamId().trim() : "";
+                return userTeamId.equals(normalizedTeamId);
             })
             .toList();
     }
@@ -127,7 +122,7 @@ public class UserService {
     }
 
     public boolean isAdminTeam(User user) {
-        return user != null && "admin".equals(user.getTeam());
+        return user != null && user.isAdmin();
     }
 
     public Map<String, Long> findActiveProjectCounts(List<User> users, boolean includeAdminProjects) {
@@ -142,9 +137,6 @@ public class UserService {
             return Collections.emptyMap();
         }
         Criteria criteria = Criteria.where("status").in(ProjectStatus.NOT_STARTED, ProjectStatus.IN_PROGRESS);
-        if (!includeAdminProjects) {
-            criteria = criteria.and("createdByTeam").ne("admin");
-        }
         Aggregation aggregation = Aggregation.newAggregation(
             Aggregation.match(criteria),
             Aggregation.unwind("memberIds"),
@@ -161,16 +153,6 @@ public class UserService {
             .collect(Collectors.toMap(ActiveCountResult::getId, ActiveCountResult::getCount));
     }
 
-    private String normalizeTeam(String team) {
-        if (team == null) {
-            return null;
-        }
-        if (team.equalsIgnoreCase("admin") || team.equalsIgnoreCase("admins")) {
-            return "admin";
-        }
-        return team;
-    }
-
     public User ensureAdminSeedUser(String email, String passwordHash, String firstName, String lastName, String bio) {
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
@@ -181,7 +163,6 @@ public class UserService {
             created.setFirstName(firstName);
             created.setLastName(lastName);
             created.setDisplayName(buildDisplayName(firstName, lastName, email));
-            created.setTeam("admin");
             created.setAdmin(true);
             created.setBio(bio);
             created.setEmailVerified(true);
@@ -189,10 +170,6 @@ public class UserService {
             return userRepository.save(created);
         }
         boolean changed = false;
-        if (!"admin".equals(user.getTeam())) {
-            user.setTeam("admin");
-            changed = true;
-        }
         if (!firstName.equals(user.getFirstName())) {
             user.setFirstName(firstName);
             changed = true;

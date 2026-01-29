@@ -1,10 +1,15 @@
 package com.pmd.user.controller;
 
 import com.pmd.auth.security.UserPrincipal;
+import com.pmd.team.model.Team;
+import com.pmd.team.service.TeamService;
 import com.pmd.user.dto.UserSummaryResponse;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,36 +23,44 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
+    private final TeamService teamService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, TeamService teamService) {
         this.userService = userService;
+        this.teamService = teamService;
     }
 
     @GetMapping
     public List<UserSummaryResponse> findUsers(
         @RequestParam(name = "q", required = false) String query,
-        @RequestParam(name = "team", required = false) String team,
+        @RequestParam(name = "teamId", required = false) String teamId,
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
         boolean includeAdmins = userService.isAdmin(requester);
-        List<User> users = userService.findAssignableUsers(query, team, includeAdmins);
+        List<User> users = userService.findAssignableUsers(query, teamId, includeAdmins);
         java.util.Map<String, Long> activeCounts = userService.findActiveProjectCounts(users, includeAdmins);
+        Map<String, String> teamNames = teamService.findActiveTeams().stream()
+            .collect(Collectors.toMap(Team::getId, Team::getName));
         return users.stream()
-            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester))
+            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester, teamNames))
             .toList();
     }
 
-    private UserSummaryResponse toSummary(User user, long activeProjectCount, User requester) {
+    private UserSummaryResponse toSummary(User user, long activeProjectCount, User requester,
+                                          Map<String, String> teamNames) {
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
+        String teamName = resolveTeamName(user, teamNames);
         return new UserSummaryResponse(
             user.getId(),
             user.getDisplayName(),
             user.getEmail(),
-            user.getTeam(),
-            userService.isAdminTeam(user),
+            teamName,
+            user.getTeamId(),
+            teamName,
+            user.isAdmin(),
             activeProjectCount,
             user.getRecommendedCount(),
             recommendedByMe
@@ -59,5 +72,15 @@ public class UserController {
             return userService.findById(principal.getId());
         }
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+    }
+
+    private String resolveTeamName(User user, Map<String, String> teamNames) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getTeamId() != null && teamNames.containsKey(user.getTeamId())) {
+            return teamNames.get(user.getTeamId());
+        }
+        return user.getTeam();
     }
 }

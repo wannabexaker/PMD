@@ -17,9 +17,20 @@ export type Project = {
   createdByUserId?: string | null
   createdByName?: string | null
   createdByTeam?: string | null
+  teamId?: string | null
+  teamName?: string | null
   createdAt?: string | null
   updatedAt?: string | null
   comments?: ProjectCommentResponse[] | null
+}
+
+export type Team = {
+  id?: string | null
+  name?: string | null
+  slug?: string | null
+  isActive?: boolean | null
+  createdAt?: string | null
+  createdBy?: string | null
 }
 
 export type UserSummary = {
@@ -27,6 +38,8 @@ export type UserSummary = {
   displayName?: string | null
   email?: string | null
   team?: string | null
+  teamId?: string | null
+  teamName?: string | null
   isAdmin?: boolean | null
   activeProjectCount?: number | null
   recommendedCount?: number | null
@@ -51,6 +64,8 @@ export type User = {
   firstName?: string | null
   lastName?: string | null
   team?: string | null
+  teamId?: string | null
+  teamName?: string | null
   bio?: string | null
   isAdmin?: boolean | null
   peoplePageWidgets?: PeoplePageWidgets | null
@@ -60,6 +75,7 @@ export type CreateProjectPayload = {
   name: string
   description?: string
   status: ProjectStatus
+  teamId: string
   memberIds?: string[]
 }
 
@@ -75,7 +91,7 @@ export type RegisterPayload = {
   confirmPassword: string
   firstName: string
   lastName: string
-  team?: string
+  teamId?: string
   bio?: string
 }
 
@@ -83,7 +99,7 @@ export type UpdateProfilePayload = {
   email: string
   firstName: string
   lastName: string
-  team: string
+  teamId?: string
   bio?: string
 }
 

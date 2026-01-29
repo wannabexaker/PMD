@@ -13,10 +13,20 @@ import { fetchRecommendationDetails, toggleRecommendation } from '../api/users'
 import { updatePeoplePageWidgets } from '../api/auth'
 import { useAuth } from '../auth/authUtils'
 import type { PeoplePageWidgets } from '../types'
+import { useTeams } from '../teams/TeamsContext'
+import { TeamFilterSelect } from './common/TeamFilterSelect'
+import {
+  clearPeopleSelection,
+  getPeopleSelectedFilters,
+  getPeopleSelectedUserId,
+  setPeopleSelectedFilters,
+  setPeopleSelectedUserId,
+} from '../ui/uiSelectionStore'
 
 type PeoplePageProps = {
   users: UserSummary[]
   projects: Project[]
+  rememberSelection: boolean
 }
 
 const MAX_PROJECT_TITLE_LENGTH = 32
@@ -63,10 +73,14 @@ function formatProjectTitle(value?: string | null) {
   return value.length > MAX_PROJECT_TITLE_LENGTH ? value.slice(0, MAX_PROJECT_TITLE_LENGTH) + '...' : value
 }
 
-export function PeoplePage({ users, projects }: PeoplePageProps) {
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+export function PeoplePage({ users, projects, rememberSelection }: PeoplePageProps) {
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(() =>
+    rememberSelection ? getPeopleSelectedUserId() : null
+  )
   const [search, setSearch] = useState('')
-  const [selectedFilters, setSelectedFilters] = useState<string[]>([])
+  const [selectedFilters, setSelectedFilters] = useState<string[]>(() =>
+    rememberSelection ? getPeopleSelectedFilters() : []
+  )
   const [overviewStats, setOverviewStats] = useState<PeopleOverviewStatsResponse | null>(null)
   const [selectedUserStats, setSelectedUserStats] = useState<PeopleUserStatsResponse | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
@@ -78,10 +92,12 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
   const [recommendersById, setRecommendersById] = useState<Record<string, UserSummary[]>>({})
   const [recommendersLoadingId, setRecommendersLoadingId] = useState<string | null>(null)
   const { user: currentUser } = useAuth()
+  const { teams, teamById } = useTeams()
   const [widgets, setWidgets] = useState<PeoplePageWidgets>(() => mergeWidgetDefaults(currentUser?.peoplePageWidgets))
   const [widgetsEditing, setWidgetsEditing] = useState(false)
   const [widgetsDraft, setWidgetsDraft] = useState<PeoplePageWidgets | null>(null)
   const [widgetsSaving, setWidgetsSaving] = useState(false)
+  const [teamFilterValue, setTeamFilterValue] = useState('')
 
   const selectedUser = useMemo(() => users.find((user) => user.id === selectedUserId) ?? null, [users, selectedUserId])
 
@@ -136,15 +152,8 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
   }, [overviewStats])
 
   const availableTeams = useMemo(() => {
-    const set = new Set<string>()
-    users.forEach((user) => {
-      const team = user.team ?? 'Team'
-      if (team.toLowerCase() !== 'admin') {
-        set.add(team)
-      }
-    })
-    return Array.from(set).sort()
-  }, [users])
+    return teams.map((team) => team.id).filter(Boolean) as string[]
+  }, [teams])
 
   const defaultTeamFilters = useMemo(() => {
     return availableTeams.map((team) => `team:${team}`)
@@ -170,15 +179,61 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
     return selectedFilterKeys.length !== defaultTeamFilters.length
   }, [selectedFilterKeys, defaultTeamFilters])
 
-  const effectiveTeamSet = useMemo(() => {
+  const teamFilterActive = useMemo(() => {
     if (availableTeams.length === 0) {
-      return new Set<string>()
+      return false
     }
     if (selectedTeamSet.size === 0) {
-      return new Set(availableTeams)
+      return false
     }
-    return selectedTeamSet
+    return selectedTeamSet.size < availableTeams.length
   }, [availableTeams, selectedTeamSet])
+
+  useEffect(() => {
+    if (selectedTeamSet.size === 1) {
+      setTeamFilterValue(Array.from(selectedTeamSet)[0])
+    } else {
+      setTeamFilterValue('')
+    }
+  }, [selectedTeamSet])
+
+  useEffect(() => {
+    if (!rememberSelection) {
+      clearPeopleSelection()
+      return
+    }
+    setPeopleSelectedUserId(selectedUserId)
+  }, [selectedUserId, rememberSelection])
+
+  useEffect(() => {
+    if (!rememberSelection) {
+      clearPeopleSelection()
+      return
+    }
+    setPeopleSelectedFilters(selectedFilters)
+  }, [selectedFilters, rememberSelection])
+
+  useEffect(() => {
+    return () => {
+      if (!rememberSelection) {
+        clearPeopleSelection()
+      }
+    }
+  }, [rememberSelection])
+
+  const handleTeamFilterChange = (value: string) => {
+    const keep = selectedFilterKeys.filter((key) => !key.startsWith('team:'))
+    const teamFilters = value ? [`team:${value}`] : defaultTeamFilters
+    setSelectedFilters([...keep, ...teamFilters])
+  }
+
+  const handleFilterMenuChange = (next: string[]) => {
+    setSelectedFilters((prev) => {
+      const teamFilters = prev.filter((key) => key.startsWith('team:'))
+      const nonTeam = next.filter((key) => !key.startsWith('team:'))
+      return [...nonTeam, ...teamFilters]
+    })
+  }
 
   useEffect(() => {
     let active = true
@@ -250,16 +305,18 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
     return displayUsers.filter((user) => {
       const name = user.displayName?.toLowerCase() ?? ''
       const email = user.email?.toLowerCase() ?? ''
-      const team = user.team ?? 'Team'
-      if (team.toLowerCase() === 'admin') {
+      const teamId = user.teamId ?? ''
+      const teamLabel = teamById.get(teamId)?.name ?? 'Team'
+      if (user.isAdmin) {
         return false
       }
-      const matchesQuery = !query || name.includes(query) || email.includes(query) || team.toLowerCase().includes(query)
-      const matchesTeam = effectiveTeamSet.size === 0 || effectiveTeamSet.has(team)
+      const matchesQuery =
+        !query || name.includes(query) || email.includes(query) || teamLabel.toLowerCase().includes(query)
+      const matchesTeam = !teamFilterActive || selectedTeamSet.has(teamId)
       const matchesRecommended = !recommendedOnly || (user.recommendedCount ?? 0) > 0
       return matchesQuery && matchesTeam && matchesRecommended
     })
-  }, [displayUsers, search, effectiveTeamSet, recommendedOnly])
+  }, [displayUsers, search, selectedTeamSet, recommendedOnly, teamById, teamFilterActive])
 
   const recommendedPool = useMemo(() => {
     if (baseCandidates.length === 0) {
@@ -437,23 +494,24 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
           filters={[]}
           filterSections={[
             {
-              label: 'Teams',
-              options: availableTeams.map((team) => ({
-                id: `team:${team}`,
-                label: team,
-              })),
-            },
-            {
               label: 'Extras',
               options: [{ id: 'recommended', label: 'Recommended' }],
             },
           ]}
           selectedFilterKeys={selectedFilterKeys}
-          onSelectedFilterKeysChange={setSelectedFilters}
+          onSelectedFilterKeysChange={handleFilterMenuChange}
           searchAriaLabel="Search people"
           filterAriaLabel="Filter"
           searchOverlay
           filterActive={isFilterActive}
+          actions={
+            <TeamFilterSelect
+              value={teamFilterValue}
+              teams={teams}
+              onChange={handleTeamFilterChange}
+              ariaLabel="Filter people by team"
+            />
+          }
         />
       </div>
       <div className="people-layout">
@@ -485,8 +543,11 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
                     <strong className="truncate" title={user.displayName ?? ''}>
                       {user.displayName ?? '-'}
                     </strong>
-                    <span className="muted truncate" title={user.team ?? 'Team'}>
-                      {user.team ?? 'Team'}
+                    <span
+                      className="muted truncate"
+                      title={teamById.get(user.teamId ?? '')?.name ?? 'Team'}
+                    >
+                      {teamById.get(user.teamId ?? '')?.name ?? 'Team'}
                     </span>
                   </div>
                   <div className="people-card-actions">
@@ -550,8 +611,11 @@ export function PeoplePage({ users, projects }: PeoplePageProps) {
                     <div className="muted truncate" title={selectedUser.email ?? ''}>
                       {selectedUser.email ?? ''}
                     </div>
-                    <div className="muted truncate" title={selectedUser.team ?? 'Team'}>
-                      {selectedUser.team ?? 'Team'}
+                    <div
+                      className="muted truncate"
+                      title={teamById.get(selectedUser.teamId ?? '')?.name ?? 'Team'}
+                    >
+                      {teamById.get(selectedUser.teamId ?? '')?.name ?? 'Team'}
                     </div>
                   </div>
                   <div className="people-widgets-toolbar">

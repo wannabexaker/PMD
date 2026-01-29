@@ -11,6 +11,8 @@ import com.pmd.project.model.Project;
 import com.pmd.project.model.ProjectComment;
 import com.pmd.project.model.ProjectStatus;
 import com.pmd.project.repository.ProjectRepository;
+import com.pmd.team.model.Team;
+import com.pmd.team.service.TeamService;
 import com.pmd.user.dto.UserSummaryResponse;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
@@ -43,16 +45,18 @@ public class ProjectService {
     private final ApplicationEventPublisher eventPublisher;
     private final AccessPolicy accessPolicy;
     private final MongoTemplate mongoTemplate;
+    private final TeamService teamService;
 
     public ProjectService(ProjectRepository projectRepository, UserRepository userRepository,
                           UserService userService, ApplicationEventPublisher eventPublisher,
-                          AccessPolicy accessPolicy, MongoTemplate mongoTemplate) {
+                          AccessPolicy accessPolicy, MongoTemplate mongoTemplate, TeamService teamService) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.userService = userService;
         this.eventPublisher = eventPublisher;
         this.accessPolicy = accessPolicy;
         this.mongoTemplate = mongoTemplate;
+        this.teamService = teamService;
     }
 
     public ProjectResponse create(ProjectRequest request, User requester) {
@@ -64,6 +68,7 @@ public class ProjectService {
             request.getStatus(),
             request.getMemberIds() != null ? request.getMemberIds().size() : 0
         );
+        Team team = teamService.requireActiveTeam(request.getTeamId());
         Project project = new Project();
         project.setName(request.getName());
         project.setDescription(request.getDescription());
@@ -72,7 +77,8 @@ public class ProjectService {
         project.setComments(new ArrayList<>());
         project.setCreatedAt(Instant.now());
         project.setCreatedByUserId(requester.getId());
-        project.setCreatedByTeam(requester.getTeam());
+        project.setCreatedByTeam(team.getName());
+        project.setTeamId(team.getId());
 
         validateAssignees(requester, project, request.getMemberIds());
 
@@ -202,6 +208,7 @@ public class ProjectService {
     }
 
     public ProjectResponse update(String id, ProjectRequest request, String assignedByUserId, User requester) {
+        Team team = teamService.requireActiveTeam(request.getTeamId());
         Project project = getByIdForUser(id, requester);
         List<String> previousMemberIds = project.getMemberIds() != null
             ? new ArrayList<>(project.getMemberIds())
@@ -213,6 +220,7 @@ public class ProjectService {
         project.setDescription(request.getDescription());
         project.setStatus(request.getStatus());
         project.setMemberIds(request.getMemberIds());
+        project.setTeamId(team.getId());
         project.setUpdatedAt(Instant.now());
 
         Project saved = projectRepository.save(project);
@@ -317,6 +325,12 @@ public class ProjectService {
                 .map(User::getDisplayName)
                 .orElse(null);
         }
+        String teamName = createdByTeam;
+        if (project.getTeamId() != null) {
+            teamName = teamService.findById(project.getTeamId())
+                .map(Team::getName)
+                .orElse(createdByTeam);
+        }
 
         return new ProjectResponse(
             project.getId(),
@@ -329,7 +343,9 @@ public class ProjectService {
             project.getUpdatedAt(),
             createdByUserId,
             createdByName,
-            createdByTeam
+            createdByTeam,
+            project.getTeamId(),
+            teamName
         );
     }
 
@@ -363,11 +379,16 @@ public class ProjectService {
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
+        String teamName = user.getTeamId() != null
+            ? teamService.findById(user.getTeamId()).map(Team::getName).orElse(user.getTeam())
+            : user.getTeam();
         return new UserSummaryResponse(
             user.getId(),
             user.getDisplayName(),
             user.getEmail(),
-            user.getTeam(),
+            teamName,
+            user.getTeamId(),
+            teamName,
             userService.isAdminTeam(user),
             activeProjectCount,
             user.getRecommendedCount(),

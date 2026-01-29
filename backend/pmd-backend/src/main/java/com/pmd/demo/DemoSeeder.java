@@ -3,6 +3,8 @@ package com.pmd.demo;
 import com.pmd.project.model.Project;
 import com.pmd.project.model.ProjectStatus;
 import com.pmd.project.repository.ProjectRepository;
+import com.pmd.team.model.Team;
+import com.pmd.team.service.TeamService;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.user.service.UserService;
@@ -13,7 +15,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -31,16 +32,16 @@ public class DemoSeeder implements ApplicationRunner {
     private static final Logger logger = LoggerFactory.getLogger(DemoSeeder.class);
 
     private static final List<SeedUser> SEED_USERS = List.of(
-        new SeedUser("elon.musk@pmd.local", "Tesla321!", "Elon", "Musk", "SpaceX & Tesla", "Space transportation & energy"),
-        new SeedUser("jeff.bezos@pmd.local", "Blue321!", "Jeff", "Bezos", "Amazon & Blue Origin", "Heavy lift & e-commerce"),
-        new SeedUser("sundar.pichai@pmd.local", "Google321!", "Sundar", "Pichai", "Google", "AI and search"),
-        new SeedUser("satya.nadella@pmd.local", "Azure321!", "Satya", "Nadella", "Microsoft", "Cloud + productivity"),
-        new SeedUser("tim.cook@pmd.local", "Apple321!", "Tim", "Cook", "Apple", "Consumer hardware"),
-        new SeedUser("mark.zuckerberg@pmd.local", "Meta321!", "Mark", "Zuckerberg", "Meta", "Social + VR"),
-        new SeedUser("jensen.huang@pmd.local", "Nvidia321!", "Jensen", "Huang", "NVIDIA", "GPUs + AI"),
-        new SeedUser("ginni.romeo@pmd.local", "IBM321!", "Ginni", "Rometty", "IBM", "Enterprise software"),
-        new SeedUser("safra.catz@pmd.local", "Oracle321!", "Safra", "Catz", "Oracle", "Database clouds"),
-        new SeedUser("melinda.gates@pmd.local", "Gates321!", "Melinda", "Gates", "Philanthropy", "Tech for good")
+        new SeedUser("elon.musk@pmd.local", "Tesla321!", "Elon", "Musk", "Web Development", "Space transportation & energy"),
+        new SeedUser("jeff.bezos@pmd.local", "Blue321!", "Jeff", "Bezos", "Software Engineering", "Heavy lift & e-commerce"),
+        new SeedUser("sundar.pichai@pmd.local", "Google321!", "Sundar", "Pichai", "Data Engineering", "AI and search"),
+        new SeedUser("satya.nadella@pmd.local", "Azure321!", "Satya", "Nadella", "DevOps", "Cloud + productivity"),
+        new SeedUser("tim.cook@pmd.local", "Apple321!", "Tim", "Cook", "UX / UI Design", "Consumer hardware"),
+        new SeedUser("mark.zuckerberg@pmd.local", "Meta321!", "Mark", "Zuckerberg", "Project Management", "Social + VR"),
+        new SeedUser("jensen.huang@pmd.local", "Nvidia321!", "Jensen", "Huang", "Network Engineering", "GPUs + AI"),
+        new SeedUser("ginni.romeo@pmd.local", "IBM321!", "Ginni", "Rometty", "Cybersecurity", "Enterprise software"),
+        new SeedUser("safra.catz@pmd.local", "Oracle321!", "Safra", "Catz", "QA / Testing", "Database clouds"),
+        new SeedUser("melinda.gates@pmd.local", "Gates321!", "Melinda", "Gates", "IT Support / Helpdesk", "Tech for good")
     );
 
     private static final List<SeedProject> SEED_PROJECTS = List.of(
@@ -71,17 +72,20 @@ public class DemoSeeder implements ApplicationRunner {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TeamService teamService;
 
     public DemoSeeder(Environment environment,
                       UserService userService,
                       UserRepository userRepository,
                       ProjectRepository projectRepository,
-                      PasswordEncoder passwordEncoder) {
+                      PasswordEncoder passwordEncoder,
+                      TeamService teamService) {
         this.environment = environment;
         this.userService = userService;
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.passwordEncoder = passwordEncoder;
+        this.teamService = teamService;
     }
 
     @Override
@@ -164,6 +168,14 @@ public class DemoSeeder implements ApplicationRunner {
                 user.setTeam(seedUser.team());
                 changed = true;
             }
+            if (user.getTeamId() == null) {
+                Team team = resolveTeam(seedUser.team());
+                if (team != null) {
+                    user.setTeamId(team.getId());
+                    user.setTeam(team.getName());
+                    changed = true;
+                }
+            }
             if (isBlank(user.getPasswordHash())) {
                 user.setPasswordHash(passwordEncoder.encode(seedUser.password()));
                 changed = true;
@@ -181,7 +193,9 @@ public class DemoSeeder implements ApplicationRunner {
         user.setFirstName(seedUser.firstName());
         user.setLastName(seedUser.lastName());
         user.setDisplayName(buildDisplayName(seedUser.firstName(), seedUser.lastName(), seedUser.email()));
-        user.setTeam(seedUser.team());
+        Team team = resolveTeam(seedUser.team());
+        user.setTeam(team != null ? team.getName() : seedUser.team());
+        user.setTeamId(team != null ? team.getId() : null);
         user.setBio(seedUser.bio());
         user.setEmailVerified(true);
         return userService.save(user);
@@ -200,7 +214,8 @@ public class DemoSeeder implements ApplicationRunner {
             project.setCreatedAt(Instant.now());
         }
         project.setCreatedByUserId(author.getId());
-        project.setCreatedByTeam(normalizeTeam(author.getTeam()));
+        project.setCreatedByTeam(author.getTeam());
+        project.setTeamId(author.getTeamId());
         return projectRepository.save(project);
     }
 
@@ -236,15 +251,12 @@ public class DemoSeeder implements ApplicationRunner {
         return fallback;
     }
 
-    private String normalizeTeam(String team) {
-        if (team == null) {
+    private Team resolveTeam(String teamName) {
+        if (teamName == null || teamName.isBlank()) {
             return null;
         }
-        String lower = team.toLowerCase(Locale.ROOT);
-        if ("admin".equals(lower) || "admins".equals(lower)) {
-            return "admin";
-        }
-        return team;
+        String slug = teamService.slugify(teamName);
+        return teamService.findBySlug(slug).orElse(null);
     }
 
     private boolean isBlank(String value) {

@@ -10,6 +10,10 @@ public class UserSummaryResponse {
 
     private String team;
 
+    private String teamId;
+
+    private String teamName;
+
     private boolean isAdmin;
 
     private long activeProjectCount;
@@ -21,12 +25,15 @@ public class UserSummaryResponse {
     public UserSummaryResponse() {
     }
 
-    public UserSummaryResponse(String id, String displayName, String email, String team, boolean isAdmin,
+    public UserSummaryResponse(String id, String displayName, String email, String team,
+                               String teamId, String teamName, boolean isAdmin,
                                long activeProjectCount, int recommendedCount, boolean recommendedByMe) {
         this.id = id;
         this.displayName = displayName;
         this.email = email;
         this.team = team;
+        this.teamId = teamId;
+        this.teamName = teamName;
         this.isAdmin = isAdmin;
         this.activeProjectCount = activeProjectCount;
         this.recommendedCount = recommendedCount;
@@ -63,6 +70,22 @@ public class UserSummaryResponse {
 
     public void setTeam(String team) {
         this.team = team;
+    }
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
     }
 
     public boolean isAdmin() {

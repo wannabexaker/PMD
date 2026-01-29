@@ -6,6 +6,8 @@ import { ControlsBar } from './common/ControlsBar'
 import { PieChart } from './common/PieChart'
 import { ProjectComments } from './ProjectComments'
 import { isApiError } from '../api/http'
+import { useTeams } from '../teams/TeamsContext'
+import { TeamFilterSelect } from './common/TeamFilterSelect'
 import {
   UNASSIGNED_FILTER_KEY,
   PROJECT_FOLDERS,
@@ -37,11 +39,6 @@ function formatProjectTitle(value?: string | null) {
     : value
 }
 
-function normalizeTeam(value?: string | null) {
-  if (!value) return ''
-  return value.trim().toLowerCase()
-}
-
 export function DashboardPage({
   projects,
   users,
@@ -52,6 +49,7 @@ export function DashboardPage({
   onCreated,
   onRefresh,
 }: DashboardPageProps) {
+  const { teams } = useTeams()
   const [showCreate, setShowCreate] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -62,10 +60,14 @@ export function DashboardPage({
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set())
-  const [availableTeams, setAvailableTeams] = useState<string[]>([])
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(false)
   const initializedTeamsRef = useRef(false)
   const currentUserId = currentUser?.id ?? ''
+  const [teamFilterValue, setTeamFilterValue] = useState('')
+
+  const availableTeamIds = useMemo(() => {
+    return teams.map((team) => team.id).filter(Boolean) as string[]
+  }, [teams])
 
   const usersById = useMemo(() => {
     const map = new Map<string, UserSummary>()
@@ -80,8 +82,8 @@ export function DashboardPage({
   const teamByUserId = useMemo(() => {
     const map = new Map<string, string>()
     users.forEach((user) => {
-      if (user.id && user.team) {
-        map.set(user.id, normalizeTeam(user.team))
+      if (user.id && user.teamId) {
+        map.set(user.id, user.teamId)
       }
     })
     return map
@@ -89,11 +91,13 @@ export function DashboardPage({
 
   const teamLabelByKey = useMemo(() => {
     const map = new Map<string, string>()
-    availableTeams.forEach((team) => {
-      map.set(normalizeTeam(team), team)
+    teams.forEach((team) => {
+      if (team.id) {
+        map.set(team.id, team.name ?? team.id)
+      }
     })
     return map
-  }, [availableTeams])
+  }, [teams])
 
   const selectedStatusSet = useMemo(() => {
     return new Set(
@@ -113,10 +117,18 @@ export function DashboardPage({
     return new Set(
       selectedFilters
         .filter((value) => value.startsWith('team:'))
-        .map((value) => normalizeTeam(value.replace('team:', '')))
+        .map((value) => value.replace('team:', ''))
         .filter(Boolean)
     )
   }, [selectedFilters])
+
+  useEffect(() => {
+    if (selectedTeamSet.size === 1) {
+      setTeamFilterValue(Array.from(selectedTeamSet)[0])
+    } else {
+      setTeamFilterValue('')
+    }
+  }, [selectedTeamSet])
 
   const selectedProject =
     projects.find((project) => project.id === selectedProjectId) ?? null
@@ -127,17 +139,14 @@ export function DashboardPage({
   const projectMatchesTeamFilter = useCallback(
     (project: Project) => {
       const allTeamsSelected =
-        availableTeams.length > 0 && selectedTeamSet.size === availableTeams.length
-      if (availableTeams.length === 0 || selectedTeamSet.size === 0 || allTeamsSelected) {
+        availableTeamIds.length > 0 && selectedTeamSet.size === availableTeamIds.length
+      if (availableTeamIds.length === 0 || selectedTeamSet.size === 0 || allTeamsSelected) {
         return true
       }
-      const memberIds = project.memberIds ?? []
-      return memberIds.some((id) => {
-        const team = teamByUserId.get(id ?? '')
-        return team ? selectedTeamSet.has(team) : false
-      })
+      const projectTeamId = project.teamId ?? ''
+      return projectTeamId ? selectedTeamSet.has(projectTeamId) : false
     },
-    [selectedTeamSet, availableTeams, teamByUserId]
+    [selectedTeamSet, availableTeamIds]
   )
 
   useEffect(() => {
@@ -186,25 +195,33 @@ export function DashboardPage({
   ])
 
   useEffect(() => {
-    const teams = users
-      .map((user) => user.team)
-      .filter(Boolean)
-      .map((team) => team as string)
-    const unique = Array.from(new Set(teams)).sort((a, b) => a.localeCompare(b))
-    setAvailableTeams(unique)
-    if (!initializedTeamsRef.current) {
+    if (!initializedTeamsRef.current && availableTeamIds.length > 0) {
       const allStatuses = PROJECT_FOLDERS.map((folder) => `status:${folder.key}`)
-      const allTeams = unique.map((team) => `team:${team}`)
+      const allTeams = availableTeamIds.map((teamId) => `team:${teamId}`)
       setSelectedFilters([...allStatuses, ...allTeams])
       initializedTeamsRef.current = true
     }
-  }, [users])
+  }, [availableTeamIds])
 
   const defaultFilterKeys = useMemo(() => {
     const allStatuses = PROJECT_FOLDERS.map((folder) => `status:${folder.key}`)
-    const allTeams = availableTeams.map((team) => `team:${team}`)
+    const allTeams = availableTeamIds.map((teamId) => `team:${teamId}`)
     return [...allStatuses, ...allTeams]
-  }, [availableTeams])
+  }, [availableTeamIds])
+
+  const handleTeamFilterChange = (value: string) => {
+    const keep = selectedFilters.filter((key) => !key.startsWith('team:'))
+    const teamFilters = value ? [`team:${value}`] : availableTeamIds.map((teamId) => `team:${teamId}`)
+    setSelectedFilters([...keep, ...teamFilters])
+  }
+
+  const handleFilterMenuChange = (next: string[]) => {
+    setSelectedFilters((prev) => {
+      const teamFilters = prev.filter((key) => key.startsWith('team:'))
+      const nonTeam = next.filter((key) => !key.startsWith('team:'))
+      return [...nonTeam, ...teamFilters]
+    })
+  }
 
   const isFilterActive = useMemo(() => {
     if (selectedFilters.length === 0) {
@@ -266,6 +283,7 @@ export function DashboardPage({
       name: (project.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
       description: project.description ?? undefined,
       status: overrides.status ?? ((project.status ?? 'NOT_STARTED') as ProjectStatus),
+      teamId: overrides.teamId ?? (project.teamId ?? currentUser?.teamId ?? ''),
       memberIds: overrides.memberIds ?? (project.memberIds ?? []),
     }
   }
@@ -384,7 +402,7 @@ export function DashboardPage({
   const availablePeople = useMemo(() => {
     if (!draftProject) return []
     const assignedIds = new Set(draftProject.memberIds ?? [])
-    return users.filter((user) => user.id && !assignedIds.has(user.id) && (user.team ?? '').toLowerCase() !== 'admin')
+    return users.filter((user) => user.id && !assignedIds.has(user.id) && !user.isAdmin)
   }, [users, draftProject])
 
   const scopedProjects = useMemo(() => {
@@ -451,9 +469,9 @@ export function DashboardPage({
     scopedProjects.forEach((project) => {
       const projectTeams = new Set<string>()
       ;(project.memberIds ?? []).forEach((memberId) => {
-        const team = teamByUserId.get(memberId ?? '')
-        if (team) {
-          projectTeams.add(team)
+        const teamId = teamByUserId.get(memberId ?? '')
+        if (teamId) {
+          projectTeams.add(teamId)
         }
       })
       projectTeams.forEach((team) => {
@@ -478,14 +496,14 @@ export function DashboardPage({
         return
       }
       ;(project.memberIds ?? []).forEach((memberId) => {
-        const team = teamByUserId.get(memberId ?? '')
-        if (!team) {
+        const teamId = teamByUserId.get(memberId ?? '')
+        if (!teamId) {
           return
         }
-        if (selectedTeamSet.size > 0 && !selectedTeamSet.has(team)) {
+        if (selectedTeamSet.size > 0 && !selectedTeamSet.has(teamId)) {
           return
         }
-        counts.set(team, (counts.get(team) ?? 0) + 1)
+        counts.set(teamId, (counts.get(teamId) ?? 0) + 1)
       })
     })
     return Array.from(counts.entries()).map(([team, value], index) => ({
@@ -607,31 +625,32 @@ export function DashboardPage({
                     { id: `status:${UNASSIGNED_FILTER_KEY}`, label: 'Unassigned' },
                   ],
                 },
-                {
-                  label: 'Teams',
-                  options: availableTeams.map((team) => ({
-                    id: `team:${team}`,
-                    label: team,
-                  })),
-                },
               ]}
               selectedFilterKeys={selectedFilters}
-              onSelectedFilterKeysChange={(next) => setSelectedFilters(next)}
+              onSelectedFilterKeysChange={handleFilterMenuChange}
               searchAriaLabel="Search projects"
               filterAriaLabel="Filter"
               filterActive={isFilterActive}
               actions={
-                <button
-                  type="button"
-                  className={`btn btn-icon btn-ghost assign-toggle${assignedToMeOnly ? ' is-active' : ''}`}
-                  aria-pressed={assignedToMeOnly}
-                  aria-label={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                  title={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                  data-tooltip={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                  onClick={() => setAssignedToMeOnly((prev) => !prev)}
-                >
-                  <AssignMeIcon />
-                </button>
+                <>
+                  <TeamFilterSelect
+                    value={teamFilterValue}
+                    teams={teams}
+                    onChange={handleTeamFilterChange}
+                    ariaLabel="Filter projects by team"
+                  />
+                  <button
+                    type="button"
+                    className={`btn btn-icon btn-ghost assign-toggle${assignedToMeOnly ? ' is-active' : ''}`}
+                    aria-pressed={assignedToMeOnly}
+                    aria-label={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+                    title={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+                    data-tooltip={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+                    onClick={() => setAssignedToMeOnly((prev) => !prev)}
+                  >
+                    <AssignMeIcon />
+                  </button>
+                </>
               }
             />
           </div>
@@ -819,7 +838,11 @@ export function DashboardPage({
                         className="muted truncate"
                         title={`Created by ${
                           selectedProject.createdByName ?? selectedProject.createdByUserId ?? 'Unknown'
-                        }${selectedProject.createdByTeam ? ` (${selectedProject.createdByTeam})` : ''}`}
+                        }${
+                          selectedProject.teamName || selectedProject.createdByTeam
+                            ? ` (${selectedProject.teamName ?? selectedProject.createdByTeam})`
+                            : ''
+                        }`}
                       >
                         Created by {selectedProject.createdByName ?? selectedProject.createdByUserId}
                       </div>

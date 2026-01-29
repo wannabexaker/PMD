@@ -23,6 +23,8 @@ public class RegisterRequest {
 
     private String team;
 
+    private String teamId;
+
     @Size(max = 128)
     private String bio;
 
@@ -30,13 +32,14 @@ public class RegisterRequest {
     }
 
     public RegisterRequest(String password, String confirmPassword, String email, String firstName, String lastName,
-                           String team, String bio) {
+                           String team, String teamId, String bio) {
         this.password = password;
         this.confirmPassword = confirmPassword;
         this.email = email;
         this.firstName = firstName;
         this.lastName = lastName;
         this.team = team;
+        this.teamId = teamId;
         this.bio = bio;
     }
 
@@ -86,6 +89,14 @@ public class RegisterRequest {
 
     public void setTeam(String team) {
         this.team = team;
+    }
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
     }
 
     public String getBio() {

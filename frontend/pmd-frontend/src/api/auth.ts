@@ -39,7 +39,7 @@ export async function register(payload: RegisterPayload): Promise<void> {
       email: payload.email,
       firstName: payload.firstName,
       lastName: payload.lastName,
-      team: payload.team || 'Web Developer Team',
+      teamId: payload.teamId,
       bio: payload.bio || '',
     }),
   })

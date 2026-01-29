@@ -58,7 +58,7 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
     const currentUserId = currentUser.id ?? ''
     return (comment: ProjectComment) =>
       Boolean(comment.authorUserId && comment.authorUserId === currentUserId) ||
-      (currentUser.team ?? '').toLowerCase() === 'admin'
+      Boolean(currentUser.isAdmin)
   }, [currentUser])
 
   useEffect(() => {

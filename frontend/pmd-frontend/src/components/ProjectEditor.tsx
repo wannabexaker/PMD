@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { CreateProjectPayload, Project, ProjectStatus, UserSummary } from '../types'
+import { useTeams } from '../teams/TeamsContext'
 
 const STATUSES: ProjectStatus[] = [
   'NOT_STARTED',
@@ -19,10 +20,12 @@ type ProjectEditorProps = {
 }
 
 export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }: ProjectEditorProps) {
+  const { teams } = useTeams()
   const [form, setForm] = useState<CreateProjectPayload>({
     name: (initial?.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
     description: initial?.description ?? '',
     status: (initial?.status ?? 'NOT_STARTED') as ProjectStatus,
+    teamId: initial?.teamId ?? '',
     memberIds: initial?.memberIds ?? [],
   })
   const [search, setSearch] = useState('')
@@ -44,24 +47,14 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
     setForm((prev) => ({ ...prev, memberIds: selected }))
   }
 
-  const teams = useMemo(() => {
-    const values = new Set<string>()
-    users.forEach((user) => {
-      if (user.team) {
-        values.add(user.team)
-      }
-    })
-    return Array.from(values).sort()
-  }, [users])
-
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase()
     return users.filter((user) => {
       const name = user.displayName?.toLowerCase() ?? ''
       const email = user.email?.toLowerCase() ?? ''
-      const team = user.team ?? ''
+      const teamId = user.teamId ?? ''
       const matchesQuery = !query || name.includes(query) || email.includes(query)
-      const matchesTeam = !teamFilter || team === teamFilter
+      const matchesTeam = !teamFilter || teamId === teamFilter
       return matchesQuery && matchesTeam
     })
   }, [users, search, teamFilter])
@@ -74,6 +67,10 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
       setError('Name is required.')
       return
     }
+    if (!form.teamId) {
+      setError('Team is required.')
+      return
+    }
 
     try {
       setSubmitting(true)
@@ -81,6 +78,7 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
         name: form.name.trim().slice(0, MAX_PROJECT_TITLE_LENGTH),
         description: form.description?.trim() || undefined,
         status: form.status,
+        teamId: form.teamId,
         memberIds: (form.memberIds ?? []).filter((id) => id),
       })
     } catch (err) {
@@ -115,6 +113,23 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
             ))}
           </select>
         </div>
+        <div className="form-field">
+          <label htmlFor="teamId">Team</label>
+          <select
+            id="teamId"
+            name="teamId"
+            value={form.teamId}
+            onChange={(event) => setForm((prev) => ({ ...prev, teamId: event.target.value }))}
+            required
+          >
+            <option value="">Select team</option>
+            {teams.map((team) => (
+              <option key={team.id ?? team.name} value={team.id ?? ''}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="form-field form-span-2">
           <label htmlFor="description">Description</label>
           <textarea
@@ -137,8 +152,8 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
             <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)}>
               <option value="">All teams</option>
               {teams.map((team) => (
-                <option key={team} value={team}>
-                  {team}
+                <option key={team.id ?? team.name} value={team.id ?? ''}>
+                  {team.name}
                 </option>
               ))}
             </select>

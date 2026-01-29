@@ -14,8 +14,9 @@ public class UpdateProfileRequest {
     @NotBlank
     private String email;
 
-    @NotBlank
     private String team;
+
+    private String teamId;
 
     @Size(max = 128)
     private String bio;
@@ -23,11 +24,12 @@ public class UpdateProfileRequest {
     public UpdateProfileRequest() {
     }
 
-    public UpdateProfileRequest(String firstName, String lastName, String email, String team, String bio) {
+    public UpdateProfileRequest(String firstName, String lastName, String email, String team, String teamId, String bio) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.team = team;
+        this.teamId = teamId;
         this.bio = bio;
     }
 
@@ -61,6 +63,14 @@ public class UpdateProfileRequest {
 
     public void setTeam(String team) {
         this.team = team;
+    }
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
     }
 
     public String getBio() {

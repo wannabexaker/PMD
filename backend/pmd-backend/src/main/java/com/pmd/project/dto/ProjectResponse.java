@@ -28,12 +28,17 @@ public class ProjectResponse {
 
     private String createdByTeam;
 
+    private String teamId;
+
+    private String teamName;
+
     public ProjectResponse() {
     }
 
     public ProjectResponse(String id, String name, String description, ProjectStatus status, List<String> memberIds,
                            List<ProjectCommentResponse> comments, Instant createdAt, Instant updatedAt,
-                           String createdByUserId, String createdByName, String createdByTeam) {
+                           String createdByUserId, String createdByName, String createdByTeam,
+                           String teamId, String teamName) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -45,6 +50,8 @@ public class ProjectResponse {
         this.createdByUserId = createdByUserId;
         this.createdByName = createdByName;
         this.createdByTeam = createdByTeam;
+        this.teamId = teamId;
+        this.teamName = teamName;
     }
 
     public String getId() {
@@ -133,5 +140,21 @@ public class ProjectResponse {
 
     public void setCreatedByTeam(String createdByTeam) {
         this.createdByTeam = createdByTeam;
+    }
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
     }
 }

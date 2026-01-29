@@ -16,6 +16,10 @@ public class UserResponse {
 
     private String team;
 
+    private String teamId;
+
+    private String teamName;
+
     private boolean isAdmin;
 
     private String bio;
@@ -28,7 +32,7 @@ public class UserResponse {
     }
 
     public UserResponse(String id, String username, String displayName, String email, String firstName,
-                        String lastName, String team, boolean isAdmin, String bio, boolean emailVerified,
+                        String lastName, String team, String teamId, String teamName, boolean isAdmin, String bio, boolean emailVerified,
                         com.pmd.user.model.PeoplePageWidgets peoplePageWidgets) {
         this.id = id;
         this.username = username;
@@ -37,6 +41,8 @@ public class UserResponse {
         this.firstName = firstName;
         this.lastName = lastName;
         this.team = team;
+        this.teamId = teamId;
+        this.teamName = teamName;
         this.isAdmin = isAdmin;
         this.bio = bio;
         this.emailVerified = emailVerified;
@@ -97,6 +103,22 @@ public class UserResponse {
 
     public void setTeam(String team) {
         this.team = team;
+    }
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
     }
 
     public boolean isAdmin() {

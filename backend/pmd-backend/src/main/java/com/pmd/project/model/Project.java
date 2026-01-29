@@ -29,12 +29,14 @@ public class Project {
 
     private String createdByTeam;
 
+    private String teamId;
+
     public Project() {
     }
 
     public Project(String id, String name, String description, ProjectStatus status, List<String> memberIds,
                    List<ProjectComment> comments, Instant createdAt, Instant updatedAt, String createdByUserId,
-                   String createdByTeam) {
+                   String createdByTeam, String teamId) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -45,6 +47,7 @@ public class Project {
         this.updatedAt = updatedAt;
         this.createdByUserId = createdByUserId;
         this.createdByTeam = createdByTeam;
+        this.teamId = teamId;
     }
 
     public String getId() {
@@ -125,5 +128,13 @@ public class Project {
 
     public void setCreatedByTeam(String createdByTeam) {
         this.createdByTeam = createdByTeam;
+    }
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
     }
 }

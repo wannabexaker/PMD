@@ -16,6 +16,7 @@ import com.pmd.project.dto.RandomAssignResponse;
 import com.pmd.project.model.Project;
 import com.pmd.project.model.ProjectStatus;
 import com.pmd.project.repository.ProjectRepository;
+import com.pmd.team.service.TeamService;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.user.service.UserService;
@@ -38,6 +39,7 @@ class ProjectServiceTest {
     private AccessPolicy accessPolicy;
     private MongoTemplate mongoTemplate;
     private ProjectService projectService;
+    private TeamService teamService;
 
     @BeforeEach
     void setUp() {
@@ -47,6 +49,7 @@ class ProjectServiceTest {
         eventPublisher = mock(ApplicationEventPublisher.class);
         accessPolicy = mock(AccessPolicy.class);
         mongoTemplate = mock(MongoTemplate.class);
+        teamService = mock(TeamService.class);
 
         MongoDatabase mongoDatabase = mock(MongoDatabase.class);
         when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
@@ -59,7 +62,8 @@ class ProjectServiceTest {
             userService,
             eventPublisher,
             accessPolicy,
-            mongoTemplate
+            mongoTemplate,
+            teamService
         );
     }
 

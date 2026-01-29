@@ -4,6 +4,7 @@ import { fetchProject, updateProject } from '../api/projects'
 import { useAuth } from '../auth/authUtils'
 import { ProjectComments } from './ProjectComments'
 import { PmdLoader } from './common/PmdLoader'
+import { useTeams } from '../teams/TeamsContext'
 
 function formatDate(value?: string | null) {
   if (!value) {
@@ -44,6 +45,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
   const [dragOver, setDragOver] = useState(false)
   const [updatingMembers, setUpdatingMembers] = useState(false)
   const { user } = useAuth()
+  const { teams, teamById } = useTeams()
 
   const usersById = useMemo(() => {
     const map = new Map<string, UserSummary>()
@@ -55,27 +57,17 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
     return map
   }, [users])
 
-  const teams = useMemo(() => {
-    const values = new Set<string>()
-    users.forEach((user) => {
-      if (user.team) {
-        values.add(user.team)
-      }
-    })
-    return Array.from(values).sort()
-  }, [users])
-
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase()
     return users.filter((user) => {
       const name = user.displayName?.toLowerCase() ?? ''
       const email = user.email?.toLowerCase() ?? ''
-      const team = user.team ?? ''
+      const teamId = user.teamId ?? ''
       const matchesQuery = !query || name.includes(query) || email.includes(query)
-      const matchesTeam = !teamFilter || team === teamFilter
+      const matchesTeam = !teamFilter || teamId === teamFilter
       return matchesQuery && matchesTeam
     })
-  }, [users, search, teamFilter])
+  }, [users, search, teamFilter, teamById])
 
   const initializeSelected = useCallback((currentProject: Project) => {
     const ids = currentProject.memberIds ?? []
@@ -143,6 +135,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
         name: (project.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
         description: project.description ?? undefined,
         status: (project.status ?? 'NOT_STARTED') as CreateProjectPayload['status'],
+        teamId: project.teamId ?? user?.teamId ?? '',
         memberIds,
       }
       const updated = await updateProject(project.id, payload)
@@ -306,8 +299,8 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
                   <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)}>
                     <option value="">All teams</option>
                     {teams.map((team) => (
-                      <option key={team} value={team}>
-                        {team}
+                      <option key={team.id ?? team.name} value={team.id ?? ''}>
+                        {team.name}
                       </option>
                     ))}
                   </select>
@@ -329,7 +322,9 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
                             <strong>{user.displayName ?? '-'}</strong>
                             <span className="muted">{user.email ?? ''}</span>
                           </div>
-                          <span className="team-badge">{user.team ?? 'Team'}</span>
+                          <span className="team-badge">
+                            {teamById.get(user.teamId ?? '')?.name ?? 'Team'}
+                          </span>
                           {alreadyAdded ? (
                             <span className="assigned-pill">Added</span>
                           ) : (

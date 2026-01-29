@@ -300,6 +300,18 @@ body {
   color: var(--muted);
 }
 
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
 .input-with-icon {
   position: relative;
   display: grid;

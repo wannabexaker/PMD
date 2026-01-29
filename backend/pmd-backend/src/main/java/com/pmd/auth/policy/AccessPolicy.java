@@ -10,14 +10,14 @@ import org.springframework.web.server.ResponseStatusException;
 public class AccessPolicy {
 
     public boolean isAdmin(User requester) {
-        return requester != null && "admin".equals(requester.getTeam());
+        return requester != null && requester.isAdmin();
     }
 
     public void assertCanViewUser(User requester, User target) {
         if (isAdmin(requester)) {
             return;
         }
-        if (target == null || "admin".equals(target.getTeam())) {
+        if (target == null || target.isAdmin()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
     }
@@ -36,7 +36,7 @@ public class AccessPolicy {
         if (isAdmin(requester)) {
             return;
         }
-        if (assignee != null && "admin".equals(assignee.getTeam())) {
+        if (assignee != null && assignee.isAdmin()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot assign admin users");
         }
     }

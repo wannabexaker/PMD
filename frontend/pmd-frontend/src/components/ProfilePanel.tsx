@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { UpdateProfilePayload, User } from '../types'
 import { updateProfile } from '../api/auth'
+import { useTeams } from '../teams/TeamsContext'
 
 type ProfilePanelProps = {
   user: User
@@ -9,11 +10,12 @@ type ProfilePanelProps = {
 }
 
 export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
+  const { teams, loading: teamsLoading } = useTeams()
   const [form, setForm] = useState<UpdateProfilePayload>({
     email: user.email ?? user.username ?? '',
     firstName: user.firstName ?? '',
     lastName: user.lastName ?? '',
-    team: user.team ?? 'Web Developer Team',
+    teamId: user.teamId ?? '',
     bio: user.bio ?? '',
   })
   const [saving, setSaving] = useState(false)
@@ -23,13 +25,13 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
     const initialEmail = user.email ?? user.username ?? ''
     const initialFirstName = user.firstName ?? ''
     const initialLastName = user.lastName ?? ''
-    const initialTeam = user.team ?? 'Web Developer Team'
+    const initialTeam = user.teamId ?? ''
     const initialBio = user.bio ?? ''
     return (
       form.email !== initialEmail ||
       form.firstName !== initialFirstName ||
       form.lastName !== initialLastName ||
-      form.team !== initialTeam ||
+      form.teamId !== initialTeam ||
       (form.bio ?? '') !== initialBio
     )
   }, [form, user])
@@ -57,11 +59,16 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
 
     try {
       setSaving(true)
+      if (!form.teamId) {
+        setError('Please select a team.')
+        return
+      }
+
       const updated = await updateProfile({
         email: form.email.trim(),
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        team: form.team.trim(),
+        teamId: form.teamId,
         bio: form.bio?.trim() || '',
       })
       onSaved(updated)
@@ -94,10 +101,19 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
           </div>
           <div className="form-field form-span-2">
             <label htmlFor="profileTeam">Team</label>
-            <select id="profileTeam" name="team" value={form.team} onChange={handleChange}>
-              <option value="Web Developer Team">Web Developer Team</option>
-              <option value="DevOps">DevOps</option>
-              <option value="Project Manager">Project Manager</option>
+            <select
+              id="profileTeam"
+              name="teamId"
+              value={form.teamId ?? ''}
+              onChange={handleChange}
+              disabled={teamsLoading && teams.length === 0}
+            >
+              <option value="">{teamsLoading ? 'Loading teams...' : 'Select team'}</option>
+              {teams.map((team) => (
+                <option key={team.id ?? team.name} value={team.id ?? ''}>
+                  {team.name}
+                </option>
+              ))}
             </select>
           </div>
           <div className="form-field form-span-2">

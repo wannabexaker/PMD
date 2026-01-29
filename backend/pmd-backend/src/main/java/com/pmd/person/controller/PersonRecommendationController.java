@@ -2,6 +2,8 @@ package com.pmd.person.controller;
 
 import com.pmd.auth.security.UserPrincipal;
 import com.pmd.person.dto.RecommendationToggleResponse;
+import com.pmd.team.model.Team;
+import com.pmd.team.service.TeamService;
 import com.pmd.user.dto.UserSummaryResponse;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
@@ -28,10 +30,13 @@ public class PersonRecommendationController {
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final TeamService teamService;
 
-    public PersonRecommendationController(UserService userService, UserRepository userRepository) {
+    public PersonRecommendationController(UserService userService, UserRepository userRepository,
+                                          TeamService teamService) {
         this.userService = userService;
         this.userRepository = userRepository;
+        this.teamService = teamService;
     }
 
     @PostMapping("/{personId}/recommendations/toggle")
@@ -80,8 +85,10 @@ public class PersonRecommendationController {
                 .thenComparing(user -> user.getDisplayName() != null ? user.getDisplayName() : ""))
             .toList();
         var activeCounts = userService.findActiveProjectCounts(users, includeAdmins);
+        var teamNames = teamService.findActiveTeams().stream()
+            .collect(Collectors.toMap(Team::getId, Team::getName));
         return users.stream()
-            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester))
+            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester, teamNames))
             .toList();
     }
 
@@ -103,20 +110,26 @@ public class PersonRecommendationController {
             .filter(user -> includeAdmins || !userService.isAdminTeam(user))
             .toList();
         var activeCounts = userService.findActiveProjectCounts(recommenders, includeAdmins);
+        var teamNames = teamService.findActiveTeams().stream()
+            .collect(Collectors.toMap(Team::getId, Team::getName));
         return recommenders.stream()
-            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester))
+            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester, teamNames))
             .toList();
     }
 
-    private UserSummaryResponse toSummary(User user, long activeProjectCount, User requester) {
+    private UserSummaryResponse toSummary(User user, long activeProjectCount, User requester,
+                                          java.util.Map<String, String> teamNames) {
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
+        String teamName = resolveTeamName(user, teamNames);
         return new UserSummaryResponse(
             user.getId(),
             user.getDisplayName(),
             user.getEmail(),
-            user.getTeam(),
+            teamName,
+            user.getTeamId(),
+            teamName,
             userService.isAdminTeam(user),
             activeProjectCount,
             user.getRecommendedCount(),
@@ -130,5 +143,14 @@ public class PersonRecommendationController {
         }
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
     }
-}
 
+    private String resolveTeamName(User user, java.util.Map<String, String> teamNames) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getTeamId() != null && teamNames.containsKey(user.getTeamId())) {
+            return teamNames.get(user.getTeamId());
+        }
+        return user.getTeam();
+    }
+}

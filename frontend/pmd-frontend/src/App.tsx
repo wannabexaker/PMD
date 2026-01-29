@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import type { LoginPayload, Project, RegisterPayload, User, UserSummary } from './types'
@@ -14,9 +14,22 @@ import { ConfirmEmailPage } from './components/ConfirmEmailPage'
 import { LoginForm } from './components/LoginForm'
 import { RegisterForm } from './components/RegisterForm'
 import { ProfilePanel } from './components/ProfilePanel'
+import { SettingsPage } from './components/SettingsPage'
 import { Logo } from './components/Logo'
 import { ThemeToggle } from './components/ThemeToggle'
 import { PmdLoader } from './components/common/PmdLoader'
+import { TeamsProvider } from './teams/TeamsContext'
+import { DEFAULT_UI_PREFERENCES, loadUiPreferences, saveUiPreferences } from './ui/uiPreferences'
+import {
+  clearAssignSelectedProjectId,
+  clearDashboardSelectedProjectId,
+  clearPeopleSelection,
+  clearUiSelections,
+  getAssignSelectedProjectId,
+  getDashboardSelectedProjectId,
+  setAssignSelectedProjectId,
+  setDashboardSelectedProjectId,
+} from './ui/uiSelectionStore'
 import './App.css'
 
 function App() {
@@ -31,13 +44,25 @@ function App() {
   const [projectLoading, setProjectLoading] = useState(true)
   const [usersError, setUsersError] = useState<string | null>(null)
   const [projectError, setProjectError] = useState<string | null>(null)
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [dashboardSelectedProjectId, setDashboardSelectedProjectIdState] = useState<string | null>(() => {
+    const prefs = loadUiPreferences()
+    return prefs.rememberDashboardProject ? getDashboardSelectedProjectId() : null
+  })
+  const [assignSelectedProjectId, setAssignSelectedProjectIdState] = useState<string | null>(() => {
+    const prefs = loadUiPreferences()
+    return prefs.rememberAssignProject ? getAssignSelectedProjectId() : null
+  })
+  const [uiPreferences, setUiPreferences] = useState(() => loadUiPreferences())
+  const previousPathRef = useRef<string>(location.pathname)
+  const [backendStatus, setBackendStatus] = useState<'online' | 'offline'>('online')
+  const [backendMessage, setBackendMessage] = useState<string | null>(null)
 
   const location = useLocation()
   const navigate = useNavigate()
   const isAuthed = Boolean(currentUser)
-  const isAdmin = (currentUser?.team ?? '').toLowerCase() === 'admin'
+  const isAdmin = Boolean(currentUser?.isAdmin)
   const isAssignRoute = location.pathname === '/assign'
+  const backendOffline = backendStatus === 'offline'
 
   const loadMe = useCallback(async () => {
     setAuthError(null)
@@ -57,12 +82,13 @@ function App() {
     setUsersLoading(true)
     try {
       const data = await fetchUsers()
-      const includeAdmins = (currentUser?.team ?? '').toLowerCase() === 'admin'
-      const filtered = includeAdmins ? data : data.filter((user) => (user.team ?? '').toLowerCase() !== 'admin')
-      setUsers(filtered)
+      setUsers(data)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load users'
       setUsersError(message === 'Not Found' ? 'Unable to load users.' : message)
+      if (isApiError(err) && err.status === 0) {
+        setUsers([])
+      }
     } finally {
       setUsersLoading(false)
     }
@@ -74,15 +100,23 @@ function App() {
     try {
       const data = await fetchProjects()
       setProjects(data)
-      if (selectedProjectId && !data.some((project) => project.id === selectedProjectId)) {
-        setSelectedProjectId(null)
+      if (dashboardSelectedProjectId && !data.some((project) => project.id === dashboardSelectedProjectId)) {
+        setDashboardSelectedProjectIdState(null)
+      }
+      if (assignSelectedProjectId && !data.some((project) => project.id === assignSelectedProjectId)) {
+        setAssignSelectedProjectIdState(null)
       }
     } catch (err) {
       setProjectError(err instanceof Error ? err.message : 'Failed to load projects')
+      if (isApiError(err) && err.status === 0) {
+        setProjects([])
+        setDashboardSelectedProjectIdState(null)
+        setAssignSelectedProjectIdState(null)
+      }
     } finally {
       setProjectLoading(false)
     }
-  }, [selectedProjectId])
+  }, [dashboardSelectedProjectId, assignSelectedProjectId])
 
   const handleProjectCreated = useCallback(
     (project?: Project) => {
@@ -95,6 +129,38 @@ function App() {
   )
 
   useEffect(() => {
+    saveUiPreferences(uiPreferences)
+  }, [uiPreferences])
+
+  useEffect(() => {
+    if (uiPreferences.rememberDashboardProject) {
+      if (!dashboardSelectedProjectId) {
+        const stored = getDashboardSelectedProjectId()
+        if (stored) {
+          setDashboardSelectedProjectIdState(stored)
+        }
+      }
+      setDashboardSelectedProjectId(dashboardSelectedProjectId)
+    } else {
+      clearDashboardSelectedProjectId()
+    }
+  }, [dashboardSelectedProjectId, uiPreferences.rememberDashboardProject])
+
+  useEffect(() => {
+    if (uiPreferences.rememberAssignProject) {
+      if (!assignSelectedProjectId) {
+        const stored = getAssignSelectedProjectId()
+        if (stored) {
+          setAssignSelectedProjectIdState(stored)
+        }
+      }
+      setAssignSelectedProjectId(assignSelectedProjectId)
+    } else {
+      clearAssignSelectedProjectId()
+    }
+  }, [assignSelectedProjectId, uiPreferences.rememberAssignProject])
+
+  useEffect(() => {
     loadMe()
   }, [loadMe])
 
@@ -105,6 +171,9 @@ function App() {
   useEffect(() => {
     const handleUnauthorized = () => {
       setCurrentUser(null)
+      setDashboardSelectedProjectIdState(null)
+      setAssignSelectedProjectIdState(null)
+      clearUiSelections()
       navigate('/login')
     }
     window.addEventListener('pmd:unauthorized', handleUnauthorized)
@@ -114,9 +183,59 @@ function App() {
   }, [navigate])
 
   useEffect(() => {
+    const handleOffline = (event: Event) => {
+      const detail = event instanceof CustomEvent ? (event.detail as { baseUrl?: string }) : undefined
+      const baseUrl = detail?.baseUrl ?? API_BASE_URL
+      setBackendStatus('offline')
+      setBackendMessage(`Backend unreachable at ${baseUrl}.`)
+      setUsers([])
+      setProjects([])
+      setDashboardSelectedProjectIdState(null)
+      setAssignSelectedProjectIdState(null)
+      clearUiSelections()
+      setUsersLoading(false)
+      setProjectLoading(false)
+      setUsersError(`Cannot reach server (${baseUrl}).`)
+      setProjectError(`Cannot reach server (${baseUrl}).`)
+    }
+    const handleOnline = () => {
+      setBackendStatus('online')
+      setBackendMessage(null)
+      if (currentUser) {
+        loadUsers()
+        loadProjects()
+      }
+    }
+    window.addEventListener('pmd:offline', handleOffline)
+    window.addEventListener('pmd:online', handleOnline)
+    return () => {
+      window.removeEventListener('pmd:offline', handleOffline)
+      window.removeEventListener('pmd:online', handleOnline)
+    }
+  }, [currentUser, loadProjects, loadUsers])
+
+  useEffect(() => {
     setMenuOpen(false)
     setAuthError(null)
   }, [location.pathname])
+
+  useEffect(() => {
+    const previousPath = previousPathRef.current
+    if (previousPath !== location.pathname) {
+      if (previousPath === '/dashboard' && !uiPreferences.rememberDashboardProject) {
+        setDashboardSelectedProjectIdState(null)
+        clearDashboardSelectedProjectId()
+      }
+      if (previousPath === '/assign' && !uiPreferences.rememberAssignProject) {
+        setAssignSelectedProjectIdState(null)
+        clearAssignSelectedProjectId()
+      }
+      if (previousPath === '/people' && !uiPreferences.rememberPeopleSelection) {
+        clearPeopleSelection()
+      }
+    }
+    previousPathRef.current = location.pathname
+  }, [location.pathname, uiPreferences])
 
   useEffect(() => {
     if (!menuOpen) {
@@ -150,6 +269,9 @@ function App() {
       setAuthLoading(true)
       const response = await login(payload)
       setCurrentUser(response.user ?? null)
+      setDashboardSelectedProjectIdState(null)
+      setAssignSelectedProjectIdState(null)
+      clearUiSelections()
       navigate('/dashboard')
     } catch (err) {
       if (isApiError(err)) {
@@ -201,11 +323,29 @@ function App() {
   const handleLogout = () => {
     clearAuthToken()
     setCurrentUser(null)
+    setDashboardSelectedProjectIdState(null)
+    setAssignSelectedProjectIdState(null)
+    clearUiSelections()
     navigate('/login')
   }
 
   const handleProfileSaved = (user: User) => {
     setCurrentUser(user)
+  }
+
+  const handlePreferencesChange = (next: typeof uiPreferences) => {
+    setUiPreferences(next)
+    if (!next.rememberDashboardProject) {
+      setDashboardSelectedProjectIdState(null)
+      clearDashboardSelectedProjectId()
+    }
+    if (!next.rememberAssignProject) {
+      setAssignSelectedProjectIdState(null)
+      clearAssignSelectedProjectId()
+    }
+    if (!next.rememberPeopleSelection) {
+      clearPeopleSelection()
+    }
   }
 
 
@@ -219,6 +359,7 @@ function App() {
 
   return (
     <AuthProvider user={currentUser}>
+      <TeamsProvider user={currentUser}>
       <header className="topbar">
         <div className="topbar-inner">
           <div className="brand">
@@ -298,6 +439,13 @@ function App() {
               >
                 Profile
               </NavLink>
+              <NavLink
+                to="/settings"
+                className={({ isActive }) => (isActive ? 'active' : '')}
+                onClick={() => setMenuOpen(false)}
+              >
+                Settings
+              </NavLink>
               <button type="button" className="btn btn-secondary drawer-logout" onClick={handleLogout}>
                 Logout
               </button>
@@ -324,6 +472,11 @@ function App() {
       </aside>
 
       <main className={`container${isAssignRoute ? ' container-full' : ''}`}>
+        {backendOffline ? (
+          <div className="banner warning" role="status">
+            {backendMessage ?? `Backend unreachable (${API_BASE_URL}).`}
+          </div>
+        ) : null}
         <Routes>
           <Route path="/" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
           <Route
@@ -331,7 +484,11 @@ function App() {
             element={
               isAuthed ? (
                 <>
-                  {projectError ? <p className="error">{projectError}</p> : null}
+                  {backendOffline ? (
+                    <p className="error">Backend unreachable. Start the server to load projects.</p>
+                  ) : projectError ? (
+                    <p className="error">{projectError}</p>
+                  ) : null}
                   {projectLoading ? (
                     <PmdLoader size="md" variant="panel" />
                   ) : (
@@ -339,9 +496,9 @@ function App() {
                       projects={projects}
                       users={users}
                       currentUser={currentUser}
-                      selectedProjectId={selectedProjectId}
-                      onSelectProject={(id) => setSelectedProjectId(id)}
-                      onClearSelection={() => setSelectedProjectId(null)}
+                      selectedProjectId={dashboardSelectedProjectId}
+                      onSelectProject={(id) => setDashboardSelectedProjectIdState(id)}
+                      onClearSelection={() => setDashboardSelectedProjectIdState(null)}
                       onCreated={handleProjectCreated}
                       onRefresh={loadProjects}
                     />
@@ -357,8 +514,14 @@ function App() {
             element={
               isAuthed ? (
                 <>
-                  {usersError ? <p className="error">{usersError}</p> : null}
-                  {projectError ? <p className="error">{projectError}</p> : null}
+                  {backendOffline ? (
+                    <p className="error">Backend unreachable. Start the server to load assignments.</p>
+                  ) : (
+                    <>
+                      {usersError ? <p className="error">{usersError}</p> : null}
+                      {projectError ? <p className="error">{projectError}</p> : null}
+                    </>
+                  )}
                   {projectLoading ? (
                     <PmdLoader size="md" variant="panel" />
                   ) : (
@@ -366,9 +529,11 @@ function App() {
                       projects={projects}
                       users={users}
                       currentUser={currentUser}
-                      selectedProjectId={selectedProjectId}
-                      onSelectProject={(id) => setSelectedProjectId(selectedProjectId === id ? null : id)}
-                      onClearSelection={() => setSelectedProjectId(null)}
+                      selectedProjectId={assignSelectedProjectId}
+                      onSelectProject={(id) =>
+                        setAssignSelectedProjectIdState(assignSelectedProjectId === id ? null : id)
+                      }
+                      onClearSelection={() => setAssignSelectedProjectIdState(null)}
                       onRefresh={loadProjects}
                     />
                   )}
@@ -383,9 +548,19 @@ function App() {
             element={
               isAuthed ? (
                 <>
-                  {usersError ? <p className="error">{usersError}</p> : null}
+                  {backendOffline ? (
+                    <p className="error">Backend unreachable. Start the server to load people.</p>
+                  ) : usersError ? (
+                    <p className="error">{usersError}</p>
+                  ) : null}
                   {usersLoading ? <PmdLoader size="md" variant="panel" /> : null}
-                  {!usersLoading ? <PeoplePage users={users} projects={projects} /> : null}
+                  {!usersLoading ? (
+                    <PeoplePage
+                      users={users}
+                      projects={projects}
+                      rememberSelection={uiPreferences.rememberPeopleSelection}
+                    />
+                  ) : null}
                 </>
               ) : (
                 <Navigate to="/login" replace />
@@ -407,6 +582,16 @@ function App() {
             element={
               isAuthed && currentUser ? (
                 <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate('/dashboard')} />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              isAuthed ? (
+                <SettingsPage preferences={uiPreferences} onChange={handlePreferencesChange} />
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -446,6 +631,7 @@ function App() {
           <Route path="*" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
         </Routes>
       </main>
+      </TeamsProvider>
     </AuthProvider>
   )
 }

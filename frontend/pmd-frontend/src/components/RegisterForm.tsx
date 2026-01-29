@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Logo } from './Logo'
 import type { RegisterPayload } from '../types'
+import { useTeams } from '../teams/TeamsContext'
 
 type RegisterFormProps = {
   onRegister: (payload: RegisterPayload) => Promise<void>
@@ -10,13 +11,14 @@ type RegisterFormProps = {
 }
 
 export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: RegisterFormProps) {
+  const { teams, loading: teamsLoading } = useTeams()
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
     password: '',
     confirmPassword: '',
     firstName: '',
     lastName: '',
-    team: 'Web Developer Team',
+    teamId: '',
     bio: '',
   })
   const [formError, setFormError] = useState<string | null>(null)
@@ -46,6 +48,16 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
       clearErrorTimer()
     }
   }, [])
+
+  useEffect(() => {
+    if (form.teamId || teams.length === 0) {
+      return
+    }
+    const firstTeam = teams.find((team) => team.id)
+    if (firstTeam?.id) {
+      setForm((prev) => ({ ...prev, teamId: firstTeam.id as string }))
+    }
+  }, [teams, form.teamId])
 
   useEffect(() => {
     if (!showSuccess) {
@@ -97,6 +109,11 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
       return
     }
 
+    if (!form.teamId) {
+      setTimedFormError('Please select a team.')
+      return
+    }
+
     try {
       await onRegister({
         email: form.email.trim(),
@@ -104,7 +121,7 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
         confirmPassword: form.confirmPassword.trim(),
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        team: form.team?.trim() || 'Web Developer Team',
+        teamId: form.teamId,
         bio: form.bio?.trim() || '',
       })
       setShowSuccess(true)
@@ -228,11 +245,21 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
               <input id="lastName" name="lastName" value={form.lastName} onChange={handleChange} required />
             </div>
             <div className="form-field form-span-2">
-              <label htmlFor="team">Team</label>
-              <select id="team" name="team" value={form.team} onChange={handleChange} required>
-                <option value="Web Developer Team">Web Developer Team</option>
-                <option value="DevOps">DevOps</option>
-                <option value="Project Manager">Project Manager</option>
+              <label htmlFor="teamId">Team</label>
+              <select
+                id="teamId"
+                name="teamId"
+                value={form.teamId}
+                onChange={handleChange}
+                required
+                disabled={teamsLoading && teams.length === 0}
+              >
+                <option value="">{teamsLoading ? 'Loading teams...' : 'Select team'}</option>
+                {teams.map((team) => (
+                  <option key={team.id ?? team.name} value={team.id ?? ''}>
+                    {team.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-field form-span-2">

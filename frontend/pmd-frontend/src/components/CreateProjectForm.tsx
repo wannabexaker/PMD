@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { createProject } from '../api/projects'
 import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary } from '../types'
+import { useTeams } from '../teams/TeamsContext'
 
 type CreateProjectFormProps = {
   users: UserSummary[]
@@ -11,21 +12,23 @@ type CreateProjectFormProps = {
 const MAX_PROJECT_TITLE_LENGTH = 32
 const STATUSES: ProjectStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED']
 
-function normalizeTeam(value?: string | null) {
-  return (value ?? '').trim().toLowerCase()
-}
-
 export function CreateProjectForm({ users, currentUser, onCreated }: CreateProjectFormProps) {
+  const { teams, teamById, createTeam, loading: teamsLoading } = useTeams()
+  const isAdmin = Boolean(currentUser?.isAdmin)
   const [form, setForm] = useState<CreateProjectPayload>({
     name: '',
     description: '',
     status: 'NOT_STARTED',
+    teamId: currentUser?.teamId ?? '',
     memberIds: [],
   })
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showNewTeam, setShowNewTeam] = useState(false)
+  const [newTeamName, setNewTeamName] = useState('')
+  const [creatingTeam, setCreatingTeam] = useState(false)
 
   const handleChange: React.ChangeEventHandler<
     HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -34,22 +37,10 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const teams = useMemo(() => {
-    const values = new Set<string>()
-    users.forEach((user) => {
-      const team = user.team
-      if (!team || normalizeTeam(team) === 'admin') {
-        return
-      }
-      values.add(team)
-    })
-    return Array.from(values).sort((a, b) => a.localeCompare(b))
-  }, [users])
-
   const eligibleUsers = useMemo(() => {
     return users.filter((user) => {
       if (!user.id) return false
-      return normalizeTeam(user.team) !== 'admin'
+      return !user.isAdmin
     })
   }, [users])
 
@@ -61,7 +52,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
       const name = user.displayName?.toLowerCase() ?? ''
       const email = user.email?.toLowerCase() ?? ''
       const matchesQuery = !query || name.includes(query) || email.includes(query)
-      const matchesTeam = !teamFilter || (user.team ?? '') === teamFilter
+      const matchesTeam = !teamFilter || (user.teamId ?? '') === teamFilter
       return matchesQuery && matchesTeam
     })
   }, [eligibleUsers, search, teamFilter])
@@ -98,6 +89,10 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
       setError('Name is required.')
       return
     }
+    if (!form.teamId) {
+      setError('Team is required.')
+      return
+    }
 
     try {
       setSubmitting(true)
@@ -105,9 +100,10 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
         name: form.name.trim().slice(0, MAX_PROJECT_TITLE_LENGTH),
         description: form.description?.trim() || undefined,
         status: form.status,
+        teamId: form.teamId,
         memberIds: (form.memberIds ?? []).filter((id) => Boolean(id)),
       })
-      setForm({ name: '', description: '', status: 'NOT_STARTED', memberIds: [] })
+      setForm({ name: '', description: '', status: 'NOT_STARTED', teamId: form.teamId, memberIds: [] })
       setSearch('')
       setTeamFilter('')
       onCreated(created)
@@ -146,6 +142,63 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
             ))}
           </select>
         </div>
+        <div className="form-field">
+          <label htmlFor="teamId">Team</label>
+          <div className="row space">
+            <select
+              id="teamId"
+              name="teamId"
+              value={form.teamId}
+              onChange={handleChange}
+              required
+              disabled={teamsLoading && teams.length === 0}
+            >
+              <option value="">{teamsLoading ? 'Loading teams...' : 'Select team'}</option>
+              {teams.map((team) => (
+                <option key={team.id ?? team.name} value={team.id ?? ''}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-icon"
+                onClick={() => setShowNewTeam((prev) => !prev)}
+                title="Add new team"
+              >
+                +
+              </button>
+            ) : null}
+          </div>
+          {showNewTeam ? (
+            <div className="row space">
+              <input
+                type="text"
+                value={newTeamName}
+                onChange={(event) => setNewTeamName(event.target.value)}
+                placeholder="New team name"
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={creatingTeam || !newTeamName.trim()}
+                onClick={async () => {
+                  setCreatingTeam(true)
+                  const created = await createTeam(newTeamName)
+                  setCreatingTeam(false)
+                  if (created?.id) {
+                    setForm((prev) => ({ ...prev, teamId: created.id as string }))
+                    setNewTeamName('')
+                    setShowNewTeam(false)
+                  }
+                }}
+              >
+                {creatingTeam ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          ) : null}
+        </div>
         <div className="form-field form-span-2">
           <label htmlFor="description">Description</label>
           <textarea
@@ -172,8 +225,8 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
             <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)}>
               <option value="">All teams</option>
               {teams.map((team) => (
-                <option key={team} value={team}>
-                  {team}
+                <option key={team.id ?? team.name} value={team.id ?? ''}>
+                  {team.name}
                 </option>
               ))}
             </select>
@@ -199,8 +252,8 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
                       <strong className="truncate" title={displayName}>
                         {displayName}
                       </strong>
-                      <span className="muted truncate" title={user.team ?? ''}>
-                        {user.team ?? 'Team'}
+                      <span className="muted truncate" title={teamById.get(user.teamId ?? '')?.name ?? ''}>
+                        {teamById.get(user.teamId ?? '')?.name ?? 'Team'}
                       </span>
                     </div>
                     <span className="muted truncate" title={user.email ?? ''}>
@@ -227,7 +280,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
             ) : (
               selectedMembers.map((member, index) => {
                 const label = (member.displayName ?? member.email ?? '-').trim()
-                const team = member.team ?? ''
+                const team = teamById.get(member.teamId ?? '')?.name ?? ''
                 return (
                   <span
                     key={member.id ?? member.email ?? 'member-' + index}
