@@ -139,7 +139,9 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
         <form className="form auth-form" onSubmit={handleSubmit}>
           <div className="form-grid two-col">
             <div className="form-field form-span-2">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">
+                Email <span className="required">*</span>
+              </label>
               <input
                 id="email"
                 name="email"
@@ -151,7 +153,9 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
               <span className="field-error">{fieldErrors.email ?? ''}</span>
             </div>
             <div className="form-field">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">
+                Password <span className="required">*</span>
+              </label>
               <div className="input-with-icon">
                 <input
                   id="password"
@@ -174,7 +178,9 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
               <span className="field-error">{fieldErrors.password ?? ''}</span>
             </div>
             <div className="form-field confirm-password-field">
-              <label htmlFor="confirmPassword">Confirm password</label>
+              <label htmlFor="confirmPassword">
+                Confirm password <span className="required">*</span>
+              </label>
               <div className="input-with-icon confirm-password-input">
                 <input
                   id="confirmPassword"
@@ -206,12 +212,16 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
               </span>
             </div>
             <div className="form-field">
-              <label htmlFor="firstName">Name</label>
+              <label htmlFor="firstName">
+                Name <span className="required">*</span>
+              </label>
               <input id="firstName" name="firstName" value={form.firstName} onChange={handleChange} required />
               <span className="field-error">{fieldErrors.firstName ?? ''}</span>
             </div>
             <div className="form-field">
-              <label htmlFor="lastName">Surname</label>
+              <label htmlFor="lastName">
+                Surname <span className="required">*</span>
+              </label>
               <input id="lastName" name="lastName" value={form.lastName} onChange={handleChange} required />
               <span className="field-error">{fieldErrors.lastName ?? ''}</span>
             </div>

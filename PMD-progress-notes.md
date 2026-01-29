@@ -732,3 +732,93 @@ Implemented (backend)
 Notes
 - Demo users are created with unique emails scoped by workspaceId (demo123! password), and added as members.
 - Demo seed is idempotent per workspace and safe to rerun after reset.
+
+## 2026-01-29 - Workspace Stage D/E (frontend wiring + UX)
+
+What changed
+- App is gated by workspace selection: authenticated users without an active workspace see WorkspacePicker instead of being redirected to login.
+- Workspace switcher added to top bar; active workspace persisted via localStorage key `pmd_active_workspace_id` (cleared on logout).
+- WorkspacePicker added (create/join/enter demo) and styled in App.css.
+- All workspace-scoped API calls wired across UI: Dashboard, Assign, People, Profile, ProjectDetails, ProjectComments, CreateProjectForm.
+- Settings page now includes Demo Workspace controls (enter + reset). Reset triggers a data refresh (pmd:workspace-reset event) and teams refresh.
+- Added “Join a team” banner when user has no team in the active workspace; Admins get a quick link to create a team.
+- Required fields in Login/Register show a subtle * indicator.
+
+Files touched
+- frontend/pmd-frontend/src/App.tsx
+- frontend/pmd-frontend/src/App.css
+- frontend/pmd-frontend/src/components/WorkspacePicker.tsx
+- frontend/pmd-frontend/src/components/SettingsPage.tsx
+- frontend/pmd-frontend/src/components/DashboardPage.tsx
+- frontend/pmd-frontend/src/components/AssignPage.tsx
+- frontend/pmd-frontend/src/components/PeoplePage.tsx
+- frontend/pmd-frontend/src/components/ProfilePanel.tsx
+- frontend/pmd-frontend/src/components/CreateProjectForm.tsx
+- frontend/pmd-frontend/src/components/ProjectDetails.tsx
+- frontend/pmd-frontend/src/components/ProjectComments.tsx
+- frontend/pmd-frontend/src/components/LoginForm.tsx
+- frontend/pmd-frontend/src/components/RegisterForm.tsx
+
+Verification (manual)
+- Login -> WorkspacePicker appears if no active workspace -> create workspace -> app loads.
+- Workspace switcher changes data scope (projects/people/teams update per workspace).
+- Demo: Enter Demo Workspace -> seeded data appears; Reset demo -> data returns to baseline.
+- Logout clears auth + workspace selection; re-login starts clean.
+- Frontend lint: `npm run lint` passes after workspace wiring.
+
+## 2026-01-29 - Compose run (post-workspace wiring)
+
+- docker compose -f docker-compose.local.yml up -d --build: succeeded after fixes.
+- Backend compile fixes:
+  - WorkspaceService demo workspace lambda now uses finalWorkspace to satisfy effectively-final rule.
+  - ProjectServiceTest updated for workspace-scoped method signatures.
+- `docker compose -f docker-compose.local.yml ps` shows backend healthy.
+- `curl http://localhost:8080/actuator/health` -> UP.
+
+## 2026-01-29 - Frontend image evidence (workspace UI missing)
+
+Evidence
+- `docker compose -f docker-compose.local.yml ps` shows frontend running image ghcr.io/wannabexaker/pmd-frontend:latest (unhealthy).
+- `docker inspect pmd-frontend` -> Image=ghcr.io/wannabexaker/pmd-frontend:latest, Mounts=[] (static image, not local code).
+- `docker exec pmd-frontend sh -lc "cat /etc/nginx/conf.d/default.conf"` confirms Nginx static build serving /usr/share/nginx/html assets.
+
+Conclusion
+- Frontend container is serving a static GHCR image, not local workspace-aware code.
+
+Change
+- docker-compose.local.yml now builds frontend from local source (context ./frontend/pmd-frontend) using image pmd-frontend-local.
+
+## 2026-01-29 - Frontend local build + workspace UI fix
+
+Compose changes
+- docker-compose.local.yml frontend now builds from ./frontend/pmd-frontend and uses image pmd-frontend-local (no GHCR dependency for dev).
+
+Build fixes
+- DashboardPage: ensure draft project payloads include teamId (CreateProjectPayload requires it).
+- SettingsPage: toast API uses object payload (type/message) instead of positional args.
+
+Verification commands
+- docker compose -f docker-compose.local.yml down --remove-orphans
+- docker compose -f docker-compose.local.yml up -d --build
+- docker compose -f docker-compose.local.yml ps (frontend now shows image pmd-frontend-local)
+
+Evidence outputs (Step A)
+- docker compose -f docker-compose.local.yml ps:
+  pmd-frontend image ghcr.io/wannabexaker/pmd-frontend:latest (unhealthy)
+- docker inspect pmd-frontend:
+  Image=ghcr.io/wannabexaker/pmd-frontend:latest
+  Mounts=[]
+- docker exec pmd-frontend sh -lc "cat /etc/nginx/conf.d/default.conf && ls -la /usr/share/nginx/html | head":
+  root /usr/share/nginx/html; index index.html; (nginx static)
+  index.html + assets present under /usr/share/nginx/html
+
+## 2026-01-29 - Hybrid local dev workflow (deps in Docker, FE/BE local)
+
+Added
+- docker-compose.deps.yml (mongo + mailhog only).
+- docs/DEV-HYBRID.md (hybrid dev instructions).
+- backend/pmd-backend/.env.example and frontend/pmd-frontend/.env.example.
+- scripts: pmd-deps-up/down/reset, pmd-backend-dev, pmd-frontend-dev, pmd-dev.
+
+Notes
+- docker-compose.local.yml remains for full dockerized app; hybrid is default local path.

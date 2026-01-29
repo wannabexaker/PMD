@@ -86,7 +86,9 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
       <form className="form auth-form" onSubmit={handleSubmit}>
         <div className="form-grid">
           <div className="form-field">
-            <label htmlFor="username">Email</label>
+            <label htmlFor="username">
+              Email <span className="required">*</span>
+            </label>
             <input
               id="username"
               name="username"
@@ -98,7 +100,9 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
             <span className="field-error">{fieldErrors.username ?? ''}</span>
           </div>
           <div className="form-field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">
+              Password <span className="required">*</span>
+            </label>
             <div className="input-with-icon">
               <input
                 id="password"

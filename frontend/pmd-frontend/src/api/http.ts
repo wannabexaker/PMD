@@ -8,7 +8,6 @@ const OFFLINE_EVENT = 'pmd:offline'
 let lastReachability: 'online' | 'offline' | null = null
 
 if (typeof window !== 'undefined') {
-  // eslint-disable-next-line no-console
   console.info('[PMD] API base URL:', API_BASE_URL, 'mode:', MODE ?? 'unknown')
 }
 const TOKEN_KEY = 'pmd_token'

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { createProject } from '../api/projects'
 import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary } from '../types'
 import { useTeams } from '../teams/TeamsContext'
+import { useWorkspace } from '../workspaces/WorkspaceContext'
 
 type CreateProjectFormProps = {
   users: UserSummary[]
@@ -14,6 +15,7 @@ const STATUSES: ProjectStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'C
 
 export function CreateProjectForm({ users, currentUser, onCreated }: CreateProjectFormProps) {
   const { teams, teamById, createTeam, loading: teamsLoading } = useTeams()
+  const { activeWorkspaceId } = useWorkspace()
   const isAdmin = Boolean(currentUser?.isAdmin)
   const [form, setForm] = useState<CreateProjectPayload>({
     name: '',
@@ -85,6 +87,10 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
     event.preventDefault()
     setError(null)
 
+    if (!activeWorkspaceId) {
+      setError('Select a workspace to continue.')
+      return
+    }
     if (!form.name.trim()) {
       setError('Name is required.')
       return
@@ -96,7 +102,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
 
     try {
       setSubmitting(true)
-      const created = await createProject({
+      const created = await createProject(activeWorkspaceId, {
         name: form.name.trim().slice(0, MAX_PROJECT_TITLE_LENGTH),
         description: form.description?.trim() || undefined,
         status: form.status,

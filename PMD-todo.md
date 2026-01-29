@@ -731,3 +731,44 @@ TODO
 - [ ] Stage D/E: frontend workspace picker/store + remove team from register + scoped API client.
 - [ ] Add invite creation endpoint/UI (needed for join flow).
 - [ ] Update frontend to use demo endpoints and workspace-scoped routes.
+
+## 2026-01-29 - Workspace Stage D/E
+
+DONE
+- [x] Frontend workspace picker + active workspace store (localStorage).
+- [x] Workspace switcher in top bar.
+- [x] Workspace-scoped API calls wired across main pages.
+- [x] Demo workspace controls in Settings (enter/reset).
+- [x] Register payload no longer sends team; onboarding banner prompts team join.
+
+TODO
+- [ ] Add invite creation endpoint/UI for join flow.
+- [ ] Manual verification: switch workspaces, demo reset, logout clears workspace.
+
+## 2026-01-29 - Compose run after workspace wiring
+
+DONE
+- [x] docker compose up -d --build succeeds.
+- [x] Backend healthcheck returns UP.
+
+TODO
+- [ ] Manual UI smoke test (workspace picker, demo reset, switcher, team banner).
+
+## 2026-01-29 - Frontend local build
+
+DONE
+- [x] docker-compose.local.yml builds frontend locally (pmd-frontend-local).
+
+TODO
+- [ ] Manual UI check: WorkspacePicker appears, Settings demo controls visible, no Not Found errors.
+
+## 2026-01-29 - Hybrid local dev workflow
+
+DONE
+- [x] Added docker-compose.deps.yml (mongo + mailhog only).
+- [x] Added docs/DEV-HYBRID.md with hybrid dev steps.
+- [x] Added .env.example files for backend and frontend.
+- [x] Added scripts for deps up/down/reset + backend/frontend/dev launcher.
+
+TODO
+- [ ] (Optional) Add .bat wrappers for ps1 scripts if needed for double-click.

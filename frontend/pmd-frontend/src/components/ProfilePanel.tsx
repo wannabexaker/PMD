@@ -4,6 +4,7 @@ import { updateProfile } from '../api/auth'
 import { useTeams } from '../teams/TeamsContext'
 import { fetchMyUserStats } from '../api/stats'
 import { fetchMyDashboardStats } from '../api/projects'
+import { useWorkspace } from '../workspaces/WorkspaceContext'
 
 type ProfilePanelProps = {
   user: User
@@ -13,6 +14,7 @@ type ProfilePanelProps = {
 
 export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   const { teams, loading: teamsLoading } = useTeams()
+  const { activeWorkspaceId } = useWorkspace()
   const [form, setForm] = useState<UpdateProfilePayload>({
     email: user.email ?? user.username ?? '',
     firstName: user.firstName ?? '',
@@ -89,7 +91,13 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   useEffect(() => {
     let active = true
     setMyStatsError(null)
-    fetchMyUserStats()
+    if (!activeWorkspaceId) {
+      setMyStats(null)
+      return () => {
+        active = false
+      }
+    }
+    fetchMyUserStats(activeWorkspaceId)
       .then((data) => {
         if (active) setMyStats(data)
       })
@@ -99,12 +107,18 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
     return () => {
       active = false
     }
-  }, [])
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     let active = true
     setMyDashboardError(null)
-    fetchMyDashboardStats()
+    if (!activeWorkspaceId) {
+      setMyDashboardStats(null)
+      return () => {
+        active = false
+      }
+    }
+    fetchMyDashboardStats(activeWorkspaceId)
       .then((data) => {
         if (active) setMyDashboardStats(data)
       })
@@ -114,7 +128,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
     return () => {
       active = false
     }
-  }, [])
+  }, [activeWorkspaceId])
 
   return (
     <div className="profile-panel">

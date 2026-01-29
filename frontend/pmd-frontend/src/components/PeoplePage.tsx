@@ -15,6 +15,7 @@ import { updatePeoplePageWidgets } from '../api/auth'
 import { useAuth } from '../auth/authUtils'
 import type { PeoplePageWidgets } from '../types'
 import { useTeams } from '../teams/TeamsContext'
+import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
 import { createPerson, deletePerson, listPeople, updatePerson } from '../api/people'
 import {
@@ -95,6 +96,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
   const [recommendersLoadingId, setRecommendersLoadingId] = useState<string | null>(null)
   const { user: currentUser } = useAuth()
   const { teams, teamById } = useTeams()
+  const { activeWorkspaceId } = useWorkspace()
   const isAdmin = Boolean(currentUser?.isAdmin)
   const [widgets, setWidgets] = useState<PeoplePageWidgets>(() => mergeWidgetDefaults(currentUser?.peoplePageWidgets))
   const [widgetsEditing, setWidgetsEditing] = useState(false)
@@ -249,7 +251,13 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
 
   useEffect(() => {
     let active = true
-    fetchPeopleOverviewStats()
+    if (!activeWorkspaceId) {
+      setOverviewStats(null)
+      return () => {
+        active = false
+      }
+    }
+    fetchPeopleOverviewStats(activeWorkspaceId)
       .then((data) => {
         if (active) setOverviewStats(data)
       })
@@ -266,13 +274,20 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
     return () => {
       active = false
     }
-  }, [])
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     let active = true
     setPeopleLoading(true)
     setPeopleError(null)
-    listPeople()
+    if (!activeWorkspaceId) {
+      setPeopleRecords([])
+      setPeopleLoading(false)
+      return () => {
+        active = false
+      }
+    }
+    listPeople(activeWorkspaceId)
       .then((data) => {
         if (active) {
           const sorted = [...data].sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? ''))
@@ -290,7 +305,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
     return () => {
       active = false
     }
-  }, [])
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     setWidgets(mergeWidgetDefaults(currentUser?.peoplePageWidgets))
@@ -301,7 +316,14 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
       return
     }
     let active = true
-    fetchPeopleUserStats(selectedUserId)
+    if (!activeWorkspaceId) {
+      setSelectedUserStats(null)
+      setStatsLoading(false)
+      return () => {
+        active = false
+      }
+    }
+    fetchPeopleUserStats(activeWorkspaceId, selectedUserId)
       .then((data) => {
         if (active) setSelectedUserStats(data)
       })
@@ -321,7 +343,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
     return () => {
       active = false
     }
-  }, [selectedUserId])
+  }, [selectedUserId, activeWorkspaceId])
 
   const displayUsers = useMemo(() => {
     return users.map((user) => {
@@ -382,9 +404,9 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
   }, [baseCandidates, recommendedIds, recommendedPool])
 
   const handleToggleRecommendation = async (user: UserSummary) => {
-    if (!user.id) return
+    if (!user.id || !activeWorkspaceId) return
     try {
-      const response = await toggleRecommendation(user.id)
+      const response = await toggleRecommendation(activeWorkspaceId, user.id)
       setRecommendationOverrides((prev) => ({
         ...prev,
         [user.id as string]: {
@@ -403,13 +425,13 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
   }
 
   const handleStarEnter = (user: UserSummary) => {
-    if (!user.id) return
+    if (!user.id || !activeWorkspaceId) return
     setTooltipUserId(user.id)
     if (recommendersById[user.id]) {
       return
     }
     setRecommendersLoadingId(user.id)
-    fetchRecommendationDetails(user.id)
+    fetchRecommendationDetails(activeWorkspaceId, user.id)
       .then((data) => {
         setRecommendersById((prev) => ({ ...prev, [user.id as string]: data }))
       })
@@ -549,9 +571,13 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
               className="btn btn-primary"
               disabled={savingPerson || !newPersonName.trim()}
               onClick={async () => {
+                if (!activeWorkspaceId) {
+                  setPeopleError('Select a workspace to continue.')
+                  return
+                }
                 setSavingPerson(true)
                 try {
-                  const created = await createPerson({
+                  const created = await createPerson(activeWorkspaceId, {
                     displayName: newPersonName.trim(),
                     email: newPersonEmail.trim() || undefined,
                   })
@@ -608,18 +634,22 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                   {isAdmin ? (
                     isEditing ? (
                       <>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          disabled={savingPerson || !editingPersonName.trim() || !person.id}
-                          onClick={async () => {
-                            if (!person.id) return
-                            setSavingPerson(true)
-                            try {
-                              const updated = await updatePerson(person.id, {
-                                displayName: editingPersonName.trim(),
-                                email: editingPersonEmail.trim() || undefined,
-                              })
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={savingPerson || !editingPersonName.trim() || !person.id}
+                            onClick={async () => {
+                              if (!person.id) return
+                              if (!activeWorkspaceId) {
+                                setPeopleError('Select a workspace to continue.')
+                                return
+                              }
+                              setSavingPerson(true)
+                              try {
+                                const updated = await updatePerson(activeWorkspaceId, person.id, {
+                                  displayName: editingPersonName.trim(),
+                                  email: editingPersonEmail.trim() || undefined,
+                                })
                               setPeopleRecords((prev) =>
                                 prev.map((item) => (item.id === updated.id ? updated : item))
                               )
@@ -667,9 +697,13 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                             if (!person.id) return
                             const confirmed = window.confirm('Delete this person record?')
                             if (!confirmed) return
+                            if (!activeWorkspaceId) {
+                              setPeopleError('Select a workspace to continue.')
+                              return
+                            }
                             try {
                               setSavingPerson(true)
-                              await deletePerson(person.id)
+                              await deletePerson(activeWorkspaceId, person.id)
                               setPeopleRecords((prev) => prev.filter((item) => item.id !== person.id))
                             } catch (err) {
                               setPeopleError(err instanceof Error ? err.message : 'Failed to delete person')

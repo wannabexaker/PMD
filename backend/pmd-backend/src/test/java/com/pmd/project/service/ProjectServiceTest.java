@@ -69,25 +69,28 @@ class ProjectServiceTest {
 
     @Test
     void findAllAssignedToMeFiltersByMemberId() {
+        String workspaceId = "workspace-1";
         User requester = new User();
         requester.setId("user-1");
         requester.setTeam("dev");
 
         Project mine = new Project();
         mine.setId("project-1");
+        mine.setWorkspaceId(workspaceId);
         mine.setStatus(ProjectStatus.NOT_STARTED);
         mine.setMemberIds(List.of("user-1"));
 
         Project other = new Project();
         other.setId("project-2");
+        other.setWorkspaceId(workspaceId);
         other.setStatus(ProjectStatus.NOT_STARTED);
         other.setMemberIds(List.of("user-2"));
 
         when(accessPolicy.isAdmin(requester)).thenReturn(false);
-        when(projectRepository.findAll(any(Sort.class))).thenReturn(List.of(mine, other));
+        when(projectRepository.findByWorkspaceId(eq(workspaceId), any(Sort.class))).thenReturn(List.of(mine, other));
         when(userRepository.findById(anyString())).thenReturn(Optional.empty());
 
-        var results = projectService.findAll(requester, true);
+        var results = projectService.findAll(workspaceId, requester, true);
 
         assertEquals(1, results.size());
         assertEquals("project-1", results.get(0).getId());
@@ -95,12 +98,14 @@ class ProjectServiceTest {
 
     @Test
     void randomAssignPicksLowestActiveCountAndAssignsExactlyOne() {
+        String workspaceId = "workspace-1";
         User requester = new User();
         requester.setId("user-req");
         requester.setTeam("dev");
 
         Project project = new Project();
         project.setId("project-1");
+        project.setWorkspaceId(workspaceId);
         project.setName("Project 1");
         project.setStatus(ProjectStatus.NOT_STARTED);
         project.setMemberIds(new ArrayList<>());
@@ -120,16 +125,17 @@ class ProjectServiceTest {
         when(accessPolicy.isAdmin(requester)).thenReturn(false);
         doNothing().when(accessPolicy).assertCanViewProject(requester, project);
         doNothing().when(accessPolicy).assertCanAssignUserToProject(any(User.class), any(User.class), any(Project.class));
-        when(projectRepository.findById("project-1")).thenReturn(Optional.of(project));
+        when(projectRepository.findByIdAndWorkspaceId("project-1", workspaceId)).thenReturn(Optional.of(project));
         when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        when(userService.findAssignableUsers(null, null, false)).thenReturn(List.of(lowest, higher));
-        when(userService.findActiveProjectCounts(anyList(), eq(false)))
+        when(userService.findAssignableUsers(eq(workspaceId), eq(null), eq(null), eq(false)))
+            .thenReturn(List.of(lowest, higher));
+        when(userService.findActiveProjectCounts(eq(workspaceId), anyList(), eq(false)))
             .thenReturn(Map.of("user-low", 0L, "user-high", 2L));
         when(userRepository.findAllById(anyList())).thenReturn(List.of(lowest));
         when(userRepository.findById(anyString())).thenReturn(Optional.empty());
 
-        RandomAssignResponse response = projectService.randomAssign("project-1", requester, null);
+        RandomAssignResponse response = projectService.randomAssign(workspaceId, "project-1", requester, null);
 
         assertEquals("user-low", response.getAssignedPerson().getId());
         assertTrue(response.getProject().getMemberIds().contains("user-low"));

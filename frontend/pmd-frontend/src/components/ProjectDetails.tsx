@@ -5,6 +5,7 @@ import { useAuth } from '../auth/authUtils'
 import { ProjectComments } from './ProjectComments'
 import { PmdLoader } from './common/PmdLoader'
 import { useTeams } from '../teams/TeamsContext'
+import { useWorkspace } from '../workspaces/WorkspaceContext'
 
 function formatDate(value?: string | null) {
   if (!value) {
@@ -32,6 +33,7 @@ function formatProjectTitle(value?: string | null) {
 }
 
 export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
+  const { activeWorkspaceId } = useWorkspace()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -67,7 +69,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
       const matchesTeam = !teamFilter || teamId === teamFilter
       return matchesQuery && matchesTeam
     })
-  }, [users, search, teamFilter, teamById])
+  }, [users, search, teamFilter])
 
   const initializeSelected = useCallback((currentProject: Project) => {
     const ids = currentProject.memberIds ?? []
@@ -76,7 +78,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
   }, [usersById])
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || !activeWorkspaceId) {
       setProject(null)
       return
     }
@@ -86,7 +88,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
     setError(null)
     setNotFound(false)
 
-    fetchProject(projectId)
+    fetchProject(activeWorkspaceId, projectId)
       .then((data) => {
         if (!active) return
         if (!data) {
@@ -112,7 +114,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
     return () => {
       active = false
     }
-  }, [projectId, initializeSelected])
+  }, [projectId, activeWorkspaceId, initializeSelected])
 
   useEffect(() => {
     if (!toast) {
@@ -123,7 +125,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
   }, [toast])
 
   const updateMembers = async (memberIds: string[], message: string) => {
-    if (!project || !project.id) {
+    if (!project || !project.id || !activeWorkspaceId) {
       return
     }
     setActionError(null)
@@ -138,7 +140,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
         teamId: project.teamId ?? user?.teamId ?? '',
         memberIds,
       }
-      const updated = await updateProject(project.id, payload)
+      const updated = await updateProject(activeWorkspaceId, project.id, payload)
       setProject(updated)
       setToast(message)
     } catch (err) {

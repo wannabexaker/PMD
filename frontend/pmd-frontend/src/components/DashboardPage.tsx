@@ -7,6 +7,7 @@ import { PieChart } from './common/PieChart'
 import { ProjectComments } from './ProjectComments'
 import { isApiError } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
+import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
 import { fetchDashboardStats } from '../api/stats'
 import {
@@ -51,6 +52,7 @@ export function DashboardPage({
   onRefresh,
 }: DashboardPageProps) {
   const { teams } = useTeams()
+  const { activeWorkspaceId } = useWorkspace()
   const [showCreate, setShowCreate] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -163,6 +165,7 @@ export function DashboardPage({
       name: (selectedProject.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
       description: selectedProject.description ?? '',
       status: (selectedProject.status ?? 'NOT_STARTED') as ProjectStatus,
+      teamId: selectedProject.teamId ?? currentUser?.teamId ?? '',
       memberIds: selectedProject.memberIds ?? [],
     })
     setMemberSearch('')
@@ -172,7 +175,13 @@ export function DashboardPage({
   useEffect(() => {
     let active = true
     setWorkspaceStatsError(null)
-    fetchDashboardStats()
+    if (!activeWorkspaceId) {
+      setWorkspaceStats(null)
+      return () => {
+        active = false
+      }
+    }
+    fetchDashboardStats(activeWorkspaceId)
       .then((data) => {
         if (active) {
           setWorkspaceStats(data)
@@ -186,7 +195,7 @@ export function DashboardPage({
     return () => {
       active = false
     }
-  }, [])
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -257,7 +266,7 @@ export function DashboardPage({
   }, [selectedFilters, defaultFilterKeys])
 
   const handleStatusChange = async (project: Project, status: ProjectStatus) => {
-    if (!project.id) {
+    if (!project.id || !activeWorkspaceId) {
       return
     }
     setError(null)
@@ -266,10 +275,11 @@ export function DashboardPage({
       name: (project.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
       description: project.description ?? undefined,
       status,
+      teamId: project.teamId ?? currentUser?.teamId ?? '',
       memberIds: project.memberIds ?? [],
     }
     try {
-      await updateProject(project.id, payload)
+      await updateProject(activeWorkspaceId, project.id, payload)
       await onRefresh()
     } catch (err) {
       if (isApiError(err) && (err.status === 403 || err.status === 404)) {
@@ -311,8 +321,8 @@ export function DashboardPage({
   }
 
   const updateProjectStatus = async (project: Project, status: ProjectStatus) => {
-    if (!project.id) return
-    await updateProject(project.id, buildProjectPayload(project, { status }))
+    if (!project.id || !activeWorkspaceId) return
+    await updateProject(activeWorkspaceId, project.id, buildProjectPayload(project, { status }))
     await onRefresh()
   }
 
@@ -331,9 +341,10 @@ export function DashboardPage({
 
   const handleRestore = async (project: Project) => {
     setOpenMenuId(null)
-    if (!project.id) return
+    if (!project.id || !activeWorkspaceId) return
     try {
       await updateProject(
+        activeWorkspaceId,
         project.id,
         buildProjectPayload(project, { status: 'NOT_STARTED', memberIds: [] })
       )
@@ -352,11 +363,11 @@ export function DashboardPage({
 
   const handleDelete = async (project: Project) => {
     setOpenMenuId(null)
-    if (!project.id) return
+    if (!project.id || !activeWorkspaceId) return
     const confirmed = window.confirm('Delete this project permanently?')
     if (!confirmed) return
     try {
-      await deleteProject(project.id)
+      await deleteProject(activeWorkspaceId, project.id)
       setArchivedIds((prev) => {
         const next = new Set(prev)
         next.delete(project.id as string)
@@ -388,16 +399,17 @@ export function DashboardPage({
   }, [selectedProject, draftProject])
 
   const handleDraftSave = async () => {
-    if (!selectedProject?.id || !draftProject) {
+    if (!selectedProject?.id || !draftProject || !activeWorkspaceId) {
       return
     }
     setError(null)
     setUpdatingId(selectedProject.id)
     try {
-      await updateProject(selectedProject.id, {
+      await updateProject(activeWorkspaceId, selectedProject.id, {
         name: draftProject.name.trim().slice(0, MAX_PROJECT_TITLE_LENGTH),
         description: draftProject.description?.trim() || undefined,
         status: draftProject.status,
+        teamId: draftProject.teamId ?? currentUser?.teamId ?? '',
         memberIds: draftProject.memberIds ?? [],
       })
       await onRefresh()

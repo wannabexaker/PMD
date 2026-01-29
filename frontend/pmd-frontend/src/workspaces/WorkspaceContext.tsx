@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Workspace } from '../types'
@@ -88,7 +89,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [user, setActiveWorkspaceId])
 
   const createWorkspace = useCallback(async (name: string) => {
     const trimmed = name.trim()
@@ -170,7 +171,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return
     }
     refresh()
-  }, [user, refresh])
+  }, [user, refresh, setActiveWorkspaceId])
 
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null,

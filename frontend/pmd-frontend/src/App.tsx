@@ -21,7 +21,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { PmdLoader } from './components/common/PmdLoader'
 import { TeamsProvider } from './teams/TeamsContext'
 import { WorkspaceProvider, useWorkspace } from './workspaces/WorkspaceContext'
-import { DEFAULT_UI_PREFERENCES, loadUiPreferences, saveUiPreferences } from './ui/uiPreferences'
+import { loadUiPreferences, saveUiPreferences } from './ui/uiPreferences'
 import {
   clearAssignSelectedProjectId,
   clearDashboardSelectedProjectId,
@@ -372,6 +372,19 @@ function AppView({
   ])
 
   useEffect(() => {
+    const handleWorkspaceReset = () => {
+      if (currentUser && activeWorkspaceId) {
+        loadUsers()
+        loadProjects()
+      }
+    }
+    window.addEventListener('pmd:workspace-reset', handleWorkspaceReset)
+    return () => {
+      window.removeEventListener('pmd:workspace-reset', handleWorkspaceReset)
+    }
+  }, [activeWorkspaceId, currentUser, loadProjects, loadUsers])
+
+  useEffect(() => {
     setMenuOpen(false)
     setAuthError(null)
   }, [location.pathname, setAuthError, setMenuOpen])
@@ -662,13 +675,29 @@ function AppView({
             {backendMessage ?? `Backend unreachable (${API_BASE_URL}).`}
           </div>
         ) : null}
-        {isAuthed && !activeWorkspaceId ? <WorkspacePicker /> : null}
+        {isAuthed && activeWorkspaceId && !currentUser?.teamId ? (
+          <div className="banner info" role="status">
+            <strong>You are not in a team yet.</strong>
+            <div className="muted">Join a team from your profile, or create one if you are an admin.</div>
+            <div className="banner-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => navigate('/profile')}>
+                Go to profile
+              </button>
+              {isAdmin ? (
+                <button type="button" className="btn btn-primary" onClick={() => navigate('/admin')}>
+                  Create a team
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <Routes>
           <Route path="/" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
           <Route
             path="/dashboard"
             element={
-              isAuthed && activeWorkspaceId ? (
+              isAuthed ? (
+                activeWorkspaceId ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load projects.</p>
@@ -690,6 +719,9 @@ function AppView({
                     />
                   )}
                 </>
+                ) : (
+                  <WorkspacePicker />
+                )
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -698,7 +730,8 @@ function AppView({
           <Route
             path="/assign"
             element={
-              isAuthed && activeWorkspaceId ? (
+              isAuthed ? (
+                activeWorkspaceId ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load assignments.</p>
@@ -724,6 +757,9 @@ function AppView({
                     />
                   )}
                 </>
+                ) : (
+                  <WorkspacePicker />
+                )
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -732,7 +768,8 @@ function AppView({
           <Route
             path="/people"
             element={
-              isAuthed && activeWorkspaceId ? (
+              isAuthed ? (
+                activeWorkspaceId ? (
                 <>
                   {backendOffline ? (
                     <p className="error">Backend unreachable. Start the server to load people.</p>
@@ -748,6 +785,9 @@ function AppView({
                     />
                   ) : null}
                 </>
+                ) : (
+                  <WorkspacePicker />
+                )
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -756,18 +796,28 @@ function AppView({
           <Route
             path="/admin"
             element={
-              isAuthed && isAdmin && activeWorkspaceId ? (
-                <AdminPanel users={users} projects={projects} />
+              isAuthed ? (
+                activeWorkspaceId && isAdmin ? (
+                  <AdminPanel users={users} projects={projects} />
+                ) : activeWorkspaceId ? (
+                  <Navigate to="/dashboard" replace />
+                ) : (
+                  <WorkspacePicker />
+                )
               ) : (
-                <Navigate to="/dashboard" replace />
+                <Navigate to="/login" replace />
               )
             }
           />
           <Route
             path="/profile"
             element={
-              isAuthed && currentUser && activeWorkspaceId ? (
-                <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate('/dashboard')} />
+              isAuthed ? (
+                activeWorkspaceId && currentUser ? (
+                  <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate('/dashboard')} />
+                ) : (
+                  <WorkspacePicker />
+                )
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -777,7 +827,11 @@ function AppView({
             path="/settings"
             element={
               isAuthed ? (
-                <SettingsPage preferences={uiPreferences} onChange={handlePreferencesChange} />
+                activeWorkspaceId ? (
+                  <SettingsPage preferences={uiPreferences} onChange={handlePreferencesChange} />
+                ) : (
+                  <WorkspacePicker />
+                )
               ) : (
                 <Navigate to="/login" replace />
               )

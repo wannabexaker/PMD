@@ -5,6 +5,7 @@ import { fetchRecommendationDetails, toggleRecommendation } from '../api/users'
 import { ControlsBar } from './common/ControlsBar'
 import { isApiError } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
+import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
 import {
   PROJECT_FOLDERS,
@@ -42,6 +43,7 @@ export function AssignPage({
   onRefresh,
 }: AssignPageProps) {
   const { teams, teamById } = useTeams()
+  const { activeWorkspaceId } = useWorkspace()
   const [selectedMembers, setSelectedMembers] = useState<UserSummary[]>([])
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
@@ -160,19 +162,19 @@ export function AssignPage({
   }, [selectedFilters, defaultFilterKeys])
 
   const refreshAssignedToMe = useCallback(async () => {
-    if (!assignedToMeOnly) {
+    if (!assignedToMeOnly || !activeWorkspaceId) {
       return
     }
     setAssignedToMeLoading(true)
     try {
-      const data = await fetchProjects({ assignedToMe: true })
+      const data = await fetchProjects(activeWorkspaceId, { assignedToMe: true })
       setAssignedToMeProjects(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load assigned projects')
     } finally {
       setAssignedToMeLoading(false)
     }
-  }, [assignedToMeOnly])
+  }, [assignedToMeOnly, activeWorkspaceId])
 
   useEffect(() => {
     if (!assignedToMeOnly) {
@@ -325,9 +327,9 @@ export function AssignPage({
   }, [baseCandidates, recommendedIds, recommendedPool])
 
   const handleToggleRecommendation = async (user: UserSummary) => {
-    if (!user.id) return
+    if (!user.id || !activeWorkspaceId) return
     try {
-      const response = await toggleRecommendation(user.id)
+      const response = await toggleRecommendation(activeWorkspaceId, user.id)
       setRecommendationOverrides((prev) => ({
         ...prev,
         [user.id as string]: {
@@ -352,7 +354,10 @@ export function AssignPage({
       return
     }
     setRecommendersLoadingId(user.id)
-    fetchRecommendationDetails(user.id)
+    if (!activeWorkspaceId) {
+      return
+    }
+    fetchRecommendationDetails(activeWorkspaceId, user.id)
       .then((data) => {
         setRecommendersById((prev) => ({ ...prev, [user.id as string]: data }))
       })
@@ -411,8 +416,12 @@ export function AssignPage({
       setToast('Turn off Assigned to me to use random project')
       return
     }
+    if (!activeWorkspaceId) {
+      setError('Select a workspace to continue.')
+      return
+    }
     try {
-      const project = await randomProject(randomTeamId || undefined)
+      const project = await randomProject(activeWorkspaceId, randomTeamId || undefined)
       if (project.id) {
         onSelectProject(project.id)
       }
@@ -430,8 +439,12 @@ export function AssignPage({
     if (!selectedProject?.id || selectedIsArchived) {
       return
     }
+    if (!activeWorkspaceId) {
+      setError('Select a workspace to continue.')
+      return
+    }
     try {
-      const response = await randomAssign(selectedProject.id, randomTeamId || undefined)
+      const response = await randomAssign(activeWorkspaceId, selectedProject.id, randomTeamId || undefined)
       const assignedId = response.assignedPerson?.id
       if (assignedId) {
         setSelectedMembers((prev) => {
@@ -469,11 +482,11 @@ export function AssignPage({
   }
 
   const handleSave = async () => {
-    if (!selectedProject || !selectedProject.id || selectedIsArchived) return
+    if (!selectedProject || !selectedProject.id || selectedIsArchived || !activeWorkspaceId) return
     setError(null)
     try {
       setSaving(true)
-      await updateProject(selectedProject.id, buildProjectPayload(selectedProject))
+      await updateProject(activeWorkspaceId, selectedProject.id, buildProjectPayload(selectedProject))
       setToast('Saved')
       await onRefresh?.()
       await refreshAssignedToMe()
@@ -492,11 +505,11 @@ export function AssignPage({
   }
 
   const handleStatusChange = async (status: ProjectStatus) => {
-    if (!selectedProject || !selectedProject.id || selectedIsArchived) return
+    if (!selectedProject || !selectedProject.id || selectedIsArchived || !activeWorkspaceId) return
     setError(null)
     try {
       setStatusUpdating(true)
-      await updateProject(selectedProject.id, buildProjectPayload(selectedProject, { status }))
+      await updateProject(activeWorkspaceId, selectedProject.id, buildProjectPayload(selectedProject, { status }))
       setToast('Status updated')
       await onRefresh?.()
       await refreshAssignedToMe()
@@ -515,11 +528,12 @@ export function AssignPage({
   }
 
   const handleRestoreArchived = async () => {
-    if (!selectedProject || !selectedProject.id) return
+    if (!selectedProject || !selectedProject.id || !activeWorkspaceId) return
     setError(null)
     try {
       setStatusUpdating(true)
       await updateProject(
+        activeWorkspaceId,
         selectedProject.id,
         buildProjectPayload(selectedProject, { status: 'NOT_STARTED', memberIds: [] })
       )
@@ -542,13 +556,13 @@ export function AssignPage({
   }
 
   const handleDeleteArchived = async () => {
-    if (!selectedProject || !selectedProject.id) return
+    if (!selectedProject || !selectedProject.id || !activeWorkspaceId) return
     const confirmed = window.confirm('Delete this project permanently?')
     if (!confirmed) return
     setError(null)
     try {
       setSaving(true)
-      await deleteProject(selectedProject.id)
+      await deleteProject(activeWorkspaceId, selectedProject.id)
       setToast(null)
       await onRefresh?.()
       await refreshAssignedToMe()

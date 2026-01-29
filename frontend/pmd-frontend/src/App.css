@@ -168,6 +168,69 @@ body {
   gap: 12px;
 }
 
+.workspace-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  max-width: 320px;
+}
+
+.workspace-switcher select {
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  color: var(--text);
+  width: 180px;
+}
+
+.workspace-switcher select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.workspace-list {
+  display: grid;
+  gap: 8px;
+}
+
+.workspace-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  text-align: left;
+}
+
+.workspace-item:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  box-shadow: var(--hover-shadow);
+}
+
+.workspace-name {
+  font-weight: 600;
+}
+
+.workspace-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.workspace-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.2em;
@@ -390,6 +453,12 @@ body {
 
 label {
   font-weight: 600;
+}
+
+.required {
+  color: var(--danger);
+  margin-left: 4px;
+  font-weight: 700;
 }
 
 input,
@@ -889,6 +958,13 @@ button {
   border-radius: 10px;
   font-size: 0.95rem;
   border: 1px solid transparent;
+}
+
+.banner-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
 
 .banner.error {

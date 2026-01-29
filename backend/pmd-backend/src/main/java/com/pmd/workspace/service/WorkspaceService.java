@@ -145,19 +145,20 @@ public class WorkspaceService {
             created.setDemo(true);
             workspace = workspaceRepository.save(created);
         }
+        Workspace finalWorkspace = workspace;
         WorkspaceMember member = workspaceMemberRepository
-            .findByWorkspaceIdAndUserId(workspace.getId(), user.getId())
+            .findByWorkspaceIdAndUserId(finalWorkspace.getId(), user.getId())
             .orElseGet(() -> {
                 WorkspaceMember created = new WorkspaceMember();
-                created.setWorkspaceId(workspace.getId());
+                created.setWorkspaceId(finalWorkspace.getId());
                 created.setUserId(user.getId());
                 created.setRole(WorkspaceMemberRole.OWNER);
                 created.setStatus(WorkspaceMemberStatus.ACTIVE);
                 created.setCreatedAt(Instant.now());
                 return workspaceMemberRepository.save(created);
             });
-        demoWorkspaceSeeder.seedWorkspace(workspace.getId(), user);
-        return new WorkspaceMembership(workspace, member);
+        demoWorkspaceSeeder.seedWorkspace(finalWorkspace.getId(), user);
+        return new WorkspaceMembership(finalWorkspace, member);
     }
 
     public void resetDemoWorkspace(String workspaceId, User requester) {

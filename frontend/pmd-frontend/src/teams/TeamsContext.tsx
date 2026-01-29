@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Team, User } from '../types'
@@ -42,7 +43,7 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [activeWorkspaceId, user])
 
   const createTeam = useCallback(
     async (name: string) => {

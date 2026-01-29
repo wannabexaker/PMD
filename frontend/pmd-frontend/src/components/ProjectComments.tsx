@@ -11,6 +11,7 @@ import { uploadImage } from '../api/uploads'
 import { API_BASE_URL } from '../api/http'
 import { PmdLoader } from './common/PmdLoader'
 import { ImageModal } from './common/ImageModal'
+import { useWorkspace } from '../workspaces/WorkspaceContext'
 
 const REACTIONS: { type: CommentReactionType; label: string }[] = [
   { type: 'LIKE', label: 'Like' },
@@ -42,6 +43,7 @@ type ProjectCommentsProps = {
 }
 
 export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps) {
+  const { activeWorkspaceId } = useWorkspace()
   const [comments, setComments] = useState<ProjectComment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,14 +64,14 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
   }, [currentUser])
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || !activeWorkspaceId) {
       setComments([])
       return
     }
     let active = true
     setLoading(true)
     setError(null)
-    fetchProjectComments(projectId)
+    fetchProjectComments(activeWorkspaceId, projectId)
       .then((data) => {
         if (active) setComments(data)
       })
@@ -82,7 +84,7 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [projectId, activeWorkspaceId])
 
   useEffect(() => {
     return () => {
@@ -97,6 +99,10 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
       setError('Comment cannot be empty.')
       return
     }
+    if (!activeWorkspaceId) {
+      setError('Select a workspace to continue.')
+      return
+    }
     const payload: CreateProjectCommentPayload = {
       message: message.trim(),
       timeSpentMinutes: timeSpentEnabled ? timeSpentMinutes : undefined,
@@ -105,7 +111,7 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
     try {
       setPosting(true)
       setError(null)
-      const created = await createProjectComment(projectId, payload)
+      const created = await createProjectComment(activeWorkspaceId, projectId, payload)
       setComments((prev) => [created, ...prev])
       setMessage('')
       setTimeSpentEnabled(false)
@@ -123,7 +129,11 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
 
   const handleReaction = async (comment: ProjectComment, type: CommentReactionType) => {
     try {
-      const updated = await toggleCommentReaction(comment.id, { type })
+      if (!activeWorkspaceId) {
+        setError('Select a workspace to continue.')
+        return
+      }
+      const updated = await toggleCommentReaction(activeWorkspaceId, comment.id, { type })
       setComments((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update reaction')
@@ -132,7 +142,11 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
 
   const handleDelete = async (comment: ProjectComment) => {
     try {
-      await deleteComment(comment.id)
+      if (!activeWorkspaceId) {
+        setError('Select a workspace to continue.')
+        return
+      }
+      await deleteComment(activeWorkspaceId, comment.id)
       setComments((prev) => prev.filter((item) => item.id !== comment.id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete comment')
