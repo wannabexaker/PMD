@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type {
   PeopleOverviewStatsResponse,
   PeopleUserStatsResponse,
+  Person,
   Project,
   UserSummary,
 } from '../types'
@@ -15,6 +16,7 @@ import { useAuth } from '../auth/authUtils'
 import type { PeoplePageWidgets } from '../types'
 import { useTeams } from '../teams/TeamsContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
+import { createPerson, deletePerson, listPeople, updatePerson } from '../api/people'
 import {
   clearPeopleSelection,
   getPeopleSelectedFilters,
@@ -93,11 +95,21 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
   const [recommendersLoadingId, setRecommendersLoadingId] = useState<string | null>(null)
   const { user: currentUser } = useAuth()
   const { teams, teamById } = useTeams()
+  const isAdmin = Boolean(currentUser?.isAdmin)
   const [widgets, setWidgets] = useState<PeoplePageWidgets>(() => mergeWidgetDefaults(currentUser?.peoplePageWidgets))
   const [widgetsEditing, setWidgetsEditing] = useState(false)
   const [widgetsDraft, setWidgetsDraft] = useState<PeoplePageWidgets | null>(null)
   const [widgetsSaving, setWidgetsSaving] = useState(false)
   const [teamFilterValue, setTeamFilterValue] = useState('')
+  const [peopleRecords, setPeopleRecords] = useState<Person[]>([])
+  const [peopleLoading, setPeopleLoading] = useState(false)
+  const [peopleError, setPeopleError] = useState<string | null>(null)
+  const [newPersonName, setNewPersonName] = useState('')
+  const [newPersonEmail, setNewPersonEmail] = useState('')
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null)
+  const [editingPersonName, setEditingPersonName] = useState('')
+  const [editingPersonEmail, setEditingPersonEmail] = useState('')
+  const [savingPerson, setSavingPerson] = useState(false)
 
   const selectedUser = useMemo(() => users.find((user) => user.id === selectedUserId) ?? null, [users, selectedUserId])
 
@@ -250,6 +262,30 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
           }
           setStatsError(err instanceof Error ? err.message : 'Failed to load stats')
         }
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    setPeopleLoading(true)
+    setPeopleError(null)
+    listPeople()
+      .then((data) => {
+        if (active) {
+          const sorted = [...data].sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? ''))
+          setPeopleRecords(sorted)
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setPeopleError(err instanceof Error ? err.message : 'Failed to load people records')
+        }
+      })
+      .finally(() => {
+        if (active) setPeopleLoading(false)
       })
     return () => {
       active = false
@@ -485,6 +521,173 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
         <div>
           <h2>People</h2>
         </div>
+      </div>
+      <div className="card">
+        <div className="panel-header">
+          <div>
+            <h3>People records</h3>
+            <p className="muted">Backend people entities (admin-managed).</p>
+          </div>
+        </div>
+        {peopleError ? <p className="error">{peopleError}</p> : null}
+        {isAdmin ? (
+          <div className="row space">
+            <input
+              type="text"
+              placeholder="Full name"
+              value={newPersonName}
+              onChange={(event) => setNewPersonName(event.target.value)}
+            />
+            <input
+              type="email"
+              placeholder="Email (optional)"
+              value={newPersonEmail}
+              onChange={(event) => setNewPersonEmail(event.target.value)}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={savingPerson || !newPersonName.trim()}
+              onClick={async () => {
+                setSavingPerson(true)
+                try {
+                  const created = await createPerson({
+                    displayName: newPersonName.trim(),
+                    email: newPersonEmail.trim() || undefined,
+                  })
+                  setPeopleRecords((prev) => {
+                    const next = [created, ...prev]
+                    return next.sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? ''))
+                  })
+                  setNewPersonName('')
+                  setNewPersonEmail('')
+                } catch (err) {
+                  setPeopleError(err instanceof Error ? err.message : 'Failed to create person')
+                } finally {
+                  setSavingPerson(false)
+                }
+              }}
+            >
+              {savingPerson ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        ) : (
+          <p className="muted">Only admins can create or edit people records.</p>
+        )}
+        <ul className="list compact">
+          {peopleLoading ? <li className="muted">Loading people records...</li> : null}
+          {peopleRecords.length === 0 && !peopleLoading ? <li className="muted">No records found.</li> : null}
+          {peopleRecords.map((person) => {
+            const isEditing = editingPersonId === person.id
+            return (
+              <li key={person.id ?? person.email ?? person.displayName} className="row space">
+                {isEditing ? (
+                  <div className="row space">
+                    <input
+                      type="text"
+                      value={editingPersonName}
+                      onChange={(event) => setEditingPersonName(event.target.value)}
+                    />
+                    <input
+                      type="email"
+                      value={editingPersonEmail}
+                      onChange={(event) => setEditingPersonEmail(event.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <strong className="truncate" title={person.displayName ?? ''}>
+                      {person.displayName ?? '-'}
+                    </strong>
+                    <div className="muted truncate" title={person.email ?? ''}>
+                      {person.email ?? ''}
+                    </div>
+                  </div>
+                )}
+                <div className="actions-right">
+                  {isAdmin ? (
+                    isEditing ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={savingPerson || !editingPersonName.trim() || !person.id}
+                          onClick={async () => {
+                            if (!person.id) return
+                            setSavingPerson(true)
+                            try {
+                              const updated = await updatePerson(person.id, {
+                                displayName: editingPersonName.trim(),
+                                email: editingPersonEmail.trim() || undefined,
+                              })
+                              setPeopleRecords((prev) =>
+                                prev.map((item) => (item.id === updated.id ? updated : item))
+                              )
+                              setEditingPersonId(null)
+                              setEditingPersonName('')
+                              setEditingPersonEmail('')
+                            } catch (err) {
+                              setPeopleError(err instanceof Error ? err.message : 'Failed to update person')
+                            } finally {
+                              setSavingPerson(false)
+                            }
+                          }}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setEditingPersonId(null)
+                            setEditingPersonName('')
+                            setEditingPersonEmail('')
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setEditingPersonId(person.id ?? null)
+                            setEditingPersonName(person.displayName ?? '')
+                            setEditingPersonEmail(person.email ?? '')
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          onClick={async () => {
+                            if (!person.id) return
+                            const confirmed = window.confirm('Delete this person record?')
+                            if (!confirmed) return
+                            try {
+                              setSavingPerson(true)
+                              await deletePerson(person.id)
+                              setPeopleRecords((prev) => prev.filter((item) => item.id !== person.id))
+                            } catch (err) {
+                              setPeopleError(err instanceof Error ? err.message : 'Failed to delete person')
+                            } finally {
+                              setSavingPerson(false)
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )
+                  ) : null}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       </div>
       <div className="dashboard-controls">
         <ControlsBar

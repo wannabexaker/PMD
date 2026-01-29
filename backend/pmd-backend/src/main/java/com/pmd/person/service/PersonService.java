@@ -41,6 +41,21 @@ public class PersonService {
         return toResponse(person);
     }
 
+    public PersonResponse update(String id, PersonRequest request) {
+        Person person = personRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Person not found"));
+        person.setDisplayName(request.getDisplayName());
+        person.setEmail(request.getEmail());
+        Person saved = personRepository.save(person);
+        return toResponse(saved);
+    }
+
+    public void delete(String id) {
+        Person person = personRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Person not found"));
+        personRepository.delete(person);
+    }
+
     private PersonResponse toResponse(Person person) {
         return new PersonResponse(
             person.getId(),

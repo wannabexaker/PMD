@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Team, User } from '../types'
-import { createTeam as createTeamApi, fetchTeams } from '../api/teams'
+import { createTeam as createTeamApi, fetchTeams, updateTeam as updateTeamApi } from '../api/teams'
 import { isApiError } from '../api/http'
 
 type TeamsContextValue = {
@@ -10,6 +10,7 @@ type TeamsContextValue = {
   error: string | null
   refresh: () => Promise<void>
   createTeam: (name: string) => Promise<Team | null>
+  updateTeam: (id: string, payload: { name?: string; isActive?: boolean }) => Promise<Team | null>
   teamById: Map<string, Team>
 }
 
@@ -61,6 +62,21 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
     []
   )
 
+  const updateTeam = useCallback(async (id: string, payload: { name?: string; isActive?: boolean }) => {
+    try {
+      const updated = await updateTeamApi(id, payload)
+      setTeams((prev) => {
+        const next = prev.map((team) => (team.id === updated.id ? updated : team))
+        return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+      })
+      return updated
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update team'
+      setError(message)
+      return null
+    }
+  }, [])
+
   useEffect(() => {
     refresh()
   }, [refresh])
@@ -76,7 +92,7 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
   }, [teams])
 
   return (
-    <TeamsContext.Provider value={{ teams, loading, error, refresh, createTeam, teamById }}>
+    <TeamsContext.Provider value={{ teams, loading, error, refresh, createTeam, updateTeam, teamById }}>
       {children}
     </TeamsContext.Provider>
   )

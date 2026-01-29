@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary } from '../types'
+import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary, WorkspaceDashboardStatsResponse } from '../types'
 import { CreateProjectForm } from './CreateProjectForm'
 import { deleteProject, updateProject } from '../api/projects'
 import { ControlsBar } from './common/ControlsBar'
@@ -8,6 +8,7 @@ import { ProjectComments } from './ProjectComments'
 import { isApiError } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
+import { fetchDashboardStats } from '../api/stats'
 import {
   UNASSIGNED_FILTER_KEY,
   PROJECT_FOLDERS,
@@ -64,6 +65,8 @@ export function DashboardPage({
   const initializedTeamsRef = useRef(false)
   const currentUserId = currentUser?.id ?? ''
   const [teamFilterValue, setTeamFilterValue] = useState('')
+  const [workspaceStats, setWorkspaceStats] = useState<WorkspaceDashboardStatsResponse | null>(null)
+  const [workspaceStatsError, setWorkspaceStatsError] = useState<string | null>(null)
 
   const availableTeamIds = useMemo(() => {
     return teams.map((team) => team.id).filter(Boolean) as string[]
@@ -165,6 +168,25 @@ export function DashboardPage({
     setMemberSearch('')
     setAvailableSearch('')
   }, [selectedProject])
+
+  useEffect(() => {
+    let active = true
+    setWorkspaceStatsError(null)
+    fetchDashboardStats()
+      .then((data) => {
+        if (active) {
+          setWorkspaceStats(data)
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setWorkspaceStatsError(err instanceof Error ? err.message : 'Failed to load workspace stats')
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -995,6 +1017,30 @@ export function DashboardPage({
                     <span className="muted">Archived</span>
                     <strong>{archivedCount}</strong>
                   </div>
+                </div>
+                <div className="card">
+                  <div className="panel-header">
+                    <h4>Workspace summary</h4>
+                  </div>
+                  {workspaceStatsError ? <p className="error">{workspaceStatsError}</p> : null}
+                  {!workspaceStats ? (
+                    <p className="muted">Loading workspace stats...</p>
+                  ) : (
+                    <div className="stats-strip">
+                      <div className="stat">
+                        <span className="muted">Assigned</span>
+                        <strong>{workspaceStats.counters?.assigned ?? 0}</strong>
+                      </div>
+                      <div className="stat">
+                        <span className="muted">In progress</span>
+                        <strong>{workspaceStats.counters?.inProgress ?? 0}</strong>
+                      </div>
+                      <div className="stat">
+                        <span className="muted">Completed</span>
+                        <strong>{workspaceStats.counters?.completed ?? 0}</strong>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="dashboard-user-charts">
                   <div className="card stats-card dashboard-user-chart">

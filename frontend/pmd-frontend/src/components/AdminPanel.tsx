@@ -20,9 +20,12 @@ type AdminPanelProps = {
 
 export function AdminPanel({ users }: AdminPanelProps) {
   const [active, setActive] = useState<Section>('User management')
-  const { teams, createTeam, loading: teamsLoading, error: teamsError, teamById } = useTeams()
+  const { teams, createTeam, updateTeam, loading: teamsLoading, error: teamsError, teamById } = useTeams()
   const [newTeamName, setNewTeamName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editingTeamName, setEditingTeamName] = useState('')
+  const [savingTeam, setSavingTeam] = useState(false)
 
   return (
     <section className="panel admin-panel">
@@ -97,13 +100,68 @@ export function AdminPanel({ users }: AdminPanelProps) {
               <ul className="list compact">
                 {teamsLoading && teams.length === 0 ? <li className="muted">Loading teams...</li> : null}
                 {teams.length === 0 && !teamsLoading ? <li className="muted">No teams found.</li> : null}
-                {teams.map((team) => (
-                  <li key={team.id ?? team.name}>
-                    <span className="truncate" title={team.name ?? ''}>
-                      {team.name ?? '-'}
-                    </span>
-                  </li>
-                ))}
+                {teams.map((team) => {
+                  const isEditing = editingTeamId === team.id
+                  return (
+                    <li key={team.id ?? team.name} className="row space">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editingTeamName}
+                          onChange={(event) => setEditingTeamName(event.target.value)}
+                        />
+                      ) : (
+                        <span className="truncate" title={team.name ?? ''}>
+                          {team.name ?? '-'}
+                        </span>
+                      )}
+                      <div className="actions-right">
+                        {isEditing ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              disabled={savingTeam || !editingTeamName.trim() || !team.id}
+                              onClick={async () => {
+                                if (!team.id) return
+                                setSavingTeam(true)
+                                const updated = await updateTeam(team.id, { name: editingTeamName.trim() })
+                                setSavingTeam(false)
+                                if (updated) {
+                                  setEditingTeamId(null)
+                                  setEditingTeamName('')
+                                }
+                              }}
+                            >
+                              {savingTeam ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                setEditingTeamId(null)
+                                setEditingTeamName('')
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              setEditingTeamId(team.id ?? null)
+                              setEditingTeamName(team.name ?? '')
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ) : null}

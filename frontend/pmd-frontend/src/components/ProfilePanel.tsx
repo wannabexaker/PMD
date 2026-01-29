@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
-import type { UpdateProfilePayload, User } from '../types'
+import { useEffect, useMemo, useState } from 'react'
+import type { DashboardStatsResponse, UpdateProfilePayload, User, UserStatsResponse } from '../types'
 import { updateProfile } from '../api/auth'
 import { useTeams } from '../teams/TeamsContext'
+import { fetchMyUserStats } from '../api/stats'
+import { fetchMyDashboardStats } from '../api/projects'
 
 type ProfilePanelProps = {
   user: User
@@ -20,6 +22,10 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [myStats, setMyStats] = useState<UserStatsResponse | null>(null)
+  const [myStatsError, setMyStatsError] = useState<string | null>(null)
+  const [myDashboardStats, setMyDashboardStats] = useState<DashboardStatsResponse | null>(null)
+  const [myDashboardError, setMyDashboardError] = useState<string | null>(null)
 
   const isDirty = useMemo(() => {
     const initialEmail = user.email ?? user.username ?? ''
@@ -79,6 +85,36 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
       setSaving(false)
     }
   }
+
+  useEffect(() => {
+    let active = true
+    setMyStatsError(null)
+    fetchMyUserStats()
+      .then((data) => {
+        if (active) setMyStats(data)
+      })
+      .catch((err) => {
+        if (active) setMyStatsError(err instanceof Error ? err.message : 'Failed to load my stats')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    setMyDashboardError(null)
+    fetchMyDashboardStats()
+      .then((data) => {
+        if (active) setMyDashboardStats(data)
+      })
+      .catch((err) => {
+        if (active) setMyDashboardError(err instanceof Error ? err.message : 'Failed to load dashboard stats')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   return (
     <div className="profile-panel">
@@ -142,6 +178,54 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
           </div>
         </div>
       </form>
+      <div className="card">
+        <div className="panel-header">
+          <h4>My stats</h4>
+        </div>
+        {myStatsError ? <p className="error">{myStatsError}</p> : null}
+        {!myStats ? (
+          <p className="muted">Loading stats...</p>
+        ) : (
+          <div className="stats-strip">
+            {(myStats.statusBreakdown ?? []).map((slice) => (
+              <div key={slice.label} className="stat">
+                <span className="muted">{slice.label}</span>
+                <strong>{slice.value}</strong>
+              </div>
+            ))}
+            {(myStats.activeInactiveBreakdown ?? []).map((slice) => (
+              <div key={`ai-${slice.label}`} className="stat">
+                <span className="muted">{slice.label}</span>
+                <strong>{slice.value}</strong>
+              </div>
+            ))}
+            {myStats.teamAverages ? (
+              <div className="stat">
+                <span className="muted">Team avg active</span>
+                <strong>{myStats.teamAverages.activeProjects.toFixed(1)}</strong>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+      <div className="card">
+        <div className="panel-header">
+          <h4>My dashboard stats</h4>
+        </div>
+        {myDashboardError ? <p className="error">{myDashboardError}</p> : null}
+        {!myDashboardStats ? (
+          <p className="muted">Loading dashboard stats...</p>
+        ) : (
+          <div className="stats-strip">
+            {(myDashboardStats.statusBreakdown ?? []).map((slice) => (
+              <div key={`my-${slice.label}`} className="stat">
+                <span className="muted">{slice.label}</span>
+                <strong>{slice.value}</strong>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

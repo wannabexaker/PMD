@@ -33,6 +33,13 @@ export type Team = {
   createdBy?: string | null
 }
 
+export type Person = {
+  id?: string | null
+  displayName?: string | null
+  email?: string | null
+  createdAt?: string | null
+}
+
 export type UserSummary = {
   id?: string | null
   displayName?: string | null

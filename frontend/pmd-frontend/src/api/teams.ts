@@ -16,3 +16,10 @@ export async function createTeam(name: string): Promise<Team> {
     body: JSON.stringify({ name }),
   })
 }
+
+export async function updateTeam(id: string, payload: { name?: string; isActive?: boolean }): Promise<Team> {
+  return requestJson<Team>(`/api/teams/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
