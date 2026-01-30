@@ -378,75 +378,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             <p className="muted">Create or join workspaces using an invite token or link.</p>
           </div>
         </div>
-        <div className="workspace-current">
-          <span className="muted">Current workspace</span>
-          <div className="workspace-current-row">
-            <strong className="truncate" title={activeWorkspace?.name ?? 'None'}>
-              {activeWorkspace?.name ?? 'None selected'}
-            </strong>
-            {activeWorkspace?.demo ? <span className="pill">Demo</span> : null}
-            {activeWorkspace?.status === 'PENDING' ? <span className="pill">Pending</span> : null}
-            {activeWorkspace?.id ? <span className="pill">Current</span> : null}
-          </div>
-          {activeWorkspace?.status === 'PENDING' ? (
-            <p className="muted">This workspace is pending approval.</p>
-          ) : null}
-        </div>
-        {canManageWorkspaceSettings && activeWorkspace?.id ? (
-          <div className="form-field">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={Boolean(activeWorkspace?.requireApproval)}
-                onChange={(event) => handleToggleApproval(event.target.checked)}
-                disabled={settingsBusy}
-              />
-              <span>Require approval to join</span>
-            </label>
-          </div>
-        ) : null}
-        <div className="workspace-groups">
-          <div className="workspace-group">
-            <div className="workspace-group-header">
-              <h4>Demo workspaces</h4>
-              <p className="muted">Explore seeded data without affecting real workspaces.</p>
-            </div>
-            <div className="row space">
-              <button type="button" className="btn btn-secondary" onClick={handleEnterDemo}>
-                Enter Demo Workspace
-              </button>
-              {activeWorkspace?.demo ? (
-                <button type="button" className="btn btn-danger" onClick={handleResetDemo}>
-                  Reset Demo Workspace
-                </button>
-              ) : null}
-            </div>
-            {demoWorkspaces.length > 0 ? (
-              <div className="workspace-list compact">
-                {demoWorkspaces.map((workspace) => (
-                  <div key={workspace.id ?? workspace.name} className="workspace-item compact">
-                    <div className="workspace-name truncate" title={workspace.name ?? ''}>
-                      {workspace.name ?? 'Untitled'}
-                    </div>
-                    <div className="workspace-badges">
-                      <span className="pill">Demo</span>
-                      {workspace.status === 'PENDING' ? <span className="pill">Pending</span> : null}
-                      {activeWorkspace?.id === workspace.id ? <span className="pill">Current</span> : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">No demo workspaces yet.</p>
-            )}
-          </div>
-          <div className="workspace-divider" />
-          <div className="workspace-group">
+        <div className="workspace-columns">
+          <div className="workspace-column">
             <div className="workspace-group-header">
               <h4>Your workspaces</h4>
+              <p className="muted">Workspaces you belong to.</p>
             </div>
             {userWorkspaces.length > 0 ? (
-              <div className="workspace-list compact">
+              <div className="workspace-list compact workspace-column-list">
                 {userWorkspaces.map((workspace) => (
                   <div key={workspace.id ?? workspace.name} className="workspace-item compact">
                     <div className="workspace-name truncate" title={workspace.name ?? ''}>
@@ -463,73 +402,104 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               <p className="muted">No workspaces yet.</p>
             )}
           </div>
-        </div>
-        <div className="workspace-actions">
-          <div className="form-field">
-            <label htmlFor="workspaceName">Create workspace</label>
-            <div className="workspace-row">
-              <input
-                id="workspaceName"
-                value={workspaceName}
-                onChange={(event) => setWorkspaceName(event.target.value)}
-                placeholder="Workspace name"
-              />
-              <button type="button" className="btn btn-primary" onClick={handleCreateWorkspace} disabled={workspaceBusy}>
-                Create
-              </button>
+          <div className="workspace-column">
+            <div className="workspace-group-header">
+              <h4>Workspace actions</h4>
+              <p className="muted">Create, join, or manage your current workspace.</p>
             </div>
-            <div className="form-field compact">
-              <label>Initial teams</label>
-              <div className="workspace-list compact">
-                {initialTeams.map((team, index) => (
-                  <div key={`${team}-${index}`} className="workspace-row">
-                    <input
-                      value={team}
-                      onChange={(event) => handleUpdateInitialTeam(index, event.target.value)}
-                      placeholder="Team name"
-                    />
-                    {initialTeams.length > 1 ? (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => handleRemoveInitialTeam(index)}
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
-                <button type="button" className="btn btn-secondary" onClick={handleAddInitialTeam}>
-                  Add team
-                </button>
+            <div className="workspace-current">
+              <span className="muted">Current workspace</span>
+              <div className="workspace-current-row">
+                <strong className="truncate" title={activeWorkspace?.name ?? 'None'}>
+                  {activeWorkspace?.name ?? 'None selected'}
+                </strong>
+                {activeWorkspace?.demo ? <span className="pill">Demo</span> : null}
+                {activeWorkspace?.status === 'PENDING' ? <span className="pill">Pending</span> : null}
+                {activeWorkspace?.id ? <span className="pill">Current</span> : null}
               </div>
+              {activeWorkspace?.status === 'PENDING' ? (
+                <p className="muted">This workspace is pending approval.</p>
+              ) : null}
             </div>
-          </div>
-          <div className="form-field">
-            <label htmlFor="workspaceJoin">Join workspace</label>
-            <div className="workspace-row">
-              <input
-                id="workspaceJoin"
-                value={joinValue}
-                onChange={(event) => setJoinValue(event.target.value)}
-                placeholder="Invite token or link"
-              />
-              <button type="button" className="btn btn-secondary" onClick={handleJoinWorkspace} disabled={workspaceBusy}>
-                Join
-              </button>
-            </div>
-          </div>
-        </div>
-        {activeWorkspace?.id && (canInviteMembers || canApproveRequests) ? (
-          <div className="workspace-management">
-            {canInviteMembers ? (
-              <div className="workspace-subpanel">
-              <div className="panel-header">
-                <div>
-                  <h4>Invites</h4>
-                  <p className="muted">Generate invite links or codes for this workspace.</p>
+            {canManageWorkspaceSettings && activeWorkspace?.id ? (
+              <div className="form-field">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(activeWorkspace?.requireApproval)}
+                    onChange={(event) => handleToggleApproval(event.target.checked)}
+                    disabled={settingsBusy}
+                  />
+                  <span>Require approval to join</span>
+                </label>
+              </div>
+            ) : null}
+            <div className="workspace-actions">
+              <div className="form-field">
+                <label htmlFor="workspaceName">Create workspace</label>
+                <div className="workspace-row">
+                  <input
+                    id="workspaceName"
+                    value={workspaceName}
+                    onChange={(event) => setWorkspaceName(event.target.value)}
+                    placeholder="Workspace name"
+                  />
+                  <button type="button" className="btn btn-primary" onClick={handleCreateWorkspace} disabled={workspaceBusy}>
+                    Create
+                  </button>
+                </div>
+                <div className="form-field compact">
+                  <label>Initial teams</label>
+                  <div className="workspace-list compact">
+                    {initialTeams.map((team, index) => (
+                      <div key={`${team}-${index}`} className="workspace-row">
+                        <input
+                          value={team}
+                          onChange={(event) => handleUpdateInitialTeam(index, event.target.value)}
+                          placeholder="Team name"
+                        />
+                        {initialTeams.length > 1 ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => handleRemoveInitialTeam(index)}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-secondary" onClick={handleAddInitialTeam}>
+                      Add team
+                    </button>
+                  </div>
                 </div>
               </div>
+              <div className="form-field">
+                <label htmlFor="workspaceJoin">Join workspace</label>
+                <div className="workspace-row">
+                  <input
+                    id="workspaceJoin"
+                    value={joinValue}
+                    onChange={(event) => setJoinValue(event.target.value)}
+                    placeholder="Invite token or link"
+                  />
+                  <button type="button" className="btn btn-secondary" onClick={handleJoinWorkspace} disabled={workspaceBusy}>
+                    Join
+                  </button>
+                </div>
+              </div>
+            </div>
+            {activeWorkspace?.id && (canInviteMembers || canApproveRequests) ? (
+              <div className="workspace-management">
+                {canInviteMembers ? (
+                  <div className="workspace-subpanel">
+                  <div className="panel-header">
+                    <div>
+                      <h4>Invites</h4>
+                      <p className="muted">Generate invite links or codes for this workspace.</p>
+                    </div>
+                  </div>
               <div className="invite-controls">
                 <div className="form-field">
                   <label htmlFor="inviteDays">Expires in (days)</label>
@@ -618,16 +588,16 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   })}
                 </div>
               ) : null}
-            </div>
-            ) : null}
-            {canApproveRequests ? (
-              <div className="workspace-subpanel">
-              <div className="panel-header">
-                <div>
-                  <h4>Pending requests</h4>
-                  <p className="muted">Approve or deny pending join requests.</p>
                 </div>
-              </div>
+                ) : null}
+                {canApproveRequests ? (
+                  <div className="workspace-subpanel">
+                  <div className="panel-header">
+                    <div>
+                      <h4>Pending requests</h4>
+                      <p className="muted">Approve or deny pending join requests.</p>
+                    </div>
+                  </div>
               {requestsLoading ? <p className="muted">Loading requests...</p> : null}
               {!requestsLoading && requests.length === 0 ? <p className="muted">No pending requests.</p> : null}
               {requests.length > 0 ? (
@@ -660,13 +630,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   ))}
                 </div>
               ) : null}
-            </div>
+                </div>
+                ) : null}
+              </div>
             ) : null}
-          </div>
-        ) : null}
-        {activeWorkspace?.id && canManageTeams ? (
-          <div className="workspace-management">
-            <div className="workspace-subpanel">
+            {activeWorkspace?.id && canManageTeams ? (
+              <div className="workspace-management">
+                <div className="workspace-subpanel">
               <div className="panel-header">
                 <div>
                   <h4>Teams</h4>
@@ -719,9 +689,45 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   ))}
                 </div>
               ) : null}
-            </div>
+                </div>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+          <div className="workspace-column demo-column">
+            <div className="workspace-group-header">
+              <h4>Demo workspace</h4>
+              <p className="muted">Explore seeded data without affecting real workspaces.</p>
+            </div>
+            <div className="row space">
+              <button type="button" className="btn btn-secondary" onClick={handleEnterDemo}>
+                Enter Demo Workspace
+              </button>
+              {activeWorkspace?.demo ? (
+                <button type="button" className="btn btn-danger" onClick={handleResetDemo}>
+                  Reset Demo Workspace
+                </button>
+              ) : null}
+            </div>
+            {demoWorkspaces.length > 0 ? (
+              <div className="workspace-list compact workspace-column-list">
+                {demoWorkspaces.map((workspace) => (
+                  <div key={workspace.id ?? workspace.name} className="workspace-item compact">
+                    <div className="workspace-name truncate" title={workspace.name ?? ''}>
+                      {workspace.name ?? 'Untitled'}
+                    </div>
+                    <div className="workspace-badges">
+                      <span className="pill">Demo</span>
+                      {workspace.status === 'PENDING' ? <span className="pill">Pending</span> : null}
+                      {activeWorkspace?.id === workspace.id ? <span className="pill">Current</span> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No demo workspaces yet.</p>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   )

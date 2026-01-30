@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary } from '../types'
-import { deleteProject, fetchProjects, randomAssign, randomProject, updateProject } from '../api/projects'
+import { deleteProject, fetchProjects, randomAssign, updateProject } from '../api/projects'
 import { fetchRecommendationDetails, toggleRecommendation } from '../api/users'
 import { ControlsBar } from './common/ControlsBar'
 import { isApiError } from '../api/http'
@@ -419,27 +419,16 @@ export function AssignPage({
     if (user) handleAddMember(user)
   }
 
-  const handleRandomProject = async () => {
-    if (assignedToMeOnly) {
-      setToast('Turn off Assigned to me to use random project')
+  const eligibleProjects = useMemo(() => scopedProjects.filter((project) => project.id), [scopedProjects])
+
+  const handlePickRandomProject = () => {
+    if (eligibleProjects.length === 0) {
       return
     }
-    if (!activeWorkspaceId) {
-      setError('Select a workspace to continue.')
-      return
-    }
-    try {
-      const project = await randomProject(activeWorkspaceId, randomTeamId || undefined)
-      if (project.id) {
-        onSelectProject(project.id)
-      }
-      await onRefresh?.()
-    } catch (err) {
-      if (isApiError(err) && err.status === 409) {
-        setToast(err.message || 'No eligible project')
-        return
-      }
-      setError(err instanceof Error ? err.message : 'Failed to pick a random project')
+    const idx = Math.floor(Math.random() * eligibleProjects.length)
+    const picked = eligibleProjects[idx]
+    if (picked?.id) {
+      onSelectProject(picked.id)
     }
   }
 
@@ -603,6 +592,39 @@ export function AssignPage({
               <h3>Projects</h3>
               <span className="muted">{assignedToMeLoading ? 'Loading...' : `${projectsSource.length} total`}</span>
             </div>
+            <div className="assign-project-picker">
+              {!selectedProject ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handlePickRandomProject}
+                    disabled={eligibleProjects.length === 0}
+                  >
+                    Pick random project
+                  </button>
+                  {eligibleProjects.length === 0 ? <span className="muted">No projects available</span> : null}
+                </>
+              ) : (
+                <>
+                  <span className="chip" title={selectedProject.name ?? ''}>
+                    {formatProjectTitle(selectedProject.name)}
+                    <span className="muted"> · {formatStatusLabel(selectedProject.status ?? 'NOT_STARTED')}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handlePickRandomProject}
+                    disabled={eligibleProjects.length === 0}
+                  >
+                    Change
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => onClearSelection?.()}>
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
             <div className="assign-panel-controls">
               <ControlsBar
                 searchValue={projectSearch}
@@ -630,16 +652,6 @@ export function AssignPage({
                         </option>
                       ))}
                     </select>
-                    <button
-                      type="button"
-                      className="btn btn-icon btn-ghost icon-toggle"
-                      onClick={handleRandomProject}
-                      disabled={assignedToMeOnly || assignedToMeLoading}
-                      title={assignedToMeOnly ? 'Turn off Assigned to me to randomize projects' : 'Random project'}
-                      data-tooltip="Random project"
-                    >
-                      <DiceIcon />
-                    </button>
                   </div>
                 }
               filterSections={[

@@ -227,6 +227,36 @@ body {
   padding-right: 4px;
 }
 
+.workspace-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.workspace-column {
+  display: grid;
+  gap: 12px;
+}
+
+.workspace-column-list {
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.workspace-column.demo-column {
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface2));
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  border-radius: 14px;
+  padding: 12px;
+}
+
+@media (max-width: 900px) {
+  .workspace-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
 .workspace-group-header h4 {
   margin: 0;
 }
@@ -300,6 +330,13 @@ body {
   gap: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+
+.assign-project-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .invite-controls {

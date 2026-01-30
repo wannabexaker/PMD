@@ -987,3 +987,20 @@ Verification (manual)
 - Only roles with APPROVE_JOIN_REQUESTS see pending requests and can approve/deny.
 - Role badge shows in People cards/details.
 - Demo workspace: invite + pending request visible; reset restores baseline.
+
+## 2026-01-30 - UI polish (Assign random picker + Settings 3-column)
+
+Changes
+- Assign: removed project selection list control; added random project picker button/chip in header using scopedProjects after filters.
+- Assign: reroll/clear actions added; respects filters; no API changes.
+- Settings: Workspaces section restructured into 3 columns (Your workspaces / Workspace actions / Demo workspace) with responsive stacking.
+- Demo workspace moved to its own column with subtle background.
+
+Files
+- frontend/pmd-frontend/src/components/AssignPage.tsx
+- frontend/pmd-frontend/src/components/SettingsPage.tsx
+- frontend/pmd-frontend/src/App.css
+
+Verification (manual)
+- /assign: no project dropdown list; Pick random project selects from filtered list; Change rerolls; Clear unselects.
+- /settings: Workspaces shows 3-column layout on desktop; demo column separate; mobile stacks.

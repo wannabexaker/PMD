@@ -852,3 +852,13 @@ TODO
 - [ ] Manual verify RBAC flows (invite by member, approval by manager/owner, deny by non-approver).
 - [ ] Manual verify demo reset restores invite + pending request + roles.
 - [ ] Manual verify create workspace with initial teams shows teams in Create Project.
+
+## 2026-01-30 - UI polish (Assign random picker + Settings 3-column)
+
+DONE
+- [x] Assign: random project picker button/chip replaces list selector and respects filters.
+- [x] Settings: Workspaces section split into 3 columns with Demo column separated.
+
+TODO
+- [ ] Manual verify Assign random picker respects filters and no dropdown remains.
+- [ ] Manual verify Settings layout on desktop + mobile stack.
