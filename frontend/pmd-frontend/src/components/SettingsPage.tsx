@@ -48,6 +48,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [teamName, setTeamName] = useState('')
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [editingTeamName, setEditingTeamName] = useState('')
+  const [teamError, setTeamError] = useState<string | null>(null)
 
   const sortedWorkspaces = useMemo(
     () => [...workspaces].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
@@ -281,13 +282,15 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
 
   const handleCreateTeam = async () => {
     const name = teamName.trim()
-    if (!name) {
-      showToast({ type: 'error', message: 'Team name is required.' })
+    if (name.length < 2 || name.length > 40) {
+      setTeamError('Team name must be 2-40 characters.')
       return
     }
     const created = await createTeam(name)
     if (created?.id) {
       setTeamName('')
+      setTeamError(null)
+      await refreshTeams()
       showToast({ type: 'success', message: 'Team created.' })
     } else {
       showToast({ type: 'error', message: 'Failed to create team.' })
@@ -303,14 +306,16 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const handleSaveTeam = async () => {
     if (!editingTeamId) return
     const name = editingTeamName.trim()
-    if (!name) {
-      showToast({ type: 'error', message: 'Team name is required.' })
+    if (name.length < 2 || name.length > 40) {
+      setTeamError('Team name must be 2-40 characters.')
       return
     }
     const updated = await updateTeam(editingTeamId, { name })
     if (updated?.id) {
       setEditingTeamId(null)
       setEditingTeamName('')
+      setTeamError(null)
+      await refreshTeams()
       showToast({ type: 'success', message: 'Team updated.' })
     } else {
       showToast({ type: 'error', message: 'Failed to update team.' })
@@ -693,7 +698,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       <div className="workspace-row">
                         <input
                           value={editingTeamName}
-                          onChange={(event) => setEditingTeamName(event.target.value)}
+                          onChange={(event) => {
+                            setEditingTeamName(event.target.value)
+                            if (teamError) setTeamError(null)
+                          }}
                         />
                         <button type="button" className="btn btn-secondary" onClick={handleSaveTeam}>
                           Save
@@ -733,7 +741,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   <input
                     id="teamName"
                     value={teamName}
-                    onChange={(event) => setTeamName(event.target.value)}
+                    onChange={(event) => {
+                      setTeamName(event.target.value)
+                      if (teamError) setTeamError(null)
+                    }}
                     placeholder="New team name"
                     disabled={!canEditTeams}
                   />
@@ -747,6 +758,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     Add team
                   </button>
                 </div>
+                <p className="field-error">{teamError ?? ''}</p>
                 {!activeWorkspaceId ? <p className="muted">Select a workspace to manage teams.</p> : null}
                 {activeWorkspaceId && !canManageTeams ? (
                   <p className="muted">You do not have permission to manage teams.</p>
