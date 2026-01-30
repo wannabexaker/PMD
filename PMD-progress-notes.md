@@ -888,3 +888,55 @@ Verification steps (manual)
 - Admin: approve/deny pending requests and member becomes active.
 - Login remembers last active workspace; logout clears key.
 - People page: non-admin copy has no admin/internal text.
+
+## 2026-01-30 - Runtime port/communication audit (hybrid vs docker)
+
+Observed runtime (local machine)
+- No docker compose stacks running (deps/local compose both empty).
+- Ports listening: 5173 (node.exe Vite), 8080 (svchost.exe). No listeners on 8099/27017/1025/8025.
+- Backend log showed Mongo connection refused because Mongo was not running.
+
+Expected wiring (professional baseline)
+Hybrid dev (recommended):
+- Frontend: http://localhost:5173
+- Backend: http://localhost:8099 (Spring profile local)
+- MongoDB: localhost:27017 (Docker deps)
+- MailHog SMTP: localhost:1025 (Docker deps)
+- MailHog UI: http://localhost:8025
+Flow: FE -> BE (8099), BE -> Mongo (27017), BE -> SMTP (1025).
+
+Dockerized app (docker-compose.local.yml):
+- Frontend: http://localhost:5173 (container :80)
+- Backend: http://localhost:8080 (container :8080)
+- Mongo/MailHog: 27017/1025/8025
+Note: 8080 is occupied by svchost on this machine; use PMD_BACKEND_PORT override if running docker compose.
+
+Adjustments made
+- Align hybrid docs + scripts to 8099 (docs/DEV-HYBRID.md, scripts/pmd_up_*).
+- Frontend env example now uses 8099.
+
+Next manual checks
+- Start deps: scripts\pmd_up_deps.ps1
+- Start backend: scripts\pmd_up_backend_dev.ps1
+- Start frontend: scripts\pmd_up_frontend_dev.ps1
+- Verify: curl.exe -s http://localhost:8099/actuator/health
+
+## 2026-01-30 - User manual + port cleanup
+
+Changes
+- Added docs/USER-MANUAL.md with indexed instructions for hybrid vs dockerized runs, ports, scripts, status checks, debug flow, and resets.
+- Updated legacy scripts under scripts/pmd to point to hybrid scripts and backend port 8099.
+- Updated README example for VITE_API_BASE_URL and clarified backend port for hybrid vs docker.
+
+Notes
+- Hybrid backend runs on 8099 (application-local.yml). Dockerized backend runs on 8080.
+- If dockerized backend conflicts on 8080, set PMD_BACKEND_PORT in repo root .env.
+
+## 2026-01-30 - Vite parse error (WorkspaceContext)
+
+Root cause
+- Extra `else { ... }` block in refresh() caused a mismatched if/else, triggering `[plugin:vite:react-babel] Unexpected token` around line ~114.
+
+Fix
+- Removed the stray duplicate else block, keeping the original control flow unchanged.
+- File: frontend/pmd-frontend/src/workspaces/WorkspaceContext.tsx

@@ -111,9 +111,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           setActiveWorkspaceIdState(null)
           persistWorkspaceId(null)
         }
-      } else {
-        setActiveWorkspaceIdState(null)
-        persistWorkspaceId(null)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load workspaces')
