@@ -1,6 +1,7 @@
 package com.pmd.project.service;
 
 import com.pmd.auth.policy.AccessPolicy;
+import com.pmd.notification.EmailNotificationService;
 import com.pmd.project.dto.CommentAttachmentResponse;
 import com.pmd.project.dto.ProjectCommentCreateRequest;
 import com.pmd.project.dto.ProjectCommentItemResponse;
@@ -13,13 +14,19 @@ import com.pmd.project.repository.ProjectCommentRepository;
 import com.pmd.project.repository.ProjectRepository;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
+import com.pmd.user.service.UserService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -31,18 +38,25 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProjectCommentService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final Pattern EMAIL_MENTION = Pattern.compile("@([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
+    private static final Pattern TEAM_MENTION = Pattern.compile("(?i)@team(mention)?\\b");
 
     private final ProjectCommentRepository commentRepository;
     private final ProjectRepository projectRepository;
     private final AccessPolicy accessPolicy;
     private final UserRepository userRepository;
+    private final UserService userService;
+    private final EmailNotificationService emailNotificationService;
 
     public ProjectCommentService(ProjectCommentRepository commentRepository, ProjectRepository projectRepository,
-                                 AccessPolicy accessPolicy, UserRepository userRepository) {
+                                 AccessPolicy accessPolicy, UserRepository userRepository,
+                                 UserService userService, EmailNotificationService emailNotificationService) {
         this.commentRepository = commentRepository;
         this.projectRepository = projectRepository;
         this.accessPolicy = accessPolicy;
         this.userRepository = userRepository;
+        this.userService = userService;
+        this.emailNotificationService = emailNotificationService;
     }
 
     public Page<ProjectCommentItemResponse> listComments(String workspaceId, String projectId, int page, int size,
@@ -80,6 +94,7 @@ public class ProjectCommentService {
         }
 
         ProjectCommentEntity saved = commentRepository.save(entity);
+        notifyMentions(workspaceId, project, requester, saved.getMessage());
         return toResponse(saved);
     }
 
@@ -188,5 +203,65 @@ public class ProjectCommentService {
             request.getFileName(),
             request.getSize()
         );
+    }
+
+    private void notifyMentions(String workspaceId, Project project, User requester, String message) {
+        if (message == null || message.isBlank()) {
+            return;
+        }
+        Set<String> notifiedUserIds = new HashSet<>();
+        List<User> workspaceUsers = userService.listUsersForWorkspace(workspaceId, false);
+        Map<String, User> byEmail = new HashMap<>();
+        for (User user : workspaceUsers) {
+            if (user.getEmail() != null) {
+                byEmail.put(user.getEmail().toLowerCase(Locale.ROOT), user);
+            }
+        }
+
+        Matcher matcher = EMAIL_MENTION.matcher(message);
+        while (matcher.find()) {
+            String email = matcher.group(1);
+            if (email == null) {
+                continue;
+            }
+            User mentioned = byEmail.get(email.toLowerCase(Locale.ROOT));
+            if (mentioned == null || mentioned.getId() == null) {
+                continue;
+            }
+            if (requester != null && requester.getId() != null && requester.getId().equals(mentioned.getId())) {
+                continue;
+            }
+            if (notifiedUserIds.add(mentioned.getId())) {
+                emailNotificationService.sendMentionUser(mentioned, project, trimSnippet(message), requester);
+            }
+        }
+
+        if (TEAM_MENTION.matcher(message).find() && project.getTeamId() != null) {
+            for (User user : workspaceUsers) {
+                if (user.getId() == null || user.getTeamId() == null) {
+                    continue;
+                }
+                if (!project.getTeamId().equals(user.getTeamId())) {
+                    continue;
+                }
+                if (requester != null && requester.getId() != null && requester.getId().equals(user.getId())) {
+                    continue;
+                }
+                if (notifiedUserIds.add(user.getId())) {
+                    emailNotificationService.sendMentionTeam(user, project, trimSnippet(message), requester);
+                }
+            }
+        }
+    }
+
+    private String trimSnippet(String text) {
+        if (text == null) {
+            return null;
+        }
+        String trimmed = text.trim();
+        if (trimmed.length() <= 140) {
+            return trimmed;
+        }
+        return trimmed.substring(0, 140) + "...";
     }
 }

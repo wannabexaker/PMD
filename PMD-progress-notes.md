@@ -1025,3 +1025,17 @@ Verification (local)
 - Frontend: npm run lint (PASS).
 - Backend: ./mvnw test (PASS).
 - Backend: ./mvnw -DskipTests package (PASS).
+
+## 2026-01-30 – Notifications preferences + email enforcement
+
+What changed:
+- Added user notification preferences model + API (GET/PUT /api/notifications/preferences) with defaults ON.
+- Enforced email preferences for assignment, mentions, project status changes, membership changes, and overdue reminders.
+- Added confirmed-email message (sent after successful confirmation; always sends).
+- Added scheduled overdue reminders (daily; uses project age heuristic when no due date exists).
+- Frontend Settings now includes a Notifications card with Mail toggles (server-persisted).
+
+Notes:
+- Mentions are parsed from comment text using @email and @team/@teammention tokens.
+- Preferences are per-user (not workspace-scoped). Missing prefs default to ON.
+

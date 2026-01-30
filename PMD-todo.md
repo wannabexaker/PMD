@@ -873,3 +873,10 @@ DONE
 
 TODO
 - None added in this pass.
+
+## 2026-01-30
+- [x] Add notification preferences (server-stored) and Settings UI toggles.
+- [x] Enforce email preferences for assignment/mentions/status/membership/overdue.
+- [x] Send confirmed-email message after successful confirmation.
+- [ ] Review overdue reminder heuristic once true due dates exist.
+

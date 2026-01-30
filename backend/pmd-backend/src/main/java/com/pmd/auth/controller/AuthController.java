@@ -195,7 +195,10 @@ public class AuthController {
     @GetMapping("/confirm")
     @ResponseStatus(HttpStatus.OK)
     public ConfirmEmailResponse confirmEmail(@RequestParam("token") String token) {
-        ConfirmEmailStatus status = emailVerificationTokenService.confirmToken(token);
-        return new ConfirmEmailResponse(status);
+        EmailVerificationTokenService.ConfirmEmailResult result = emailVerificationTokenService.confirmTokenWithUser(token);
+        if (result.status() == ConfirmEmailStatus.CONFIRMED && result.user() != null) {
+            welcomeEmailService.sendConfirmedEmail(result.user());
+        }
+        return new ConfirmEmailResponse(result.status());
     }
 }

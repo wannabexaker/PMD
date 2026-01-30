@@ -1,6 +1,7 @@
 package com.pmd.project.service;
 
 import com.pmd.auth.policy.AccessPolicy;
+import com.pmd.notification.EmailNotificationService;
 import com.pmd.notification.event.ProjectAssignmentCreated;
 import com.pmd.project.dto.ProjectCommentResponse;
 import com.pmd.project.dto.DashboardStatsResponse;
@@ -46,10 +47,12 @@ public class ProjectService {
     private final AccessPolicy accessPolicy;
     private final MongoTemplate mongoTemplate;
     private final TeamService teamService;
+    private final EmailNotificationService emailNotificationService;
 
     public ProjectService(ProjectRepository projectRepository, UserRepository userRepository,
                           UserService userService, ApplicationEventPublisher eventPublisher,
-                          AccessPolicy accessPolicy, MongoTemplate mongoTemplate, TeamService teamService) {
+                          AccessPolicy accessPolicy, MongoTemplate mongoTemplate, TeamService teamService,
+                          EmailNotificationService emailNotificationService) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.userService = userService;
@@ -57,6 +60,7 @@ public class ProjectService {
         this.accessPolicy = accessPolicy;
         this.mongoTemplate = mongoTemplate;
         this.teamService = teamService;
+        this.emailNotificationService = emailNotificationService;
     }
 
     public ProjectResponse create(String workspaceId, ProjectRequest request, User requester) {
@@ -84,6 +88,7 @@ public class ProjectService {
         validateAssignees(requester, project, request.getMemberIds());
 
         Project saved = projectRepository.save(project);
+        notifyProjectMembershipChange(requester, saved, List.of());
         ProjectResponse response = toResponse(saved);
         log.debug(
             "Project created id={}, createdByUserId={}, createdByTeam={}, memberIds={}",
@@ -228,6 +233,7 @@ public class ProjectService {
                                   User requester) {
         Team team = teamService.requireActiveTeam(workspaceId, request.getTeamId());
         Project project = getByIdForUser(workspaceId, id, requester);
+        ProjectStatus previousStatus = project.getStatus();
         List<String> previousMemberIds = project.getMemberIds() != null
             ? new ArrayList<>(project.getMemberIds())
             : List.of();
@@ -243,6 +249,8 @@ public class ProjectService {
 
         Project saved = projectRepository.save(project);
         publishAssignmentEvents(saved, previousMemberIds, assignedByUserId);
+        notifyProjectStatusChange(requester, saved, previousStatus);
+        notifyProjectMembershipChange(requester, saved, previousMemberIds);
         return toResponse(saved);
     }
 
@@ -459,6 +467,58 @@ public class ProjectService {
                 assignedByUserId,
                 assignedAt
             ));
+        }
+    }
+
+    private void notifyProjectStatusChange(User requester, Project project, ProjectStatus previousStatus) {
+        if (project == null || previousStatus == null) {
+            return;
+        }
+        ProjectStatus nextStatus = project.getStatus();
+        if (nextStatus == null || nextStatus == previousStatus) {
+            return;
+        }
+        List<String> memberIds = project.getMemberIds() != null ? project.getMemberIds() : List.of();
+        if (memberIds.isEmpty()) {
+            return;
+        }
+        List<User> users = userRepository.findAllById(memberIds);
+        for (User user : users) {
+            if (requester != null && requester.getId() != null && requester.getId().equals(user.getId())) {
+                continue;
+            }
+            emailNotificationService.sendProjectStatusChange(user, project, previousStatus, requester);
+        }
+    }
+
+    private void notifyProjectMembershipChange(User requester, Project project, List<String> previousMemberIds) {
+        List<String> current = project.getMemberIds() != null ? project.getMemberIds() : List.of();
+        if (current.isEmpty() && (previousMemberIds == null || previousMemberIds.isEmpty())) {
+            return;
+        }
+        Set<String> previous = previousMemberIds != null ? Set.copyOf(previousMemberIds) : Set.of();
+        Set<String> currentSet = Set.copyOf(current);
+        List<String> added = current.stream().filter(id -> !previous.contains(id)).toList();
+        List<String> removed = previous.stream().filter(id -> !currentSet.contains(id)).toList();
+
+        if (!added.isEmpty()) {
+            List<User> users = userRepository.findAllById(added);
+            for (User user : users) {
+                if (requester != null && requester.getId() != null && requester.getId().equals(user.getId())) {
+                    continue;
+                }
+                emailNotificationService.sendProjectMembershipChange(user, project, "added to", requester);
+            }
+        }
+
+        if (!removed.isEmpty()) {
+            List<User> users = userRepository.findAllById(removed);
+            for (User user : users) {
+                if (requester != null && requester.getId() != null && requester.getId().equals(user.getId())) {
+                    continue;
+                }
+                emailNotificationService.sendProjectMembershipChange(user, project, "removed from", requester);
+            }
         }
     }
 

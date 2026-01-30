@@ -292,3 +292,12 @@ export type PeopleUserStatsResponse = {
     activeInactive: StatSlice[]
   }
 }
+
+export type NotificationPreferences = {
+  emailOnAssign: boolean
+  emailOnMentionUser: boolean
+  emailOnMentionTeam: boolean
+  emailOnProjectStatusChange: boolean
+  emailOnProjectMembershipChange: boolean
+  emailOnOverdueReminder: boolean
+}

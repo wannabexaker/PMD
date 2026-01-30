@@ -34,27 +34,31 @@ public class EmailVerificationTokenService {
     }
 
     public ConfirmEmailStatus confirmToken(String tokenValue) {
+        return confirmTokenWithUser(tokenValue).status();
+    }
+
+    public ConfirmEmailResult confirmTokenWithUser(String tokenValue) {
         if (tokenValue == null || tokenValue.isBlank()) {
-            return ConfirmEmailStatus.INVALID_TOKEN;
+            return new ConfirmEmailResult(ConfirmEmailStatus.INVALID_TOKEN, null);
         }
 
         EmailVerificationToken token = tokenRepository.findByToken(tokenValue).orElse(null);
         if (token == null) {
-            return ConfirmEmailStatus.INVALID_TOKEN;
+            return new ConfirmEmailResult(ConfirmEmailStatus.INVALID_TOKEN, null);
         }
         if (token.getExpiresAt() != null && token.getExpiresAt().isBefore(Instant.now())) {
-            return ConfirmEmailStatus.EXPIRED_TOKEN;
+            return new ConfirmEmailResult(ConfirmEmailStatus.EXPIRED_TOKEN, null);
         }
 
         User user;
         try {
             user = userService.findById(token.getUserId());
         } catch (ResponseStatusException ex) {
-            return ConfirmEmailStatus.INVALID_TOKEN;
+            return new ConfirmEmailResult(ConfirmEmailStatus.INVALID_TOKEN, null);
         }
 
         if (user.isEmailVerified()) {
-            return ConfirmEmailStatus.ALREADY_CONFIRMED;
+            return new ConfirmEmailResult(ConfirmEmailStatus.ALREADY_CONFIRMED, user);
         }
 
         user.setEmailVerified(true);
@@ -62,8 +66,10 @@ public class EmailVerificationTokenService {
 
         token.setUsedAt(Instant.now());
         tokenRepository.save(token);
-        return ConfirmEmailStatus.CONFIRMED;
+        return new ConfirmEmailResult(ConfirmEmailStatus.CONFIRMED, user);
     }
+
+    public record ConfirmEmailResult(ConfirmEmailStatus status, User user) {}
 
     private String generateToken() {
         byte[] bytes = new byte[32];

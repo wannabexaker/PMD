@@ -109,6 +109,21 @@ public class EmailTemplateBuilder {
         return new EmailContent("Confirm your PMD account", html, text);
     }
 
+    public EmailContent buildSimpleEmail(String subject, String textBody) {
+        String title = subject != null && !subject.isBlank() ? subject : "PMD Notification";
+        String safeText = textBody != null ? textBody : "";
+        String html = wrapHtml(title, """
+            <p>%s</p>
+            """.formatted(escape(safeText).replace("\n", "<br/>")));
+        String text = """
+            %s
+
+            %s
+            %s
+            """.formatted(safeText, AUTO, DISMISS);
+        return new EmailContent(title, html, text);
+    }
+
     private String wrapHtml(String title, String body) {
         return """
             <html>

@@ -54,4 +54,25 @@ public class WelcomeEmailService {
             logger.warn("Failed to send welcome email to {}", user.getEmail(), ex);
         }
     }
+
+    public void sendConfirmedEmail(User user) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            return;
+        }
+        EmailContent content = templateBuilder.buildSimpleEmail(
+            "Email confirmed successfully",
+            "Your PMD account email has been confirmed. You can now use all features."
+        );
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromAddress);
+            helper.setTo(user.getEmail());
+            helper.setSubject(content.getSubject());
+            helper.setText(content.getTextBody(), content.getHtmlBody());
+            mailSender.send(message);
+        } catch (MailException | MessagingException ex) {
+            logger.warn("Failed to send confirmed email to {}", user.getEmail(), ex);
+        }
+    }
 }
