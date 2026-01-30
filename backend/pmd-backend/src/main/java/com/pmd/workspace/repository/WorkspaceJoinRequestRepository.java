@@ -9,4 +9,5 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 public interface WorkspaceJoinRequestRepository extends MongoRepository<WorkspaceJoinRequest, String> {
     List<WorkspaceJoinRequest> findByWorkspaceIdAndStatus(String workspaceId, WorkspaceJoinRequestStatus status);
     Optional<WorkspaceJoinRequest> findByWorkspaceIdAndUserId(String workspaceId, String userId);
+    List<WorkspaceJoinRequest> findByWorkspaceId(String workspaceId);
 }
