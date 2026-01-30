@@ -61,6 +61,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const canInviteMembers = Boolean(permissions.inviteMembers) || isAdmin
   const canApproveRequests = Boolean(permissions.approveJoinRequests) || isAdmin
   const canManageTeams = Boolean(permissions.manageTeams) || isAdmin
+  const canEditTeams = canManageTeams && Boolean(activeWorkspaceId)
 
   const parseInviteToken = (value: string) => {
     const trimmed = value.trim()
@@ -401,6 +402,39 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             ) : (
               <p className="muted">No workspaces yet.</p>
             )}
+            <div className="workspace-divider" />
+            <div className="workspace-group-header">
+              <h4>Demo workspace</h4>
+              <p className="muted">Explore seeded data without affecting real workspaces.</p>
+            </div>
+            <div className="row space">
+              <button type="button" className="btn btn-secondary" onClick={handleEnterDemo}>
+                Enter Demo Workspace
+              </button>
+              {activeWorkspace?.demo ? (
+                <button type="button" className="btn btn-danger" onClick={handleResetDemo}>
+                  Reset Demo Workspace
+                </button>
+              ) : null}
+            </div>
+            {demoWorkspaces.length > 0 ? (
+              <div className="workspace-list compact workspace-column-list">
+                {demoWorkspaces.map((workspace) => (
+                  <div key={workspace.id ?? workspace.name} className="workspace-item compact">
+                    <div className="workspace-name truncate" title={workspace.name ?? ''}>
+                      {workspace.name ?? 'Untitled'}
+                    </div>
+                    <div className="workspace-badges">
+                      <span className="pill">Demo</span>
+                      {workspace.status === 'PENDING' ? <span className="pill">Pending</span> : null}
+                      {activeWorkspace?.id === workspace.id ? <span className="pill">Current</span> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No demo workspaces yet.</p>
+            )}
           </div>
           <div className="workspace-column">
             <div className="workspace-group-header">
@@ -634,98 +668,91 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 ) : null}
               </div>
             ) : null}
-            {activeWorkspace?.id && canManageTeams ? (
-              <div className="workspace-management">
-                <div className="workspace-subpanel">
-              <div className="panel-header">
-                <div>
-                  <h4>Teams</h4>
-                  <p className="muted">Create and manage teams for this workspace.</p>
-                </div>
-              </div>
-              <div className="workspace-row">
-                <input
-                  value={teamName}
-                  onChange={(event) => setTeamName(event.target.value)}
-                  placeholder="New team name"
-                />
-                <button type="button" className="btn btn-secondary" onClick={handleCreateTeam}>
-                  Add team
-                </button>
-              </div>
-              {teams.length === 0 ? <p className="muted">No teams yet.</p> : null}
-              {teams.length > 0 ? (
-                <div className="workspace-list compact">
-                  {teams.map((team) => (
-                    <div key={team.id ?? team.name} className="workspace-item compact">
-                      {editingTeamId === team.id ? (
-                        <div className="workspace-row">
-                          <input
-                            value={editingTeamName}
-                            onChange={(event) => setEditingTeamName(event.target.value)}
-                          />
-                          <button type="button" className="btn btn-secondary" onClick={handleSaveTeam}>
-                            Save
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="workspace-name truncate" title={team.name ?? ''}>
-                          {team.name ?? 'Untitled'}
-                        </div>
-                      )}
-                      <div className="workspace-badges">
-                        {team.isActive === false ? <span className="pill">Inactive</span> : null}
-                        {editingTeamId !== team.id ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => handleStartEditTeam(team.id, team.name)}
-                          >
-                            Rename
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-                </div>
-              </div>
-            ) : null}
           </div>
-          <div className="workspace-column demo-column">
+        </div>
+      </div>
+      <div className="card">
+        <div className="panel-header">
+          <div>
+            <h3>Teams</h3>
+            <p className="muted">Create and manage teams inside the current workspace.</p>
+          </div>
+        </div>
+        <div className="workspace-columns">
+          <div className="workspace-column">
             <div className="workspace-group-header">
-              <h4>Demo workspace</h4>
-              <p className="muted">Explore seeded data without affecting real workspaces.</p>
+              <h4>Teams</h4>
+              <p className="muted">All teams in this workspace.</p>
             </div>
-            <div className="row space">
-              <button type="button" className="btn btn-secondary" onClick={handleEnterDemo}>
-                Enter Demo Workspace
-              </button>
-              {activeWorkspace?.demo ? (
-                <button type="button" className="btn btn-danger" onClick={handleResetDemo}>
-                  Reset Demo Workspace
-                </button>
-              ) : null}
-            </div>
-            {demoWorkspaces.length > 0 ? (
+            {teams.length === 0 ? <p className="muted">No teams yet.</p> : null}
+            {teams.length > 0 ? (
               <div className="workspace-list compact workspace-column-list">
-                {demoWorkspaces.map((workspace) => (
-                  <div key={workspace.id ?? workspace.name} className="workspace-item compact">
-                    <div className="workspace-name truncate" title={workspace.name ?? ''}>
-                      {workspace.name ?? 'Untitled'}
-                    </div>
+                {teams.map((team) => (
+                  <div key={team.id ?? team.name} className="workspace-item compact">
+                    {editingTeamId === team.id && canEditTeams ? (
+                      <div className="workspace-row">
+                        <input
+                          value={editingTeamName}
+                          onChange={(event) => setEditingTeamName(event.target.value)}
+                        />
+                        <button type="button" className="btn btn-secondary" onClick={handleSaveTeam}>
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="workspace-name truncate" title={team.name ?? ''}>
+                        {team.name ?? 'Untitled'}
+                      </div>
+                    )}
                     <div className="workspace-badges">
-                      <span className="pill">Demo</span>
-                      {workspace.status === 'PENDING' ? <span className="pill">Pending</span> : null}
-                      {activeWorkspace?.id === workspace.id ? <span className="pill">Current</span> : null}
+                      {team.isActive === false ? <span className="pill">Inactive</span> : null}
+                      {canEditTeams && editingTeamId !== team.id ? (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleStartEditTeam(team.id, team.name)}
+                        >
+                          Rename
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="muted">No demo workspaces yet.</p>
-            )}
+            ) : null}
+          </div>
+          <div className="workspace-column">
+            <div className="workspace-group-header">
+              <h4>Team actions</h4>
+              <p className="muted">Add or rename teams for this workspace.</p>
+            </div>
+            <div className="workspace-actions">
+              <div className="form-field">
+                <label htmlFor="teamName">Create team</label>
+                <div className="workspace-row">
+                  <input
+                    id="teamName"
+                    value={teamName}
+                    onChange={(event) => setTeamName(event.target.value)}
+                    placeholder="New team name"
+                    disabled={!canEditTeams}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleCreateTeam}
+                    disabled={!canEditTeams}
+                    title={!canEditTeams ? 'You do not have permission to manage teams.' : undefined}
+                  >
+                    Add team
+                  </button>
+                </div>
+                {!activeWorkspaceId ? <p className="muted">Select a workspace to manage teams.</p> : null}
+                {activeWorkspaceId && !canManageTeams ? (
+                  <p className="muted">You do not have permission to manage teams.</p>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
       </div>
