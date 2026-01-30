@@ -15,8 +15,9 @@ const STATUSES: ProjectStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'C
 
 export function CreateProjectForm({ users, currentUser, onCreated }: CreateProjectFormProps) {
   const { teams, teamById, createTeam, loading: teamsLoading } = useTeams()
-  const { activeWorkspaceId } = useWorkspace()
+  const { activeWorkspaceId, activeWorkspace } = useWorkspace()
   const isAdmin = Boolean(currentUser?.isAdmin)
+  const canManageTeams = Boolean(activeWorkspace?.permissions?.manageTeams) || isAdmin
   const [form, setForm] = useState<CreateProjectPayload>({
     name: '',
     description: '',
@@ -166,7 +167,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
                 </option>
               ))}
             </select>
-            {isAdmin ? (
+            {canManageTeams ? (
               <button
                 type="button"
                 className="btn btn-secondary btn-icon"
@@ -177,6 +178,11 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
               </button>
             ) : null}
           </div>
+          {teams.length === 0 ? (
+            <p className="muted">
+              No teams yet. Create one in <a href="/settings">Settings</a>.
+            </p>
+          ) : null}
           {showNewTeam ? (
             <div className="row space">
               <input

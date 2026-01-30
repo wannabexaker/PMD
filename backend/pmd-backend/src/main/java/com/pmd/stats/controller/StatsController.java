@@ -8,6 +8,7 @@ import com.pmd.stats.dto.WorkspaceDashboardStatsResponse;
 import com.pmd.stats.service.StatsService;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.model.WorkspacePermission;
 import com.pmd.workspace.service.WorkspaceService;
 import java.util.List;
 import org.springframework.security.core.Authentication;
@@ -40,14 +41,14 @@ public class StatsController {
                                                      boolean assignedToMe,
                                                      Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.VIEW_STATS);
         return statsService.getWorkspaceDashboardStats(workspaceId, requester, teams, assignedToMe);
     }
 
     @GetMapping("/user/me")
     public UserStatsResponse myStats(@PathVariable String workspaceId, Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.VIEW_STATS);
         return statsService.getUserStats(workspaceId, requester, requester);
     }
 
@@ -55,7 +56,7 @@ public class StatsController {
     public UserStatsResponse userStats(@PathVariable String workspaceId, @PathVariable String id,
                                        Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.VIEW_STATS);
         User target = userService.findById(id);
         return statsService.getUserStats(workspaceId, requester, target);
     }
@@ -63,7 +64,7 @@ public class StatsController {
     @GetMapping("/people/overview")
     public PeopleOverviewStatsResponse peopleOverview(@PathVariable String workspaceId, Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.VIEW_STATS);
         return statsService.getPeopleOverview(workspaceId, requester);
     }
 
@@ -71,7 +72,7 @@ public class StatsController {
     public PeopleUserStatsResponse peopleUser(@PathVariable String workspaceId, @PathVariable String id,
                                               Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.VIEW_STATS);
         User target = userService.findById(id);
         return statsService.getPeopleUserStats(workspaceId, requester, target);
     }

@@ -8,10 +8,17 @@ import com.pmd.workspace.model.WorkspaceJoinRequestStatus;
 import com.pmd.workspace.model.WorkspaceMember;
 import com.pmd.workspace.model.WorkspaceMemberRole;
 import com.pmd.workspace.model.WorkspaceMemberStatus;
+import com.pmd.workspace.model.WorkspacePermission;
+import com.pmd.workspace.model.WorkspaceRole;
+import com.pmd.workspace.model.WorkspaceRolePermissions;
 import com.pmd.workspace.repository.WorkspaceInviteRepository;
 import com.pmd.workspace.repository.WorkspaceJoinRequestRepository;
 import com.pmd.workspace.repository.WorkspaceMemberRepository;
 import com.pmd.workspace.repository.WorkspaceRepository;
+import com.pmd.workspace.repository.WorkspaceRoleRepository;
+import com.pmd.team.dto.TeamRequest;
+import com.pmd.team.service.TeamService;
+import com.pmd.workspace.dto.WorkspaceCreateRequest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -19,6 +26,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
+import java.util.stream.Stream;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
@@ -37,21 +46,29 @@ public class WorkspaceService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final WorkspaceInviteRepository workspaceInviteRepository;
     private final WorkspaceJoinRequestRepository workspaceJoinRequestRepository;
+    private final WorkspaceRoleRepository workspaceRoleRepository;
+    private final TeamService teamService;
     private final DemoWorkspaceSeeder demoWorkspaceSeeder;
 
     public WorkspaceService(WorkspaceRepository workspaceRepository,
                             WorkspaceMemberRepository workspaceMemberRepository,
                             WorkspaceInviteRepository workspaceInviteRepository,
                             WorkspaceJoinRequestRepository workspaceJoinRequestRepository,
+                            WorkspaceRoleRepository workspaceRoleRepository,
+                            TeamService teamService,
                             DemoWorkspaceSeeder demoWorkspaceSeeder) {
         this.workspaceRepository = workspaceRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceInviteRepository = workspaceInviteRepository;
         this.workspaceJoinRequestRepository = workspaceJoinRequestRepository;
+        this.workspaceRoleRepository = workspaceRoleRepository;
+        this.teamService = teamService;
         this.demoWorkspaceSeeder = demoWorkspaceSeeder;
     }
 
-    public WorkspaceMembership createWorkspace(String name, User creator) {
+    public WorkspaceMembership createWorkspace(String name,
+                                               List<WorkspaceCreateRequest.WorkspaceInitialTeam> initialTeams,
+                                               User creator) {
         String trimmed = name != null ? name.trim() : "";
         if (trimmed.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace name is required");
@@ -76,13 +93,25 @@ public class WorkspaceService {
         workspace.setRequireApproval(false);
         Workspace saved = workspaceRepository.save(workspace);
 
+        Map<String, WorkspaceRole> roles = ensureDefaultRoles(saved.getId(), creator);
+        WorkspaceRole ownerRole = roles.get("owner");
+
         WorkspaceMember member = new WorkspaceMember();
         member.setWorkspaceId(saved.getId());
         member.setUserId(creator != null ? creator.getId() : null);
         member.setRole(WorkspaceMemberRole.OWNER);
+        if (ownerRole != null) {
+            member.setRoleId(ownerRole.getId());
+            member.setDisplayRoleName(ownerRole.getName());
+        } else {
+            member.setDisplayRoleName("Owner");
+        }
         member.setStatus(WorkspaceMemberStatus.ACTIVE);
         member.setCreatedAt(now);
+        member.setJoinedAt(now);
         WorkspaceMember savedMember = workspaceMemberRepository.save(member);
+
+        createInitialTeams(saved.getId(), creator, initialTeams);
         return new WorkspaceMembership(saved, savedMember);
     }
 
@@ -124,10 +153,19 @@ public class WorkspaceService {
             return new WorkspaceMembership(workspace, existing.get());
         }
 
+        Map<String, WorkspaceRole> roles = ensureDefaultRoles(workspace.getId(), user);
+        WorkspaceRole memberRole = roles.get("member");
+
         WorkspaceMember member = existing.orElseGet(WorkspaceMember::new);
         member.setWorkspaceId(workspace.getId());
         member.setUserId(user.getId());
         member.setRole(WorkspaceMemberRole.MEMBER);
+        if (memberRole != null) {
+            member.setRoleId(memberRole.getId());
+            member.setDisplayRoleName(memberRole.getName());
+        } else {
+            member.setDisplayRoleName("Member");
+        }
 
         if (workspace.isRequireApproval()) {
             member.setStatus(WorkspaceMemberStatus.PENDING);
@@ -139,16 +177,16 @@ public class WorkspaceService {
 
         member.setStatus(WorkspaceMemberStatus.ACTIVE);
         member.setCreatedAt(member.getCreatedAt() != null ? member.getCreatedAt() : now);
+        if (member.getJoinedAt() == null) {
+            member.setJoinedAt(now);
+        }
         WorkspaceMember savedMember = workspaceMemberRepository.save(member);
         incrementInviteUses(invite);
         return new WorkspaceMembership(workspace, savedMember);
     }
 
     public WorkspaceInvite createInvite(String workspaceId, User requester, Instant expiresAt, Integer maxUses) {
-        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
-        if (!isAdminOrOwner(member, requester)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
-        }
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.INVITE_MEMBERS);
         if (maxUses != null && maxUses < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Max uses must be at least 1");
         }
@@ -166,10 +204,7 @@ public class WorkspaceService {
     }
 
     public List<WorkspaceInvite> listInvites(String workspaceId, User requester) {
-        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
-        if (!isAdminOrOwner(member, requester)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
-        }
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.INVITE_MEMBERS);
         return workspaceInviteRepository.findAll().stream()
             .filter(invite -> workspaceId.equals(invite.getWorkspaceId()))
             .sorted(Comparator.comparing(WorkspaceInvite::getCreatedAt).reversed())
@@ -177,10 +212,7 @@ public class WorkspaceService {
     }
 
     public WorkspaceInvite revokeInvite(String workspaceId, String inviteId, User requester) {
-        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
-        if (!isAdminOrOwner(member, requester)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
-        }
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.INVITE_MEMBERS);
         WorkspaceInvite invite = workspaceInviteRepository.findById(inviteId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invite not found"));
         if (!workspaceId.equals(invite.getWorkspaceId())) {
@@ -202,20 +234,80 @@ public class WorkspaceService {
         return invite;
     }
 
-    public List<WorkspaceJoinRequest> listPendingRequests(String workspaceId, User requester) {
-        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
-        if (!isAdminOrOwner(member, requester)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
+    public List<WorkspaceRole> listRoles(String workspaceId, User requester) {
+        requireActiveMembership(workspaceId, requester);
+        return workspaceRoleRepository.findByWorkspaceId(workspaceId).stream()
+            .sorted(Comparator.comparing(WorkspaceRole::getName, String.CASE_INSENSITIVE_ORDER))
+            .toList();
+    }
+
+    public WorkspaceRole createRole(String workspaceId, String name, WorkspaceRolePermissions permissions, User requester) {
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
+        String trimmed = name != null ? name.trim() : "";
+        if (trimmed.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role name is required");
         }
+        if (workspaceRoleRepository.findByWorkspaceIdAndNameIgnoreCase(workspaceId, trimmed).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Role name already exists");
+        }
+        WorkspaceRole role = new WorkspaceRole();
+        role.setWorkspaceId(workspaceId);
+        role.setName(trimmed);
+        role.setSystem(false);
+        role.setPermissions(permissions != null ? permissions : WorkspaceRolePermissions.memberDefaults());
+        role.setCreatedAt(Instant.now());
+        role.setCreatedByUserId(requester != null ? requester.getId() : null);
+        return workspaceRoleRepository.save(role);
+    }
+
+    public WorkspaceRole updateRole(String workspaceId, String roleId, String name,
+                                    WorkspaceRolePermissions permissions, User requester) {
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
+        WorkspaceRole role = workspaceRoleRepository.findById(roleId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
+        if (!workspaceId.equals(role.getWorkspaceId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found");
+        }
+        if (name != null) {
+            String trimmed = name.trim();
+            if (trimmed.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role name is required");
+            }
+            if (!trimmed.equalsIgnoreCase(role.getName())
+                && workspaceRoleRepository.findByWorkspaceIdAndNameIgnoreCase(workspaceId, trimmed).isPresent()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Role name already exists");
+            }
+            role.setName(trimmed);
+        }
+        if (permissions != null) {
+            role.setPermissions(permissions);
+        }
+        return workspaceRoleRepository.save(role);
+    }
+
+    public WorkspaceMember assignMemberRole(String workspaceId, String userId, String roleId, User requester) {
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
+        WorkspaceRole role = workspaceRoleRepository.findById(roleId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
+        if (!workspaceId.equals(role.getWorkspaceId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found");
+        }
+        WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
+        member.setRoleId(role.getId());
+        member.setDisplayRoleName(role.getName());
+        member.setRole(mapRoleEnum(role.getName()));
+        return workspaceMemberRepository.save(member);
+    }
+
+    public List<WorkspaceJoinRequest> listPendingRequests(String workspaceId, User requester) {
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.APPROVE_JOIN_REQUESTS);
         return workspaceJoinRequestRepository.findByWorkspaceIdAndStatus(
             workspaceId, WorkspaceJoinRequestStatus.PENDING);
     }
 
     public WorkspaceJoinRequest approveRequest(String workspaceId, String requestId, User requester) {
-        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
-        if (!isAdminOrOwner(member, requester)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
-        }
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.APPROVE_JOIN_REQUESTS);
         WorkspaceJoinRequest request = workspaceJoinRequestRepository.findById(requestId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Request not found"));
         if (!workspaceId.equals(request.getWorkspaceId())) {
@@ -231,19 +323,26 @@ public class WorkspaceService {
         joiner.setWorkspaceId(workspaceId);
         joiner.setUserId(request.getUserId());
         joiner.setRole(WorkspaceMemberRole.MEMBER);
+        WorkspaceRole memberRole = ensureDefaultRoles(workspaceId, requester).get("member");
+        if (memberRole != null) {
+            joiner.setRoleId(memberRole.getId());
+            joiner.setDisplayRoleName(memberRole.getName());
+        } else {
+            joiner.setDisplayRoleName("Member");
+        }
         joiner.setStatus(WorkspaceMemberStatus.ACTIVE);
         if (joiner.getCreatedAt() == null) {
             joiner.setCreatedAt(request.getCreatedAt());
+        }
+        if (joiner.getJoinedAt() == null) {
+            joiner.setJoinedAt(Instant.now());
         }
         workspaceMemberRepository.save(joiner);
         return request;
     }
 
     public WorkspaceJoinRequest denyRequest(String workspaceId, String requestId, User requester) {
-        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
-        if (!isAdminOrOwner(member, requester)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
-        }
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.APPROVE_JOIN_REQUESTS);
         WorkspaceJoinRequest request = workspaceJoinRequestRepository.findById(requestId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Request not found"));
         if (!workspaceId.equals(request.getWorkspaceId())) {
@@ -259,10 +358,7 @@ public class WorkspaceService {
     }
 
     public WorkspaceMembership updateSettings(String workspaceId, Boolean requireApproval, User requester) {
-        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
-        if (!isAdminOrOwner(member, requester)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
-        }
+        WorkspaceMember member = requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_WORKSPACE_SETTINGS);
         Workspace workspace = workspaceRepository.findById(workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
         if (requireApproval != null) {
@@ -285,9 +381,12 @@ public class WorkspaceService {
             created.setCreatedAt(Instant.now());
             created.setCreatedByUserId(user.getId());
             created.setDemo(true);
+            created.setRequireApproval(true);
             workspace = workspaceRepository.save(created);
         }
         Workspace finalWorkspace = workspace;
+        Map<String, WorkspaceRole> roles = ensureDefaultRoles(finalWorkspace.getId(), user);
+        WorkspaceRole ownerRole = roles.get("owner");
         WorkspaceMember member = workspaceMemberRepository
             .findByWorkspaceIdAndUserId(finalWorkspace.getId(), user.getId())
             .orElseGet(() -> {
@@ -295,8 +394,15 @@ public class WorkspaceService {
                 created.setWorkspaceId(finalWorkspace.getId());
                 created.setUserId(user.getId());
                 created.setRole(WorkspaceMemberRole.OWNER);
+                if (ownerRole != null) {
+                    created.setRoleId(ownerRole.getId());
+                    created.setDisplayRoleName(ownerRole.getName());
+                } else {
+                    created.setDisplayRoleName("Owner");
+                }
                 created.setStatus(WorkspaceMemberStatus.ACTIVE);
                 created.setCreatedAt(Instant.now());
+                created.setJoinedAt(Instant.now());
                 return workspaceMemberRepository.save(created);
             });
         demoWorkspaceSeeder.seedWorkspace(finalWorkspace.getId(), user);
@@ -309,11 +415,7 @@ public class WorkspaceService {
         if (!workspace.isDemo()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace is not demo");
         }
-        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
-        if (!(member.getRole() == WorkspaceMemberRole.OWNER || member.getRole() == WorkspaceMemberRole.ADMIN)
-            && !requester.isAdmin()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
-        }
+        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_WORKSPACE_SETTINGS);
         demoWorkspaceSeeder.resetWorkspaceData(workspaceId);
         demoWorkspaceSeeder.seedWorkspace(workspaceId, requester);
     }
@@ -325,15 +427,127 @@ public class WorkspaceService {
         if (user == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
         }
+        if (user.isAdmin()) {
+            if (!workspaceRepository.existsById(workspaceId)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found");
+            }
+            WorkspaceMember adminMember = new WorkspaceMember();
+            adminMember.setWorkspaceId(workspaceId);
+            adminMember.setUserId(user.getId());
+            adminMember.setRole(WorkspaceMemberRole.OWNER);
+            adminMember.setDisplayRoleName("Platform Admin");
+            adminMember.setStatus(WorkspaceMemberStatus.ACTIVE);
+            return adminMember;
+        }
         return workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, user.getId())
             .filter(member -> member.getStatus() == WorkspaceMemberStatus.ACTIVE)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
     }
 
-    private boolean isAdminOrOwner(WorkspaceMember member, User requester) {
-        return member.getRole() == WorkspaceMemberRole.ADMIN
-            || member.getRole() == WorkspaceMemberRole.OWNER
-            || (requester != null && requester.isAdmin());
+    public WorkspaceMember requireWorkspacePermission(User requester, String workspaceId, WorkspacePermission permission) {
+        if (requester == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        if (requester.isAdmin()) {
+            return requireActiveMembership(workspaceId, requester);
+        }
+        WorkspaceMember member = requireActiveMembership(workspaceId, requester);
+        WorkspaceRolePermissions permissions = resolveMemberPermissions(workspaceId, member);
+        if (permissions == null || !permissions.allows(permission)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
+        }
+        return member;
+    }
+
+    public WorkspaceRolePermissions resolveMemberPermissions(String workspaceId, WorkspaceMember member) {
+        if (member == null) {
+            return null;
+        }
+        if (member.getRoleId() != null) {
+            WorkspaceRole role = workspaceRoleRepository.findById(member.getRoleId()).orElse(null);
+            if (role != null && Objects.equals(role.getWorkspaceId(), workspaceId)) {
+                return role.getPermissions();
+            }
+        }
+        WorkspaceMemberRole legacyRole = member.getRole();
+        if (legacyRole == null) {
+            return null;
+        }
+        return switch (legacyRole) {
+            case OWNER -> WorkspaceRolePermissions.ownerDefaults();
+            case ADMIN -> WorkspaceRolePermissions.managerDefaults();
+            case MEMBER -> WorkspaceRolePermissions.memberDefaults();
+        };
+    }
+
+    private Map<String, WorkspaceRole> ensureDefaultRoles(String workspaceId, User creator) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return Map.of();
+        }
+        List<WorkspaceRole> existing = workspaceRoleRepository.findByWorkspaceId(workspaceId);
+        Map<String, WorkspaceRole> byName = existing.stream()
+            .filter(role -> role.getName() != null)
+            .collect(Collectors.toMap(role -> role.getName().toLowerCase(Locale.ROOT), role -> role, (a, b) -> a));
+        WorkspaceRole owner = byName.get("owner");
+        WorkspaceRole manager = byName.get("manager");
+        WorkspaceRole member = byName.get("member");
+        WorkspaceRole viewer = byName.get("viewer");
+        if (owner == null) {
+            owner = createSystemRole(workspaceId, "Owner", WorkspaceRolePermissions.ownerDefaults(), creator);
+            byName.put("owner", owner);
+        }
+        if (manager == null) {
+            manager = createSystemRole(workspaceId, "Manager", WorkspaceRolePermissions.managerDefaults(), creator);
+            byName.put("manager", manager);
+        }
+        if (member == null) {
+            member = createSystemRole(workspaceId, "Member", WorkspaceRolePermissions.memberDefaults(), creator);
+            byName.put("member", member);
+        }
+        if (viewer == null) {
+            viewer = createSystemRole(workspaceId, "Viewer", WorkspaceRolePermissions.viewerDefaults(), creator);
+            byName.put("viewer", viewer);
+        }
+        return byName;
+    }
+
+    private WorkspaceRole createSystemRole(String workspaceId, String name, WorkspaceRolePermissions permissions, User creator) {
+        WorkspaceRole role = new WorkspaceRole();
+        role.setWorkspaceId(workspaceId);
+        role.setName(name);
+        role.setSystem(true);
+        role.setPermissions(permissions);
+        role.setCreatedAt(Instant.now());
+        role.setCreatedByUserId(creator != null ? creator.getId() : null);
+        return workspaceRoleRepository.save(role);
+    }
+
+    private void createInitialTeams(String workspaceId, User creator,
+                                    List<WorkspaceCreateRequest.WorkspaceInitialTeam> initialTeams) {
+        List<String> names = Stream.ofNullable(initialTeams)
+            .flatMap(List::stream)
+            .map(WorkspaceCreateRequest.WorkspaceInitialTeam::getName)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(name -> !name.isBlank())
+            .collect(Collectors.toMap(
+                name -> name.toLowerCase(Locale.ROOT),
+                name -> name,
+                (a, b) -> a
+            ))
+            .values()
+            .stream()
+            .toList();
+        List<String> finalNames = names.isEmpty() ? List.of("General") : names;
+        for (String name : finalNames) {
+            try {
+                teamService.createTeam(new TeamRequest(name), creator, workspaceId);
+            } catch (ResponseStatusException ex) {
+                if (ex.getStatusCode() != HttpStatus.CONFLICT) {
+                    throw ex;
+                }
+            }
+        }
     }
 
     private void validateInvite(WorkspaceInvite invite) {
@@ -355,6 +569,19 @@ public class WorkspaceService {
             invite.setRevoked(true);
         }
         workspaceInviteRepository.save(invite);
+    }
+
+    private WorkspaceMemberRole mapRoleEnum(String roleName) {
+        if (roleName == null) {
+            return WorkspaceMemberRole.MEMBER;
+        }
+        String normalized = roleName.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "owner" -> WorkspaceMemberRole.OWNER;
+            case "manager" -> WorkspaceMemberRole.ADMIN;
+            case "admin" -> WorkspaceMemberRole.ADMIN;
+            default -> WorkspaceMemberRole.MEMBER;
+        };
     }
 
     private void createJoinRequest(String workspaceId, User user, Instant now) {
@@ -391,6 +618,14 @@ public class WorkspaceService {
             return Optional.empty();
         }
         return workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId);
+    }
+
+    public Workspace getWorkspaceById(String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found");
+        }
+        return workspaceRepository.findById(workspaceId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
     }
 
     public String findWorkspaceName(String workspaceId) {

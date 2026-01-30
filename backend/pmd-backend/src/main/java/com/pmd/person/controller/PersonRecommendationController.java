@@ -91,8 +91,15 @@ public class PersonRecommendationController {
         var activeCounts = userService.findActiveProjectCounts(workspaceId, users, includeAdmins);
         var teamNames = teamService.findActiveTeams(workspaceId).stream()
             .collect(Collectors.toMap(Team::getId, Team::getName));
+        var roleNames = userService.findWorkspaceRoleNames(workspaceId, users);
         return users.stream()
-            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester, teamNames))
+            .map(user -> toSummary(
+                user,
+                activeCounts.getOrDefault(user.getId(), 0L),
+                requester,
+                teamNames,
+                roleNames.get(user.getId())
+            ))
             .toList();
     }
 
@@ -120,13 +127,20 @@ public class PersonRecommendationController {
         var activeCounts = userService.findActiveProjectCounts(workspaceId, recommenders, includeAdmins);
         var teamNames = teamService.findActiveTeams(workspaceId).stream()
             .collect(Collectors.toMap(Team::getId, Team::getName));
+        var roleNames = userService.findWorkspaceRoleNames(workspaceId, recommenders);
         return recommenders.stream()
-            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester, teamNames))
+            .map(user -> toSummary(
+                user,
+                activeCounts.getOrDefault(user.getId(), 0L),
+                requester,
+                teamNames,
+                roleNames.get(user.getId())
+            ))
             .toList();
     }
 
     private UserSummaryResponse toSummary(User user, long activeProjectCount, User requester,
-                                          java.util.Map<String, String> teamNames) {
+                                          java.util.Map<String, String> teamNames, String roleName) {
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
@@ -138,6 +152,7 @@ public class PersonRecommendationController {
             teamName,
             user.getTeamId(),
             teamName,
+            roleName,
             userService.isAdminTeam(user),
             activeProjectCount,
             user.getRecommendedCount(),

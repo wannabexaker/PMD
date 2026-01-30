@@ -52,13 +52,18 @@ public class UserController {
         );
         Map<String, String> teamNames = teamService.findActiveTeams(workspaceId).stream()
             .collect(Collectors.toMap(Team::getId, Team::getName));
+        Map<String, String> roleNames = userService.findWorkspaceRoleNames(workspaceId, users);
         return users.stream()
-            .map(user -> toSummary(user, activeCounts.getOrDefault(user.getId(), 0L), requester, teamNames))
+            .map(user -> toSummary(user,
+                activeCounts.getOrDefault(user.getId(), 0L),
+                requester,
+                teamNames,
+                roleNames.get(user.getId())))
             .toList();
     }
 
     private UserSummaryResponse toSummary(User user, long activeProjectCount, User requester,
-                                          Map<String, String> teamNames) {
+                                          Map<String, String> teamNames, String roleName) {
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
@@ -70,6 +75,7 @@ public class UserController {
             teamName,
             user.getTeamId(),
             teamName,
+            roleName,
             user.isAdmin(),
             activeProjectCount,
             user.getRecommendedCount(),

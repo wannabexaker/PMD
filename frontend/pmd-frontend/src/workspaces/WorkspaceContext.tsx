@@ -23,7 +23,7 @@ type WorkspaceContextValue = {
   activeWorkspace: Workspace | null
   setActiveWorkspaceId: (id: string | null) => void
   refresh: () => Promise<void>
-  createWorkspace: (name: string) => Promise<Workspace | null>
+  createWorkspace: (name: string, initialTeams?: string[]) => Promise<Workspace | null>
   joinWorkspace: (token: string) => Promise<Workspace | null>
   enterDemo: () => Promise<Workspace | null>
   resetDemo: () => Promise<boolean>
@@ -119,14 +119,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [user, setActiveWorkspaceId])
 
-  const createWorkspace = useCallback(async (name: string) => {
+  const createWorkspace = useCallback(async (name: string, initialTeams?: string[]) => {
     const trimmed = name.trim()
     if (!trimmed) {
       setError('Workspace name is required.')
       return null
     }
     try {
-      const created = await createWorkspaceApi(trimmed)
+      const teamsPayload =
+        initialTeams?.map((teamName) => teamName.trim()).filter(Boolean).map((teamName) => ({ name: teamName })) ?? []
+      const created = await createWorkspaceApi(trimmed, teamsPayload.length > 0 ? teamsPayload : undefined)
       setWorkspaces((prev) => {
         const next = [created, ...prev.filter((ws) => ws.id !== created.id)]
         return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))

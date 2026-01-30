@@ -1,3 +1,3 @@
 @echo off
 setlocal
-call "%~dp0..\..\..\frontend\pmd-frontend\run_frontend.bat"
+call "%~dp0..\..\..\scripts\pmd_up_frontend_dev.bat"

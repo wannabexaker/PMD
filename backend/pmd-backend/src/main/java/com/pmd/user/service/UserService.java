@@ -4,6 +4,8 @@ import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.auth.policy.AccessPolicy;
 import com.pmd.project.model.ProjectStatus;
+import com.pmd.workspace.model.WorkspaceMember;
+import com.pmd.workspace.model.WorkspaceMemberRole;
 import com.pmd.workspace.repository.WorkspaceMemberRepository;
 import java.time.Instant;
 import java.util.Collections;
@@ -11,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -177,6 +180,38 @@ public class UserService {
         return results.getMappedResults().stream()
             .filter(result -> result.getId() != null)
             .collect(Collectors.toMap(ActiveCountResult::getId, ActiveCountResult::getCount));
+    }
+
+    public Map<String, String> findWorkspaceRoleNames(String workspaceId, List<User> users) {
+        if (workspaceId == null || workspaceId.isBlank() || users == null || users.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<String> userIds = users.stream()
+            .map(User::getId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        if (userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> roleNames = new HashMap<>();
+        workspaceMemberRepository.findByWorkspaceId(workspaceId).forEach(member -> {
+            if (member.getUserId() == null || !userIds.contains(member.getUserId())) {
+                return;
+            }
+            String display = member.getDisplayRoleName();
+            if (display == null && member.getRole() != null) {
+                display = switch (member.getRole()) {
+                    case OWNER -> "Owner";
+                    case ADMIN -> "Manager";
+                    case MEMBER -> "Member";
+                };
+            }
+            if (display != null) {
+                roleNames.put(member.getUserId(), display);
+            }
+        });
+        return roleNames;
     }
 
     public User ensureAdminSeedUser(String email, String passwordHash, String firstName, String lastName, String bio) {

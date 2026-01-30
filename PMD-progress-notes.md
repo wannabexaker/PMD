@@ -940,3 +940,50 @@ Root cause
 Fix
 - Removed the stray duplicate else block, keeping the original control flow unchanged.
 - File: frontend/pmd-frontend/src/workspaces/WorkspaceContext.tsx
+
+## 2026-01-30 - Workspace RBAC + demo seed + initial teams
+
+RBAC model (backend)
+- Added workspace roles with explicit permission booleans: INVITE_MEMBERS, APPROVE_JOIN_REQUESTS, MANAGE_ROLES, MANAGE_TEAMS, CREATE_PROJECT, EDIT_PROJECT, DELETE_PROJECT, ASSIGN_PEOPLE, VIEW_STATS, MANAGE_WORKSPACE_SETTINGS.
+- Default system roles per workspace: Owner, Manager, Member, Viewer (member can invite by default; approve-joins only Owner/Manager).
+- Platform admin (user.isAdmin) bypasses workspace permission checks and remains hidden from non-admin user lists.
+
+API changes
+- Workspace create now supports initialTeams: POST /api/workspaces body includes initialTeams list.
+- Roles API:
+  - GET /api/workspaces/{id}/roles
+  - POST /api/workspaces/{id}/roles
+  - PATCH /api/workspaces/{id}/roles/{roleId}
+  - POST /api/workspaces/{id}/members/{userId}/role
+- Workspace response now includes roleId, roleName, and permissions map for the active member.
+- UserSummaryResponse now includes roleName.
+
+Permission enforcement
+- Teams create/edit now require MANAGE_TEAMS.
+- Project create/edit/delete now require CREATE/EDIT/DELETE; assignment actions require ASSIGN_PEOPLE.
+- Stats endpoints require VIEW_STATS.
+- Invites require INVITE_MEMBERS; approvals require APPROVE_JOIN_REQUESTS.
+- Workspace settings + demo reset require MANAGE_WORKSPACE_SETTINGS.
+
+Demo workspace seed (deterministic)
+- Seeds roles + permissions, 10 teams, 8 demo members with mixed roles, 10 projects, people records, 1 active invite, and 1 pending join request.
+- Demo join policy set to require approval.
+- Demo reset purges workspace-scoped data (projects, people, teams, roles, invites, join requests, members) and reseeds baseline.
+
+Frontend wiring
+- Settings -> Workspaces create form now supports initial teams list.
+- Settings Workspaces uses permission flags (invite/approve/settings) instead of role checks.
+- Teams management panel added to Settings (MANAGE_TEAMS).
+- People page shows role badges from roleName.
+- Create Project form shows a no teams yet hint and uses MANAGE_TEAMS for inline team creation.
+
+Files touched (high level)
+- Backend: WorkspaceService/Controller, WorkspaceResponse, WorkspaceRole models/repos, DemoWorkspaceSeeder, UserService/UserSummaryResponse, Project/Team/Stats controllers.
+- Frontend: SettingsPage, CreateProjectForm, PeoplePage, WorkspaceContext, WorkspacePicker, api/workspaces, types.
+
+Verification (manual)
+- Create workspace with initial teams -> Create Project shows teams immediately.
+- Member role with INVITE_MEMBERS can create invite.
+- Only roles with APPROVE_JOIN_REQUESTS see pending requests and can approve/deny.
+- Role badge shows in People cards/details.
+- Demo workspace: invite + pending request visible; reset restores baseline.

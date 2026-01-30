@@ -61,7 +61,7 @@ export function WorkspacePicker() {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => createWorkspace(name)}
+              onClick={() => createWorkspace(name, ['General'])}
             >
               Create
             </button>

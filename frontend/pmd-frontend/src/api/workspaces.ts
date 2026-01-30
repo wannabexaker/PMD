@@ -1,5 +1,12 @@
 import { requestJson } from './http'
-import type { Workspace, WorkspaceInvite, WorkspaceInviteResolve, WorkspaceJoinRequest } from '../types'
+import type {
+  Workspace,
+  WorkspaceInvite,
+  WorkspaceInviteResolve,
+  WorkspaceJoinRequest,
+  WorkspaceRole,
+  WorkspacePermissions,
+} from '../types'
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : []
@@ -10,10 +17,13 @@ export async function fetchWorkspaces(): Promise<Workspace[]> {
   return asArray<Workspace>(data)
 }
 
-export async function createWorkspace(name: string): Promise<Workspace> {
+export async function createWorkspace(
+  name: string,
+  initialTeams?: { name: string }[]
+): Promise<Workspace> {
   return requestJson<Workspace>('/api/workspaces', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, initialTeams }),
   })
 }
 
@@ -85,5 +95,38 @@ export async function enterDemoWorkspace(): Promise<Workspace> {
 export async function resetDemoWorkspace(workspaceId: string): Promise<void> {
   await requestJson<void>(`/api/workspaces/${workspaceId}/demo/reset`, {
     method: 'POST',
+  })
+}
+
+export async function listRoles(workspaceId: string): Promise<WorkspaceRole[]> {
+  const data = await requestJson<unknown>(`/api/workspaces/${workspaceId}/roles`)
+  return asArray<WorkspaceRole>(data)
+}
+
+export async function createRole(
+  workspaceId: string,
+  payload: { name: string; permissions?: WorkspacePermissions }
+): Promise<WorkspaceRole> {
+  return requestJson<WorkspaceRole>(`/api/workspaces/${workspaceId}/roles`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateRole(
+  workspaceId: string,
+  roleId: string,
+  payload: { name?: string; permissions?: WorkspacePermissions }
+): Promise<WorkspaceRole> {
+  return requestJson<WorkspaceRole>(`/api/workspaces/${workspaceId}/roles/${roleId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function assignMemberRole(workspaceId: string, userId: string, roleId: string): Promise<Workspace> {
+  return requestJson<Workspace>(`/api/workspaces/${workspaceId}/members/${userId}/role`, {
+    method: 'POST',
+    body: JSON.stringify({ roleId }),
   })
 }

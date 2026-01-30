@@ -2,6 +2,7 @@ package com.pmd.workspace.dto;
 
 import com.pmd.workspace.model.WorkspaceMemberRole;
 import com.pmd.workspace.model.WorkspaceMemberStatus;
+import com.pmd.workspace.model.WorkspaceRolePermissions;
 import java.time.Instant;
 
 public class WorkspaceResponse {
@@ -10,6 +11,9 @@ public class WorkspaceResponse {
     private String name;
     private String slug;
     private WorkspaceMemberRole role;
+    private String roleId;
+    private String roleName;
+    private WorkspaceRolePermissions permissions;
     private WorkspaceMemberStatus status;
     private Instant createdAt;
     private boolean demo;
@@ -19,12 +23,16 @@ public class WorkspaceResponse {
     }
 
     public WorkspaceResponse(String id, String name, String slug, WorkspaceMemberRole role,
+                             String roleId, String roleName, WorkspaceRolePermissions permissions,
                              WorkspaceMemberStatus status, Instant createdAt, boolean demo,
                              boolean requireApproval) {
         this.id = id;
         this.name = name;
         this.slug = slug;
         this.role = role;
+        this.roleId = roleId;
+        this.roleName = roleName;
+        this.permissions = permissions;
         this.status = status;
         this.createdAt = createdAt;
         this.demo = demo;
@@ -61,6 +69,30 @@ public class WorkspaceResponse {
 
     public void setRole(WorkspaceMemberRole role) {
         this.role = role;
+    }
+
+    public String getRoleId() {
+        return roleId;
+    }
+
+    public void setRoleId(String roleId) {
+        this.roleId = roleId;
+    }
+
+    public String getRoleName() {
+        return roleName;
+    }
+
+    public void setRoleName(String roleName) {
+        this.roleName = roleName;
+    }
+
+    public WorkspaceRolePermissions getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(WorkspaceRolePermissions permissions) {
+        this.permissions = permissions;
     }
 
     public WorkspaceMemberStatus getStatus() {

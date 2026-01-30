@@ -813,3 +813,42 @@ DONE
 TODO
 - [ ] Manual verify: invite join (approval off/on), pending badge, approve/deny flow.
 - [ ] Manual verify: People page for non-admin shows "Workspace members" and no admin-only copy.
+
+## 2026-01-30 - Ports/communication audit
+
+DONE
+- [x] Documented current port listeners + expected wiring.
+- [x] Updated hybrid docs/scripts to use backend 8099.
+- [x] Updated frontend .env.example to 8099.
+
+TODO
+- [ ] Run deps + backend + frontend and confirm Mongo + MailHog reachability.
+- [ ] If running docker-compose.local.yml, set PMD_BACKEND_PORT to avoid port 8080 conflict.
+
+## 2026-01-30 - User manual + port clarity
+
+DONE
+- [x] Added docs/USER-MANUAL.md (indexed run/stop/status/debug/reset guide).
+- [x] Updated legacy scripts to align with hybrid backend port 8099.
+- [x] Updated README for VITE_API_BASE_URL example and hybrid vs docker backend ports.
+
+TODO
+- [ ] Manual verify: hybrid flow (deps -> backend -> frontend) end-to-end.
+- [ ] Manual verify: dockerized flow with PMD_BACKEND_PORT override if 8080 is taken.
+
+## 2026-01-30 - Workspace RBAC + demo seed + initial teams
+
+DONE
+- [x] Workspace roles model with explicit permission flags.
+- [x] Default roles (Owner/Manager/Member/Viewer) created per workspace.
+- [x] Permissions enforced for teams/projects/assign/stats/invites/approvals/settings.
+- [x] Workspace create supports initialTeams and seeds General when empty.
+- [x] Demo workspace seed enriched (roles, teams, members, projects, invite, pending request).
+- [x] Workspace response includes roleName + permissions; UserSummary includes roleName.
+- [x] Settings uses permission flags; initial teams UI added; Teams panel added.
+- [x] People page shows role badges.
+
+TODO
+- [ ] Manual verify RBAC flows (invite by member, approval by manager/owner, deny by non-approver).
+- [ ] Manual verify demo reset restores invite + pending request + roles.
+- [ ] Manual verify create workspace with initial teams shows teams in Create Project.

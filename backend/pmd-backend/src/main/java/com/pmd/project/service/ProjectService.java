@@ -401,6 +401,7 @@ public class ProjectService {
         String teamName = user.getTeamId() != null
             ? teamService.findById(workspaceId, user.getTeamId()).map(Team::getName).orElse(user.getTeam())
             : user.getTeam();
+        String roleName = userService.findWorkspaceRoleNames(workspaceId, List.of(user)).get(user.getId());
         return new UserSummaryResponse(
             user.getId(),
             user.getDisplayName(),
@@ -408,6 +409,7 @@ public class ProjectService {
             teamName,
             user.getTeamId(),
             teamName,
+            roleName,
             userService.isAdminTeam(user),
             activeProjectCount,
             user.getRecommendedCount(),

@@ -10,6 +10,7 @@ import com.pmd.project.dto.RandomProjectRequest;
 import com.pmd.auth.security.UserPrincipal;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.model.WorkspacePermission;
 import com.pmd.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -48,7 +49,10 @@ public class ProjectController {
                                   @Valid @RequestBody ProjectRequest request,
                                   Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.CREATE_PROJECT);
+        if (request.getMemberIds() != null && !request.getMemberIds().isEmpty()) {
+            workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.ASSIGN_PEOPLE);
+        }
         return projectService.create(workspaceId, request, requester);
     }
 
@@ -96,7 +100,10 @@ public class ProjectController {
                                   @Valid @RequestBody ProjectRequest request,
                                   Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.EDIT_PROJECT);
+        if (request.getMemberIds() != null) {
+            workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.ASSIGN_PEOPLE);
+        }
         String assignedByUserId = requester.getId();
         return projectService.update(workspaceId, id, request, assignedByUserId, requester);
     }
@@ -109,7 +116,7 @@ public class ProjectController {
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.ASSIGN_PEOPLE);
         String teamId = request != null ? request.getTeamId() : null;
         return projectService.randomAssign(workspaceId, id, requester, teamId);
     }
@@ -118,7 +125,7 @@ public class ProjectController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable String workspaceId, @PathVariable String id, Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.DELETE_PROJECT);
         projectService.delete(workspaceId, id, requester);
     }
 

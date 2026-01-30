@@ -774,9 +774,12 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                   aria-pressed={selectedUserId === user.id}
                 >
                   <div className="people-card-main">
-                    <strong className="truncate" title={user.displayName ?? ''}>
-                      {user.displayName ?? '-'}
-                    </strong>
+                    <div className="row space">
+                      <strong className="truncate" title={user.displayName ?? ''}>
+                        {user.displayName ?? '-'}
+                      </strong>
+                      {user.roleName ? <span className="pill">{user.roleName}</span> : null}
+                    </div>
                     <span
                       className="muted truncate"
                       title={teamById.get(user.teamId ?? '')?.name ?? 'Team'}
@@ -845,6 +848,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     <div className="muted truncate" title={selectedUser.email ?? ''}>
                       {selectedUser.email ?? ''}
                     </div>
+                    {selectedUser.roleName ? <span className="pill">{selectedUser.roleName}</span> : null}
                     <div
                       className="muted truncate"
                       title={teamById.get(selectedUser.teamId ?? '')?.name ?? 'Team'}

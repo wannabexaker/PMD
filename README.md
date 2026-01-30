@@ -59,7 +59,7 @@ Defaults:
 Optional (override API base for frontend):
 ```
 # in frontend/pmd-frontend/.env.local
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=http://localhost:8099
 ```
 
 ## Local development - one command run
@@ -85,7 +85,7 @@ scripts\\pmd-reset.ps1
 ```
 
 - Frontend: http://localhost:5173
-- Backend: http://localhost:8080
+- Backend: http://localhost:8080 (docker compose) or http://localhost:8099 (hybrid local)
 - MailHog (email dev inbox): http://localhost:8025
 - The compose stack uses the `docker` Spring profile and `PMD_SEED_DEMO=true`, so demo users/projects appear after startup.
 

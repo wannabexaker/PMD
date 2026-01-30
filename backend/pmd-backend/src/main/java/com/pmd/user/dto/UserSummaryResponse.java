@@ -14,6 +14,8 @@ public class UserSummaryResponse {
 
     private String teamName;
 
+    private String roleName;
+
     private boolean isAdmin;
 
     private long activeProjectCount;
@@ -26,7 +28,7 @@ public class UserSummaryResponse {
     }
 
     public UserSummaryResponse(String id, String displayName, String email, String team,
-                               String teamId, String teamName, boolean isAdmin,
+                               String teamId, String teamName, String roleName, boolean isAdmin,
                                long activeProjectCount, int recommendedCount, boolean recommendedByMe) {
         this.id = id;
         this.displayName = displayName;
@@ -34,6 +36,7 @@ public class UserSummaryResponse {
         this.team = team;
         this.teamId = teamId;
         this.teamName = teamName;
+        this.roleName = roleName;
         this.isAdmin = isAdmin;
         this.activeProjectCount = activeProjectCount;
         this.recommendedCount = recommendedCount;
@@ -86,6 +89,14 @@ public class UserSummaryResponse {
 
     public void setTeamName(String teamName) {
         this.teamName = teamName;
+    }
+
+    public String getRoleName() {
+        return roleName;
+    }
+
+    public void setRoleName(String roleName) {
+        this.roleName = roleName;
     }
 
     public boolean isAdmin() {

@@ -32,9 +32,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     refresh,
   } = useWorkspace()
   const { user } = useAuth()
-  const { refresh: refreshTeams } = useTeams()
+  const { teams, createTeam, updateTeam, refresh: refreshTeams } = useTeams()
   const { showToast } = useToast()
   const [workspaceName, setWorkspaceName] = useState('')
+  const [initialTeams, setInitialTeams] = useState<string[]>(['General'])
   const [joinValue, setJoinValue] = useState('')
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [inviteDays, setInviteDays] = useState('7')
@@ -44,6 +45,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [requests, setRequests] = useState<WorkspaceJoinRequest[]>([])
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [settingsBusy, setSettingsBusy] = useState(false)
+  const [teamName, setTeamName] = useState('')
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editingTeamName, setEditingTeamName] = useState('')
 
   const sortedWorkspaces = useMemo(
     () => [...workspaces].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
@@ -52,8 +56,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const demoWorkspaces = useMemo(() => sortedWorkspaces.filter((workspace) => workspace.demo), [sortedWorkspaces])
   const userWorkspaces = useMemo(() => sortedWorkspaces.filter((workspace) => !workspace.demo), [sortedWorkspaces])
   const isAdmin = Boolean(user?.isAdmin)
-  const canManageWorkspace =
-    Boolean(activeWorkspace?.role === 'OWNER' || activeWorkspace?.role === 'ADMIN') || isAdmin
+  const permissions = activeWorkspace?.permissions ?? {}
+  const canManageWorkspaceSettings = Boolean(permissions.manageWorkspaceSettings) || isAdmin
+  const canInviteMembers = Boolean(permissions.inviteMembers) || isAdmin
+  const canApproveRequests = Boolean(permissions.approveJoinRequests) || isAdmin
+  const canManageTeams = Boolean(permissions.manageTeams) || isAdmin
 
   const parseInviteToken = (value: string) => {
     const trimmed = value.trim()
@@ -134,10 +141,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       return
     }
     setWorkspaceBusy(true)
-    const created = await createWorkspace(name)
+    const created = await createWorkspace(name, initialTeams)
     setWorkspaceBusy(false)
     if (created?.id) {
       setWorkspaceName('')
+      setInitialTeams(['General'])
       await refresh()
       showToast({ type: 'success', message: 'Workspace created.' })
     } else {
@@ -243,14 +251,70 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   }
 
   useEffect(() => {
-    if (!activeWorkspaceId || !canManageWorkspace) {
+    if (!activeWorkspaceId || !canInviteMembers) {
       setInvites([])
-      setRequests([])
       return
     }
     loadInvites(activeWorkspaceId)
+  }, [activeWorkspaceId, canInviteMembers])
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !canApproveRequests) {
+      setRequests([])
+      return
+    }
     loadRequests(activeWorkspaceId)
-  }, [activeWorkspaceId, canManageWorkspace])
+  }, [activeWorkspaceId, canApproveRequests])
+
+  const handleAddInitialTeam = () => {
+    setInitialTeams((prev) => [...prev, ''])
+  }
+
+  const handleRemoveInitialTeam = (index: number) => {
+    setInitialTeams((prev) => prev.filter((_, idx) => idx !== index))
+  }
+
+  const handleUpdateInitialTeam = (index: number, value: string) => {
+    setInitialTeams((prev) => prev.map((team, idx) => (idx === index ? value : team)))
+  }
+
+  const handleCreateTeam = async () => {
+    const name = teamName.trim()
+    if (!name) {
+      showToast({ type: 'error', message: 'Team name is required.' })
+      return
+    }
+    const created = await createTeam(name)
+    if (created?.id) {
+      setTeamName('')
+      showToast({ type: 'success', message: 'Team created.' })
+    } else {
+      showToast({ type: 'error', message: 'Failed to create team.' })
+    }
+  }
+
+  const handleStartEditTeam = (id?: string | null, name?: string | null) => {
+    if (!id) return
+    setEditingTeamId(id)
+    setEditingTeamName(name ?? '')
+  }
+
+  const handleSaveTeam = async () => {
+    if (!editingTeamId) return
+    const name = editingTeamName.trim()
+    if (!name) {
+      showToast({ type: 'error', message: 'Team name is required.' })
+      return
+    }
+    const updated = await updateTeam(editingTeamId, { name })
+    if (updated?.id) {
+      setEditingTeamId(null)
+      setEditingTeamName('')
+      showToast({ type: 'success', message: 'Team updated.' })
+    } else {
+      showToast({ type: 'error', message: 'Failed to update team.' })
+    }
+  }
 
   return (
     <section className="panel">
@@ -328,7 +392,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             <p className="muted">This workspace is pending approval.</p>
           ) : null}
         </div>
-        {canManageWorkspace && activeWorkspace?.id ? (
+        {canManageWorkspaceSettings && activeWorkspace?.id ? (
           <div className="form-field">
             <label className="checkbox-row">
               <input
@@ -414,6 +478,32 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 Create
               </button>
             </div>
+            <div className="form-field compact">
+              <label>Initial teams</label>
+              <div className="workspace-list compact">
+                {initialTeams.map((team, index) => (
+                  <div key={`${team}-${index}`} className="workspace-row">
+                    <input
+                      value={team}
+                      onChange={(event) => handleUpdateInitialTeam(index, event.target.value)}
+                      placeholder="Team name"
+                    />
+                    {initialTeams.length > 1 ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => handleRemoveInitialTeam(index)}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+                <button type="button" className="btn btn-secondary" onClick={handleAddInitialTeam}>
+                  Add team
+                </button>
+              </div>
+            </div>
           </div>
           <div className="form-field">
             <label htmlFor="workspaceJoin">Join workspace</label>
@@ -430,9 +520,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             </div>
           </div>
         </div>
-        {activeWorkspace?.id && canManageWorkspace ? (
+        {activeWorkspace?.id && (canInviteMembers || canApproveRequests) ? (
           <div className="workspace-management">
-            <div className="workspace-subpanel">
+            {canInviteMembers ? (
+              <div className="workspace-subpanel">
               <div className="panel-header">
                 <div>
                   <h4>Invites</h4>
@@ -528,7 +619,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 </div>
               ) : null}
             </div>
-            <div className="workspace-subpanel">
+            ) : null}
+            {canApproveRequests ? (
+              <div className="workspace-subpanel">
               <div className="panel-header">
                 <div>
                   <h4>Pending requests</h4>
@@ -562,6 +655,65 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                         >
                           Deny
                         </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            ) : null}
+          </div>
+        ) : null}
+        {activeWorkspace?.id && canManageTeams ? (
+          <div className="workspace-management">
+            <div className="workspace-subpanel">
+              <div className="panel-header">
+                <div>
+                  <h4>Teams</h4>
+                  <p className="muted">Create and manage teams for this workspace.</p>
+                </div>
+              </div>
+              <div className="workspace-row">
+                <input
+                  value={teamName}
+                  onChange={(event) => setTeamName(event.target.value)}
+                  placeholder="New team name"
+                />
+                <button type="button" className="btn btn-secondary" onClick={handleCreateTeam}>
+                  Add team
+                </button>
+              </div>
+              {teams.length === 0 ? <p className="muted">No teams yet.</p> : null}
+              {teams.length > 0 ? (
+                <div className="workspace-list compact">
+                  {teams.map((team) => (
+                    <div key={team.id ?? team.name} className="workspace-item compact">
+                      {editingTeamId === team.id ? (
+                        <div className="workspace-row">
+                          <input
+                            value={editingTeamName}
+                            onChange={(event) => setEditingTeamName(event.target.value)}
+                          />
+                          <button type="button" className="btn btn-secondary" onClick={handleSaveTeam}>
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="workspace-name truncate" title={team.name ?? ''}>
+                          {team.name ?? 'Untitled'}
+                        </div>
+                      )}
+                      <div className="workspace-badges">
+                        {team.isActive === false ? <span className="pill">Inactive</span> : null}
+                        {editingTeamId !== team.id ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => handleStartEditTeam(team.id, team.name)}
+                          >
+                            Rename
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   ))}

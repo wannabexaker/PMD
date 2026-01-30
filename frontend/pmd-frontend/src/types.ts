@@ -50,6 +50,7 @@ export type UserSummary = {
   team?: string | null
   teamId?: string | null
   teamName?: string | null
+  roleName?: string | null
   isAdmin?: boolean | null
   activeProjectCount?: number | null
   recommendedCount?: number | null
@@ -112,15 +113,40 @@ export type UpdateProfilePayload = {
   bio?: string
 }
 
+export type WorkspacePermissions = {
+  inviteMembers?: boolean | null
+  approveJoinRequests?: boolean | null
+  manageRoles?: boolean | null
+  manageTeams?: boolean | null
+  createProject?: boolean | null
+  editProject?: boolean | null
+  deleteProject?: boolean | null
+  assignPeople?: boolean | null
+  viewStats?: boolean | null
+  manageWorkspaceSettings?: boolean | null
+}
+
 export type Workspace = {
   id?: string | null
   name?: string | null
   slug?: string | null
   role?: 'OWNER' | 'ADMIN' | 'MEMBER' | (string & {})
+  roleId?: string | null
+  roleName?: string | null
+  permissions?: WorkspacePermissions | null
   status?: 'ACTIVE' | 'PENDING' | (string & {})
   createdAt?: string | null
   demo?: boolean | null
   requireApproval?: boolean | null
+}
+
+export type WorkspaceRole = {
+  id?: string | null
+  workspaceId?: string | null
+  name?: string | null
+  system?: boolean | null
+  permissions?: WorkspacePermissions | null
+  createdAt?: string | null
 }
 
 export type WorkspaceInvite = {

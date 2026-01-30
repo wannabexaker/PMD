@@ -1,4 +1,4 @@
-Param(
+﻿Param(
   [string]$EnvFile = ".env"
 )
 
@@ -44,7 +44,10 @@ function Show-Port {
 }
 
 Write-Host "PMD port diagnostics (env: $EnvFile)"
-Show-Port -Port $ports.PMD_BACKEND_PORT -Label "Backend"
+Show-Port -Port $ports.PMD_BACKEND_PORT -Label "Backend (dockerized)"
+if ($ports.PMD_BACKEND_PORT -ne 8099) {
+  Show-Port -Port 8099 -Label "Backend (hybrid local)"
+}
 Show-Port -Port $ports.PMD_FRONTEND_PORT -Label "Frontend"
 Show-Port -Port $ports.PMD_MONGO_PORT -Label "Mongo"
 Show-Port -Port $ports.PMD_SMTP_PORT -Label "SMTP"

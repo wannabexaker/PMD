@@ -26,7 +26,7 @@ scripts\pmd_up_backend_dev.ps1
 Defaults (override via backend/pmd-backend/.env):
 - Mongo: mongodb://localhost:27017/pmd
 - MailHog: localhost:1025
-- Port: http://localhost:8080
+- Port: http://localhost:8099
 
 Health check:
 - http://localhost:8080/actuator/health
@@ -41,7 +41,7 @@ Default URL:
 - http://localhost:5173
 
 Backend API base (override via frontend/pmd-frontend/.env):
-- http://localhost:8080
+- http://localhost:8099
 
 ## 4) One-command dev (deps + FE + BE)
 
@@ -61,6 +61,6 @@ scripts\pmd_reset_deps.ps1
 - `docker-compose.local.yml` is the full dockerized app path (frontend + backend in containers).
 
 ## Sanity checks
-- Backend reachable: `curl.exe -s http://localhost:8080/actuator/health`
-- Frontend calls backend: login/register should hit http://localhost:8080
+- Backend reachable: `curl.exe -s http://localhost:8099/actuator/health`
+- Frontend calls backend: login/register should hit http://localhost:8099
 - MailHog inbox: http://localhost:8025

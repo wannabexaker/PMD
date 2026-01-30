@@ -12,10 +12,20 @@ import com.pmd.team.service.TeamService;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.model.Workspace;
+import com.pmd.workspace.model.WorkspaceInvite;
+import com.pmd.workspace.model.WorkspaceJoinRequest;
+import com.pmd.workspace.model.WorkspaceJoinRequestStatus;
 import com.pmd.workspace.model.WorkspaceMember;
 import com.pmd.workspace.model.WorkspaceMemberRole;
 import com.pmd.workspace.model.WorkspaceMemberStatus;
+import com.pmd.workspace.model.WorkspaceRole;
+import com.pmd.workspace.model.WorkspaceRolePermissions;
 import com.pmd.workspace.repository.WorkspaceMemberRepository;
+import com.pmd.workspace.repository.WorkspaceInviteRepository;
+import com.pmd.workspace.repository.WorkspaceJoinRequestRepository;
+import com.pmd.workspace.repository.WorkspaceRepository;
+import com.pmd.workspace.repository.WorkspaceRoleRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,11 +53,14 @@ public class DemoWorkspaceSeeder {
     );
 
     private static final List<SeedUser> SEED_USERS = List.of(
-        new SeedUser("Alex", "Johnson", "Web Development"),
-        new SeedUser("Bianca", "Lopez", "Software Engineering"),
-        new SeedUser("Chris", "Nguyen", "Data Engineering"),
-        new SeedUser("Dana", "Rossi", "DevOps"),
-        new SeedUser("Evan", "Kim", "UX / UI Design")
+        new SeedUser("Alex", "Johnson", "Web Development", "Owner"),
+        new SeedUser("Bianca", "Lopez", "Software Engineering", "Manager"),
+        new SeedUser("Chris", "Nguyen", "Data Engineering", "Member"),
+        new SeedUser("Dana", "Rossi", "DevOps", "Member"),
+        new SeedUser("Evan", "Kim", "UX / UI Design", "Member"),
+        new SeedUser("Farah", "Patel", "Cybersecurity", "Viewer"),
+        new SeedUser("Gabe", "Williams", "QA / Testing", "Member"),
+        new SeedUser("Hana", "Sato", "IT Support / Helpdesk", "Member")
     );
 
     private static final List<SeedProject> SEED_PROJECTS = List.of(
@@ -55,7 +68,12 @@ public class DemoWorkspaceSeeder {
         new SeedProject("Data Lake Hardening", "Improve lineage and quality checks", ProjectStatus.NOT_STARTED, "Data Engineering"),
         new SeedProject("QA Automation Sprint", "Expand automated regression suite", ProjectStatus.IN_PROGRESS, "QA / Testing"),
         new SeedProject("DevOps Control Plane", "Standardize deployment playbooks", ProjectStatus.NOT_STARTED, "DevOps"),
-        new SeedProject("Design System Refresh", "Unify UI tokens and components", ProjectStatus.COMPLETED, "UX / UI Design")
+        new SeedProject("Design System Refresh", "Unify UI tokens and components", ProjectStatus.COMPLETED, "UX / UI Design"),
+        new SeedProject("Zero Trust Rollout", "Stage rollout plan for security posture", ProjectStatus.IN_PROGRESS, "Cybersecurity"),
+        new SeedProject("Network Observability", "Improve network traffic visibility", ProjectStatus.NOT_STARTED, "Network Engineering"),
+        new SeedProject("Helpdesk Knowledge Base", "Centralize support articles", ProjectStatus.IN_PROGRESS, "IT Support / Helpdesk"),
+        new SeedProject("Product Analytics Hub", "Define KPI tracking dashboards", ProjectStatus.NOT_STARTED, "Project Management"),
+        new SeedProject("Data Pipeline Optimization", "Reduce ETL latency and cost", ProjectStatus.IN_PROGRESS, "Data Engineering")
     );
 
     private final TeamRepository teamRepository;
@@ -63,6 +81,10 @@ public class DemoWorkspaceSeeder {
     private final UserService userService;
     private final UserRepository userRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final WorkspaceRoleRepository workspaceRoleRepository;
+    private final WorkspaceInviteRepository workspaceInviteRepository;
+    private final WorkspaceJoinRequestRepository workspaceJoinRequestRepository;
+    private final WorkspaceRepository workspaceRepository;
     private final PersonRepository personRepository;
     private final ProjectRepository projectRepository;
     private final ProjectCommentRepository projectCommentRepository;
@@ -73,6 +95,10 @@ public class DemoWorkspaceSeeder {
                                UserService userService,
                                UserRepository userRepository,
                                WorkspaceMemberRepository workspaceMemberRepository,
+                               WorkspaceRoleRepository workspaceRoleRepository,
+                               WorkspaceInviteRepository workspaceInviteRepository,
+                               WorkspaceJoinRequestRepository workspaceJoinRequestRepository,
+                               WorkspaceRepository workspaceRepository,
                                PersonRepository personRepository,
                                ProjectRepository projectRepository,
                                ProjectCommentRepository projectCommentRepository,
@@ -82,6 +108,10 @@ public class DemoWorkspaceSeeder {
         this.userService = userService;
         this.userRepository = userRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
+        this.workspaceRoleRepository = workspaceRoleRepository;
+        this.workspaceInviteRepository = workspaceInviteRepository;
+        this.workspaceJoinRequestRepository = workspaceJoinRequestRepository;
+        this.workspaceRepository = workspaceRepository;
         this.personRepository = personRepository;
         this.projectRepository = projectRepository;
         this.projectCommentRepository = projectCommentRepository;
@@ -103,9 +133,20 @@ public class DemoWorkspaceSeeder {
         projectRepository.deleteAll(projects);
         personRepository.deleteAll(personRepository.findByWorkspaceId(workspaceId));
         teamRepository.deleteAll(teamRepository.findByWorkspaceId(workspaceId));
+        workspaceInviteRepository.deleteAll(workspaceInviteRepository.findByWorkspaceId(workspaceId));
+        workspaceJoinRequestRepository.deleteAll(workspaceJoinRequestRepository.findByWorkspaceId(workspaceId));
+        workspaceMemberRepository.deleteAll(workspaceMemberRepository.findByWorkspaceId(workspaceId));
+        workspaceRoleRepository.deleteAll(workspaceRoleRepository.findByWorkspaceId(workspaceId));
     }
 
     public void seedWorkspace(String workspaceId, User owner) {
+        Workspace workspace = workspaceRepository.findById(workspaceId).orElse(null);
+        if (workspace != null && !workspace.isRequireApproval()) {
+            workspace.setRequireApproval(true);
+            workspaceRepository.save(workspace);
+        }
+
+        Map<String, WorkspaceRole> roles = ensureRoles(workspaceId, owner);
         ensureTeams(workspaceId, owner);
         Map<String, Team> teamByName = teamRepository.findByWorkspaceIdAndIsActiveTrue(
             workspaceId,
@@ -119,12 +160,20 @@ public class DemoWorkspaceSeeder {
         List<User> demoUsers = new ArrayList<>();
         for (SeedUser seed : SEED_USERS) {
             User user = ensureDemoUser(seed, workspaceId);
-            ensureMembership(workspaceId, user, WorkspaceMemberRole.MEMBER);
+            Team team = teamByName.get(seed.teamName().toLowerCase(Locale.ROOT));
+            if (team != null) {
+                user.setTeamId(team.getId());
+                user.setTeam(team.getName());
+                userService.save(user);
+            }
+            WorkspaceRole role = roles.get(seed.roleName().toLowerCase(Locale.ROOT));
+            ensureMembership(workspaceId, user, role);
             demoUsers.add(user);
             ensurePersonRecord(seed, workspaceId, user);
         }
         if (owner != null) {
-            ensureMembership(workspaceId, owner, WorkspaceMemberRole.OWNER);
+            WorkspaceRole ownerRole = roles.get("owner");
+            ensureMembership(workspaceId, owner, ownerRole);
         }
 
         for (SeedProject seedProject : SEED_PROJECTS) {
@@ -132,6 +181,9 @@ public class DemoWorkspaceSeeder {
             User author = demoUsers.isEmpty() ? owner : demoUsers.get(0);
             ensureProject(seedProject, workspaceId, author, team, demoUsers);
         }
+
+        ensurePendingJoinRequest(workspaceId);
+        ensureDemoInvite(workspaceId, owner);
     }
 
     private void ensureTeams(String workspaceId, User owner) {
@@ -144,6 +196,50 @@ public class DemoWorkspaceSeeder {
             }
             teamService.createTeam(new com.pmd.team.dto.TeamRequest(name), owner, workspaceId);
         }
+    }
+
+    private Map<String, WorkspaceRole> ensureRoles(String workspaceId, User owner) {
+        Map<String, WorkspaceRole> byName = workspaceRoleRepository.findByWorkspaceId(workspaceId).stream()
+            .filter(role -> role.getName() != null)
+            .collect(Collectors.toMap(role -> role.getName().toLowerCase(Locale.ROOT), role -> role, (a, b) -> a));
+        WorkspaceRole ownerRole = upsertSystemRole(workspaceId, "Owner", WorkspaceRolePermissions.ownerDefaults(), owner, byName.get("owner"));
+        WorkspaceRole managerRole = upsertSystemRole(workspaceId, "Manager", WorkspaceRolePermissions.managerDefaults(), owner, byName.get("manager"));
+        WorkspaceRole memberRole = upsertSystemRole(workspaceId, "Member", WorkspaceRolePermissions.memberDefaults(), owner, byName.get("member"));
+        WorkspaceRole viewerRole = upsertSystemRole(workspaceId, "Viewer", WorkspaceRolePermissions.viewerDefaults(), owner, byName.get("viewer"));
+        return Map.of(
+            "owner", ownerRole,
+            "manager", managerRole,
+            "member", memberRole,
+            "viewer", viewerRole
+        );
+    }
+
+    private WorkspaceRole upsertSystemRole(String workspaceId, String name, WorkspaceRolePermissions permissions,
+                                           User owner, WorkspaceRole existing) {
+        WorkspaceRole role = existing != null ? existing : new WorkspaceRole();
+        role.setWorkspaceId(workspaceId);
+        role.setName(name);
+        role.setSystem(true);
+        role.setPermissions(permissions);
+        if (role.getCreatedAt() == null) {
+            role.setCreatedAt(Instant.now());
+        }
+        if (role.getCreatedByUserId() == null && owner != null) {
+            role.setCreatedByUserId(owner.getId());
+        }
+        return workspaceRoleRepository.save(role);
+    }
+
+    private WorkspaceMemberRole mapLegacyRole(String roleName) {
+        if (roleName == null) {
+            return WorkspaceMemberRole.MEMBER;
+        }
+        String normalized = roleName.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "owner" -> WorkspaceMemberRole.OWNER;
+            case "manager", "admin" -> WorkspaceMemberRole.ADMIN;
+            default -> WorkspaceMemberRole.MEMBER;
+        };
     }
 
     private User ensureDemoUser(SeedUser seed, String workspaceId) {
@@ -165,7 +261,7 @@ public class DemoWorkspaceSeeder {
         return userService.save(user);
     }
 
-    private void ensureMembership(String workspaceId, User user, WorkspaceMemberRole role) {
+    private void ensureMembership(String workspaceId, User user, WorkspaceRole role) {
         if (user == null || user.getId() == null) {
             return;
         }
@@ -174,9 +270,16 @@ public class DemoWorkspaceSeeder {
                 WorkspaceMember member = new WorkspaceMember();
                 member.setWorkspaceId(workspaceId);
                 member.setUserId(user.getId());
-                member.setRole(role);
+                if (role != null) {
+                    member.setRoleId(role.getId());
+                    member.setDisplayRoleName(role.getName());
+                    member.setRole(mapLegacyRole(role.getName()));
+                } else {
+                    member.setRole(WorkspaceMemberRole.MEMBER);
+                }
                 member.setStatus(WorkspaceMemberStatus.ACTIVE);
                 member.setCreatedAt(Instant.now());
+                member.setJoinedAt(Instant.now());
                 return workspaceMemberRepository.save(member);
             });
     }
@@ -226,12 +329,58 @@ public class DemoWorkspaceSeeder {
         projectRepository.save(project);
     }
 
+    private void ensurePendingJoinRequest(String workspaceId) {
+        SeedUser pendingSeed = new SeedUser("Ivan", "Petrov", "Project Management", "Member");
+        User user = ensureDemoUser(pendingSeed, workspaceId);
+        if (user.getId() == null) {
+            return;
+        }
+        if (workspaceJoinRequestRepository.findByWorkspaceIdAndUserId(workspaceId, user.getId()).isPresent()) {
+            return;
+        }
+        if (workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, user.getId()).isPresent()) {
+            return;
+        }
+        WorkspaceJoinRequest request = new WorkspaceJoinRequest();
+        request.setWorkspaceId(workspaceId);
+        request.setUserId(user.getId());
+        request.setStatus(WorkspaceJoinRequestStatus.PENDING);
+        request.setCreatedAt(Instant.now());
+        workspaceJoinRequestRepository.save(request);
+
+        WorkspaceMember member = new WorkspaceMember();
+        member.setWorkspaceId(workspaceId);
+        member.setUserId(user.getId());
+        member.setRole(WorkspaceMemberRole.MEMBER);
+        member.setStatus(WorkspaceMemberStatus.PENDING);
+        member.setCreatedAt(Instant.now());
+        workspaceMemberRepository.save(member);
+    }
+
+    private void ensureDemoInvite(String workspaceId, User owner) {
+        List<WorkspaceInvite> invites = workspaceInviteRepository.findByWorkspaceId(workspaceId);
+        if (invites.stream().anyMatch(invite -> "PMD-DEMO".equalsIgnoreCase(invite.getCode()))) {
+            return;
+        }
+        WorkspaceInvite invite = new WorkspaceInvite();
+        invite.setWorkspaceId(workspaceId);
+        invite.setToken("demo-" + workspaceId + "-invite");
+        invite.setCode("PMD-DEMO");
+        invite.setExpiresAt(Instant.now().plusSeconds(60L * 60L * 24L * 30L));
+        invite.setMaxUses(25);
+        invite.setUsesCount(0);
+        invite.setRevoked(false);
+        invite.setCreatedAt(Instant.now());
+        invite.setCreatedByUserId(owner != null ? owner.getId() : null);
+        workspaceInviteRepository.save(invite);
+    }
+
     private String buildDemoEmail(SeedUser seed, String workspaceId) {
         String base = (seed.firstName() + "." + seed.lastName()).toLowerCase(Locale.ROOT).replace(" ", "");
         return base + "+" + workspaceId + "@pmd.local";
     }
 
-    private record SeedUser(String firstName, String lastName, String teamName) {
+    private record SeedUser(String firstName, String lastName, String teamName, String roleName) {
     }
 
     private record SeedProject(String name, String description, ProjectStatus status, String teamName) {

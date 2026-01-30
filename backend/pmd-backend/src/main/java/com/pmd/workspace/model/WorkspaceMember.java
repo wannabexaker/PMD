@@ -17,11 +17,19 @@ public class WorkspaceMember {
     @Indexed
     private String userId;
 
+    private String roleId;
+
+    private String displayRoleName;
+
     private WorkspaceMemberRole role;
 
     private WorkspaceMemberStatus status;
 
     private Instant createdAt;
+
+    private Instant joinedAt;
+
+    private String invitedByUserId;
 
     public WorkspaceMember() {
     }
@@ -60,6 +68,22 @@ public class WorkspaceMember {
         this.userId = userId;
     }
 
+    public String getRoleId() {
+        return roleId;
+    }
+
+    public void setRoleId(String roleId) {
+        this.roleId = roleId;
+    }
+
+    public String getDisplayRoleName() {
+        return displayRoleName;
+    }
+
+    public void setDisplayRoleName(String displayRoleName) {
+        this.displayRoleName = displayRoleName;
+    }
+
     public WorkspaceMemberRole getRole() {
         return role;
     }
@@ -82,5 +106,21 @@ public class WorkspaceMember {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getJoinedAt() {
+        return joinedAt;
+    }
+
+    public void setJoinedAt(Instant joinedAt) {
+        this.joinedAt = joinedAt;
+    }
+
+    public String getInvitedByUserId() {
+        return invitedByUserId;
+    }
+
+    public void setInvitedByUserId(String invitedByUserId) {
+        this.invitedByUserId = invitedByUserId;
     }
 }

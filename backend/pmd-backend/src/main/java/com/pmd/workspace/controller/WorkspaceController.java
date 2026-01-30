@@ -10,9 +10,14 @@ import com.pmd.workspace.dto.WorkspaceInviteResolveResponse;
 import com.pmd.workspace.dto.WorkspaceInviteResponse;
 import com.pmd.workspace.dto.WorkspaceJoinRequest;
 import com.pmd.workspace.dto.WorkspaceJoinRequestResponse;
+import com.pmd.workspace.dto.WorkspaceMemberRoleUpdateRequest;
+import com.pmd.workspace.dto.WorkspaceRoleRequest;
+import com.pmd.workspace.dto.WorkspaceRoleResponse;
 import com.pmd.workspace.dto.WorkspaceResponse;
 import com.pmd.workspace.dto.WorkspaceSettingsRequest;
 import com.pmd.workspace.model.WorkspaceInvite;
+import com.pmd.workspace.model.WorkspaceRole;
+import com.pmd.workspace.model.WorkspaceRolePermissions;
 import com.pmd.workspace.service.WorkspaceService;
 import com.pmd.workspace.service.WorkspaceService.WorkspaceMembership;
 import jakarta.validation.Valid;
@@ -54,7 +59,11 @@ public class WorkspaceController {
     public WorkspaceResponse createWorkspace(@Valid @RequestBody WorkspaceCreateRequest request,
                                              Authentication authentication) {
         User requester = getRequester(authentication);
-        WorkspaceMembership membership = workspaceService.createWorkspace(request.getName(), requester);
+        WorkspaceMembership membership = workspaceService.createWorkspace(
+            request.getName(),
+            request.getInitialTeams(),
+            requester
+        );
         return toResponse(membership);
     }
 
@@ -109,6 +118,45 @@ public class WorkspaceController {
         );
     }
 
+    @GetMapping("/{id}/roles")
+    public List<WorkspaceRoleResponse> listRoles(@PathVariable String id, Authentication authentication) {
+        User requester = getRequester(authentication);
+        return workspaceService.listRoles(id, requester).stream()
+            .map(this::toRoleResponse)
+            .toList();
+    }
+
+    @PostMapping("/{id}/roles")
+    @ResponseStatus(HttpStatus.CREATED)
+    public WorkspaceRoleResponse createRole(@PathVariable String id,
+                                            @Valid @RequestBody WorkspaceRoleRequest request,
+                                            Authentication authentication) {
+        User requester = getRequester(authentication);
+        WorkspaceRole role = workspaceService.createRole(id, request.getName(), request.getPermissions(), requester);
+        return toRoleResponse(role);
+    }
+
+    @PatchMapping("/{id}/roles/{roleId}")
+    public WorkspaceRoleResponse updateRole(@PathVariable String id,
+                                            @PathVariable String roleId,
+                                            @RequestBody WorkspaceRoleRequest request,
+                                            Authentication authentication) {
+        User requester = getRequester(authentication);
+        WorkspaceRole role = workspaceService.updateRole(id, roleId, request.getName(), request.getPermissions(), requester);
+        return toRoleResponse(role);
+    }
+
+    @PostMapping("/{id}/members/{userId}/role")
+    public WorkspaceResponse updateMemberRole(@PathVariable String id,
+                                              @PathVariable String userId,
+                                              @Valid @RequestBody WorkspaceMemberRoleUpdateRequest request,
+                                              Authentication authentication) {
+        User requester = getRequester(authentication);
+        var member = workspaceService.assignMemberRole(id, userId, request.getRoleId(), requester);
+        var workspace = workspaceService.getWorkspaceById(id);
+        return toResponse(new WorkspaceMembership(workspace, member));
+    }
+
     @GetMapping("/{id}/requests")
     public List<WorkspaceJoinRequestResponse> listPendingRequests(@PathVariable String id,
                                                                   Authentication authentication) {
@@ -158,11 +206,26 @@ public class WorkspaceController {
     }
 
     private WorkspaceResponse toResponse(WorkspaceMembership membership) {
+        WorkspaceRolePermissions permissions = workspaceService.resolveMemberPermissions(
+            membership.workspace().getId(),
+            membership.member()
+        );
+        String roleName = membership.member().getDisplayRoleName();
+        if (roleName == null && membership.member().getRole() != null) {
+            roleName = switch (membership.member().getRole()) {
+                case OWNER -> "Owner";
+                case ADMIN -> "Manager";
+                case MEMBER -> "Member";
+            };
+        }
         return new WorkspaceResponse(
             membership.workspace().getId(),
             membership.workspace().getName(),
             membership.workspace().getSlug(),
             membership.member().getRole(),
+            membership.member().getRoleId(),
+            roleName,
+            permissions,
             membership.member().getStatus(),
             membership.workspace().getCreatedAt(),
             membership.workspace().isDemo(),
@@ -194,6 +257,17 @@ public class WorkspaceController {
             user != null ? user.getEmail() : null,
             request.getStatus(),
             request.getCreatedAt()
+        );
+    }
+
+    private WorkspaceRoleResponse toRoleResponse(WorkspaceRole role) {
+        return new WorkspaceRoleResponse(
+            role.getId(),
+            role.getWorkspaceId(),
+            role.getName(),
+            role.isSystem(),
+            role.getPermissions(),
+            role.getCreatedAt()
         );
     }
 

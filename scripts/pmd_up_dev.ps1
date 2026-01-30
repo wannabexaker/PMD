@@ -10,5 +10,5 @@ Start-Process powershell -ArgumentList @('-NoExit', "-Command", "Set-Location '$
 Start-Process powershell -ArgumentList @('-NoExit', "-Command", "Set-Location '$repoRoot'; scripts\\pmd_up_frontend_dev.ps1")
 
 Write-Host 'Frontend: http://localhost:5173'
-Write-Host 'API: http://localhost:8080'
+Write-Host 'API: http://localhost:8099'
 Write-Host 'MailHog UI: http://localhost:8025'
