@@ -170,7 +170,7 @@ export function DashboardPage({
     })
     setMemberSearch('')
     setAvailableSearch('')
-  }, [selectedProject])
+  }, [selectedProject, currentUser?.teamId])
 
   useEffect(() => {
     let active = true

@@ -13,7 +13,7 @@ import {
   updateWorkspaceSettings,
 } from '../api/workspaces'
 import type { WorkspaceInvite, WorkspaceJoinRequest } from '../types'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 type SettingsPageProps = {
   preferences: UiPreferences
@@ -87,29 +87,29 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     return `${window.location.origin}/join?invite=${encodeURIComponent(token)}`
   }
 
-  const loadInvites = async (workspaceId: string) => {
+  const loadInvites = useCallback(async (workspaceId: string) => {
     setInvitesLoading(true)
     try {
       const data = await listInvites(workspaceId)
       setInvites(data)
-    } catch (err) {
+    } catch {
       showToast({ type: 'error', message: 'Failed to load invites.' })
     } finally {
       setInvitesLoading(false)
     }
-  }
+  }, [showToast])
 
-  const loadRequests = async (workspaceId: string) => {
+  const loadRequests = useCallback(async (workspaceId: string) => {
     setRequestsLoading(true)
     try {
       const data = await listJoinRequests(workspaceId)
       setRequests(data)
-    } catch (err) {
+    } catch {
       showToast({ type: 'error', message: 'Failed to load join requests.' })
     } finally {
       setRequestsLoading(false)
     }
-  }
+  }, [showToast])
 
   const handleEnterDemo = async () => {
     const demo = await enterDemo()
@@ -188,7 +188,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       await createInvite(activeWorkspaceId, { expiresAt, maxUses: maxUsesValue })
       await loadInvites(activeWorkspaceId)
       showToast({ type: 'success', message: 'Invite created.' })
-    } catch (err) {
+    } catch {
       showToast({ type: 'error', message: 'Failed to create invite.' })
     }
   }
@@ -199,7 +199,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       await revokeInvite(activeWorkspaceId, inviteId)
       await loadInvites(activeWorkspaceId)
       showToast({ type: 'success', message: 'Invite revoked.' })
-    } catch (err) {
+    } catch {
       showToast({ type: 'error', message: 'Failed to revoke invite.' })
     }
   }
@@ -209,7 +209,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     try {
       await navigator.clipboard.writeText(value)
       showToast({ type: 'success', message: `${label} copied.` })
-    } catch (err) {
+    } catch {
       showToast({ type: 'error', message: `Failed to copy ${label.toLowerCase()}.` })
     }
   }
@@ -221,7 +221,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       await updateWorkspaceSettings(activeWorkspaceId, { requireApproval: next })
       await refresh()
       showToast({ type: 'success', message: 'Workspace settings updated.' })
-    } catch (err) {
+    } catch {
       showToast({ type: 'error', message: 'Failed to update workspace settings.' })
     } finally {
       setSettingsBusy(false)
@@ -234,7 +234,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       await approveJoinRequest(activeWorkspaceId, requestId)
       await loadRequests(activeWorkspaceId)
       showToast({ type: 'success', message: 'Request approved.' })
-    } catch (err) {
+    } catch {
       showToast({ type: 'error', message: 'Failed to approve request.' })
     }
   }
@@ -245,7 +245,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       await denyJoinRequest(activeWorkspaceId, requestId)
       await loadRequests(activeWorkspaceId)
       showToast({ type: 'success', message: 'Request denied.' })
-    } catch (err) {
+    } catch {
       showToast({ type: 'error', message: 'Failed to deny request.' })
     }
   }
@@ -256,7 +256,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       return
     }
     loadInvites(activeWorkspaceId)
-  }, [activeWorkspaceId, canInviteMembers])
+  }, [activeWorkspaceId, canInviteMembers, loadInvites])
 
   useEffect(() => {
     if (!activeWorkspaceId || !canApproveRequests) {
@@ -264,7 +264,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       return
     }
     loadRequests(activeWorkspaceId)
-  }, [activeWorkspaceId, canApproveRequests])
+  }, [activeWorkspaceId, canApproveRequests, loadRequests])
 
   const handleAddInitialTeam = () => {
     setInitialTeams((prev) => [...prev, ''])
