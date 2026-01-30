@@ -862,3 +862,14 @@ DONE
 TODO
 - [ ] Manual verify Assign random picker respects filters and no dropdown remains.
 - [ ] Manual verify Settings layout on desktop + mobile stack.
+
+## 2026-01-30 - CI + Settings/Teams
+DONE
+- Backend: WorkspaceJoinRequestRepository query method added.
+- Frontend lint fixed (catch vars + hook deps).
+- Settings Workspaces layout updated to 2-column; demo grouped under Workspaces.
+- Settings Teams panel added; team create/update refresh and validation.
+- TeamIntegrationTest updated for workspace-scoped routes and JWT auth.
+
+TODO
+- None added in this pass.

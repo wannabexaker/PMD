@@ -1004,3 +1004,24 @@ Files
 Verification (manual)
 - /assign: no project dropdown list; Pick random project selects from filtered list; Change rerolls; Clear unselects.
 - /settings: Workspaces shows 3-column layout on desktop; demo column separate; mobile stacks.
+
+## 2026-01-30 - CI fixes + Settings/Teams UI + team test updates
+
+Backend fixes
+- Added WorkspaceJoinRequestRepository.findByWorkspaceId(...) to satisfy DemoWorkspaceSeeder query.
+- Updated TeamIntegrationTest for workspace-scoped routes and workspace setup:
+  - Creates workspace + memberships + seeded teams in test setup.
+  - Uses /api/workspaces/{workspaceId}/teams and /users endpoints.
+  - Uses springSecurityFilterChain + JWT headers for auth in MockMvc.
+  - ObjectMapper now constructed directly (no missing bean).
+
+Frontend fixes
+- Lint: replaced unused catch vars, stabilized loadInvites/loadRequests with useCallback and proper deps.
+- Settings: Workspaces layout now 2-column (Your Workspaces + Actions) with demo group inside the list.
+- Added a separate Teams section under Settings with list + actions, compact layout, and permissions-aware controls.
+- Team create/update now validates 2-40 chars, refreshes teams after success, and shows inline errors.
+
+Verification (local)
+- Frontend: npm run lint (PASS).
+- Backend: ./mvnw test (PASS).
+- Backend: ./mvnw -DskipTests package (PASS).
