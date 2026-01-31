@@ -237,9 +237,12 @@ export type DashboardStatsResponse = {
 }
 
 export type DashboardCounters = {
+  unassigned: number
   assigned: number
   inProgress: number
   completed: number
+  canceled: number
+  archived: number
 }
 
 export type WorkspaceDashboardStatsResponse = {
@@ -255,6 +258,27 @@ export type WorkspaceDashboardStatsResponse = {
     assignedToMe: boolean
   }
 }
+
+export type WorkspaceSummaryPanelKey =
+  | 'unassigned'
+  | 'assigned'
+  | 'inProgress'
+  | 'completed'
+  | 'canceled'
+  | 'archived'
+
+export type WorkspacePanelPreferences = {
+  workspaceSummaryVisibility: Record<WorkspaceSummaryPanelKey, boolean>
+}
+
+export const WORKSPACE_SUMMARY_PANEL_KEYS: WorkspaceSummaryPanelKey[] = [
+  'unassigned',
+  'assigned',
+  'inProgress',
+  'completed',
+  'canceled',
+  'archived',
+]
 
 export type RecommendationToggleResponse = {
   personId: string

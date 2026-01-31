@@ -66,7 +66,12 @@ VITE_API_BASE_URL=http://localhost:8099
 
 Start (one command):
 ```
-scripts\\pmd-start.ps1
+scripts\\pmd_dev_up.bat
+```
+
+Stop:
+```
+scripts\\pmd_dev_down.bat
 ```
 
 Status:
@@ -85,7 +90,7 @@ scripts\\pmd-reset.ps1
 ```
 
 - Frontend: http://localhost:5173
-- Backend: http://localhost:8080 (docker compose) or http://localhost:8099 (hybrid local)
+- Backend: http://localhost:8080 (dev script + docker compose)
 - MailHog (email dev inbox): http://localhost:8025
 - The compose stack uses the `docker` Spring profile and `PMD_SEED_DEMO=true`, so demo users/projects appear after startup.
 

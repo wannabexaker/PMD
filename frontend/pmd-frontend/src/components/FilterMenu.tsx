@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 type FilterOption = {
   id: string
@@ -12,6 +12,9 @@ type FilterMenuProps = {
   onChange: (next: string[]) => void
   ariaLabel: string
   isActive?: boolean
+  extraContent?: React.ReactNode
+  icon?: ReactNode
+  buttonClassName?: string
 }
 
 export function FilterMenu({
@@ -21,6 +24,9 @@ export function FilterMenu({
   onChange,
   ariaLabel,
   isActive,
+  extraContent,
+  icon,
+  buttonClassName,
 }: FilterMenuProps) {
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -93,7 +99,7 @@ export function FilterMenu({
     <div className="filter-menu" ref={rootRef}>
       <button
         type="button"
-        className="btn btn-icon btn-ghost icon-toggle filter-button"
+        className={`btn btn-icon btn-ghost icon-toggle filter-button${buttonClassName ? ' ' + buttonClassName : ''}`}
         aria-label={ariaLabel}
         title={ariaLabel}
         data-tooltip={ariaLabel}
@@ -107,7 +113,7 @@ export function FilterMenu({
         }}
         data-active={active ? 'true' : 'false'}
       >
-        <FilterIcon />
+        {icon ?? <FilterIcon />}
       </button>
       {open ? (
         <div
@@ -117,6 +123,7 @@ export function FilterMenu({
           ref={popoverRef}
           data-state={visible ? 'open' : 'closed'}
         >
+          {extraContent ? <div className="filter-extra">{extraContent}</div> : null}
           <div className="filter-actions">
             <button type="button" className="btn btn-secondary" onClick={() => onChange(allOptions.map((o) => o.id))}>
               Check all

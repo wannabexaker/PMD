@@ -137,6 +137,19 @@ curl.exe -s http://localhost:8099/actuator/health
 docker compose -f docker-compose.deps.yml ps
 ```
 
+### MongoDB status (terminal)
+```
+netstat -ano | findstr :27017
+Get-NetTCPConnection -LocalPort 27017 | Select-Object -First 5
+```
+
+### MongoDB status (docker)
+```
+docker ps --filter "name=pmd-mongo"
+docker logs pmd-mongo --tail 50
+docker exec -it pmd-mongo mongosh --eval "db.runCommand({ ping: 1 })"
+```
+
 ### Port conflicts
 ```
 scripts\diagnose-ports.ps1

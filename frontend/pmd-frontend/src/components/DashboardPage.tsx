@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary, WorkspaceDashboardStatsResponse } from '../types'
+import type {
+  CreateProjectPayload,
+  Project,
+  ProjectStatus,
+  User,
+  UserSummary,
+  WorkspaceDashboardStatsResponse,
+  WorkspaceSummaryPanelKey,
+} from '../types'
 import { CreateProjectForm } from './CreateProjectForm'
 import { deleteProject, updateProject } from '../api/projects'
 import { ControlsBar } from './common/ControlsBar'
+import { FilterMenu } from './FilterMenu'
 import { PieChart } from './common/PieChart'
 import { ProjectComments } from './ProjectComments'
 import { isApiError } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
-import { TeamFilterSelect } from './common/TeamFilterSelect'
 import { fetchDashboardStats } from '../api/stats'
+import { fetchWorkspacePanelPreferences, saveWorkspacePanelPreferences } from '../api/preferences'
 import {
   UNASSIGNED_FILTER_KEY,
   PROJECT_FOLDERS,
@@ -18,6 +27,7 @@ import {
   formatStatusLabel,
   toFolderKey,
 } from '../projects/statuses'
+import { WORKSPACE_SUMMARY_PANEL_KEYS } from '../types'
 
 type DashboardPageProps = {
   projects: Project[]
@@ -33,6 +43,53 @@ type DashboardPageProps = {
 const MAX_PROJECT_TITLE_LENGTH = 32
 const STATUS_COLORS = ['#a855f7', '#38bdf8', '#22c55e', '#f97316', '#64748b']
 const TEAM_COLORS = ['#38bdf8', '#a855f7', '#f97316', '#22c55e', '#facc15', '#e879f9']
+const SUMMARY_PANELS: Array<{ key: WorkspaceSummaryPanelKey; label: string; description: string }> = [
+  { key: 'unassigned', label: 'Unassigned', description: 'Projects without any members' },
+  { key: 'assigned', label: 'Assigned', description: 'Projects with team members' },
+  { key: 'inProgress', label: 'In progress', description: 'Work is actively happening' },
+  { key: 'completed', label: 'Completed', description: 'Finished projects' },
+  { key: 'canceled', label: 'Canceled', description: 'Canceled or stopped projects' },
+  { key: 'archived', label: 'Archived', description: 'Archived or closed projects' },
+]
+
+const DEFAULT_PANEL_VISIBILITY: Record<WorkspaceSummaryPanelKey, boolean> = WORKSPACE_SUMMARY_PANEL_KEYS.reduce(
+  (acc, key) => {
+    acc[key] = true
+    return acc
+  },
+  {} as Record<WorkspaceSummaryPanelKey, boolean>
+)
+
+function buildPanelVisibility(
+  override?: Record<WorkspaceSummaryPanelKey, boolean>
+): Record<WorkspaceSummaryPanelKey, boolean> {
+  const base = { ...DEFAULT_PANEL_VISIBILITY }
+  if (!override) {
+    return base
+  }
+  for (const key of WORKSPACE_SUMMARY_PANEL_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(override, key) && override[key] != null) {
+      base[key] = override[key] as boolean
+    }
+  }
+  return base
+}
+
+function SummaryMenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path
+        d="M7 8h10l-5 8z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 16h1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
 
 function formatProjectTitle(value?: string | null) {
   if (!value) return '-'
@@ -66,9 +123,11 @@ export function DashboardPage({
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(false)
   const initializedTeamsRef = useRef(false)
   const currentUserId = currentUser?.id ?? ''
-  const [teamFilterValue, setTeamFilterValue] = useState('')
   const [workspaceStats, setWorkspaceStats] = useState<WorkspaceDashboardStatsResponse | null>(null)
   const [workspaceStatsError, setWorkspaceStatsError] = useState<string | null>(null)
+  const [panelVisibility, setPanelVisibility] = useState<Record<WorkspaceSummaryPanelKey, boolean>>(() =>
+    buildPanelVisibility()
+  )
 
   const availableTeamIds = useMemo(() => {
     return teams.map((team) => team.id).filter(Boolean) as string[]
@@ -104,6 +163,86 @@ export function DashboardPage({
     return map
   }, [teams])
 
+  const statusFilterOptions = useMemo(
+    () => [
+      ...PROJECT_FOLDERS.map((folder) => ({
+        id: `status:${folder.key}`,
+        label: folder.label,
+      })),
+      { id: `status:${UNASSIGNED_FILTER_KEY}`, label: 'Unassigned' },
+    ],
+    []
+  )
+
+  const teamFilterOptions = useMemo(
+    () =>
+      teams
+        .filter((team) => team.id)
+        .map((team) => ({
+          id: `team:${team.id ?? ''}`,
+          label: team.name ?? team.id ?? 'Team',
+        })),
+    [teams]
+  )
+
+  const dashboardFilterSections = useMemo(() => {
+    const sections = [{ label: 'Statuses', options: statusFilterOptions }]
+    if (teamFilterOptions.length > 0) {
+      sections.push({ label: 'Teams', options: teamFilterOptions })
+    }
+    return sections
+  }, [statusFilterOptions, teamFilterOptions])
+
+  const visiblePanels = useMemo(
+    () => SUMMARY_PANELS.filter((panel) => panelVisibility[panel.key]),
+    [panelVisibility]
+  )
+  const panelCounts = workspaceStats?.counters
+  const getPanelValue = useCallback(
+    (panelKey: WorkspaceSummaryPanelKey) => {
+      if (!panelCounts) {
+        return 0
+      }
+      return panelCounts[panelKey] ?? 0
+    },
+    [panelCounts]
+  )
+
+  const summarySelectedKeys = useMemo(
+    () => WORKSPACE_SUMMARY_PANEL_KEYS.filter((key) => Boolean(panelVisibility[key])),
+    [panelVisibility]
+  )
+
+  const persistPanelVisibility = useCallback(
+    async (nextVisibility: Record<WorkspaceSummaryPanelKey, boolean>) => {
+      setPanelVisibility(nextVisibility)
+      if (!activeWorkspaceId) {
+        return
+      }
+      try {
+        await saveWorkspacePanelPreferences(activeWorkspaceId, {
+          workspaceSummaryVisibility: nextVisibility,
+        })
+      } catch (err) {
+        if (typeof window !== 'undefined') {
+          console.warn('Failed to save workspace summary visibility.', err)
+        }
+      }
+    },
+    [activeWorkspaceId]
+  )
+
+  const handleSummaryPanelChange = useCallback(
+    (nextSelected: string[]) => {
+      const nextVisibility = WORKSPACE_SUMMARY_PANEL_KEYS.reduce((acc, key) => {
+        acc[key] = nextSelected.includes(key)
+        return acc
+      }, {} as Record<WorkspaceSummaryPanelKey, boolean>)
+      persistPanelVisibility(nextVisibility)
+    },
+    [persistPanelVisibility]
+  )
+
   const selectedStatusSet = useMemo(() => {
     return new Set(
       selectedFilters
@@ -126,14 +265,6 @@ export function DashboardPage({
         .filter(Boolean)
     )
   }, [selectedFilters])
-
-  useEffect(() => {
-    if (selectedTeamSet.size === 1) {
-      setTeamFilterValue(Array.from(selectedTeamSet)[0])
-    } else {
-      setTeamFilterValue('')
-    }
-  }, [selectedTeamSet])
 
   const selectedProject =
     projects.find((project) => project.id === selectedProjectId) ?? null
@@ -198,6 +329,29 @@ export function DashboardPage({
   }, [activeWorkspaceId])
 
   useEffect(() => {
+    if (!activeWorkspaceId) {
+      setPanelVisibility(buildPanelVisibility())
+      return
+    }
+    let active = true
+    fetchWorkspacePanelPreferences(activeWorkspaceId)
+      .then((data) => {
+        if (!active) return
+        setPanelVisibility(buildPanelVisibility(data.workspaceSummaryVisibility))
+      })
+      .catch((err) => {
+        if (!active) return
+        if (typeof window !== 'undefined') {
+          console.warn('Failed to load workspace summary visibility', err)
+        }
+        setPanelVisibility(buildPanelVisibility())
+      })
+    return () => {
+      active = false
+    }
+  }, [activeWorkspaceId])
+
+  useEffect(() => {
     if (!selectedProjectId) {
       return
     }
@@ -240,18 +394,8 @@ export function DashboardPage({
     return [...allStatuses, ...allTeams]
   }, [availableTeamIds])
 
-  const handleTeamFilterChange = (value: string) => {
-    const keep = selectedFilters.filter((key) => !key.startsWith('team:'))
-    const teamFilters = value ? [`team:${value}`] : availableTeamIds.map((teamId) => `team:${teamId}`)
-    setSelectedFilters([...keep, ...teamFilters])
-  }
-
   const handleFilterMenuChange = (next: string[]) => {
-    setSelectedFilters((prev) => {
-      const teamFilters = prev.filter((key) => key.startsWith('team:'))
-      const nonTeam = next.filter((key) => !key.startsWith('team:'))
-      return [...nonTeam, ...teamFilters]
-    })
+    setSelectedFilters(next)
   }
 
   const isFilterActive = useMemo(() => {
@@ -549,21 +693,6 @@ export function DashboardPage({
 
   const visibleProjects = scopedProjects
 
-  const unassignedCount = scopedProjects.filter((project) => (project.memberIds ?? []).length === 0).length
-  const assignedCount = scopedProjects.filter((project) => (project.memberIds ?? []).length > 0).length
-  const inProgressCount = scopedProjects.filter(
-    (project) => (project.status ?? 'NOT_STARTED') === 'IN_PROGRESS'
-  ).length
-  const completedCount = scopedProjects.filter(
-    (project) => (project.status ?? 'NOT_STARTED') === 'COMPLETED'
-  ).length
-  const canceledCount = scopedProjects.filter(
-    (project) => (project.status ?? 'NOT_STARTED') === 'CANCELED'
-  ).length
-  const archivedCount = scopedProjects.filter(
-    (project) => (project.status ?? 'NOT_STARTED') === 'ARCHIVED'
-  ).length
-
   const filteredAssigned = useMemo(() => {
     const query = memberSearch.trim().toLowerCase()
     if (!query) return assignedMembers
@@ -648,43 +777,24 @@ export function DashboardPage({
               onSearchChange={setSearch}
               searchPlaceholder="Search projects"
               filters={[]}
-              filterSections={[
-                {
-                  label: 'Statuses',
-                  options: [
-                    ...PROJECT_FOLDERS.map((folder) => ({
-                      id: `status:${folder.key}`,
-                      label: folder.label,
-                    })),
-                    { id: `status:${UNASSIGNED_FILTER_KEY}`, label: 'Unassigned' },
-                  ],
-                },
-              ]}
+              filterSections={dashboardFilterSections}
               selectedFilterKeys={selectedFilters}
               onSelectedFilterKeysChange={handleFilterMenuChange}
               searchAriaLabel="Search projects"
-              filterAriaLabel="Filter"
+              filterAriaLabel="Filter projects by status or team"
               filterActive={isFilterActive}
               actions={
-                <>
-                  <TeamFilterSelect
-                    value={teamFilterValue}
-                    teams={teams}
-                    onChange={handleTeamFilterChange}
-                    ariaLabel="Filter projects by team"
-                  />
-                  <button
-                    type="button"
-                    className={`btn btn-icon btn-ghost assign-toggle${assignedToMeOnly ? ' is-active' : ''}`}
-                    aria-pressed={assignedToMeOnly}
-                    aria-label={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                    title={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                    data-tooltip={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                    onClick={() => setAssignedToMeOnly((prev) => !prev)}
-                  >
-                    <AssignMeIcon />
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className={`btn btn-icon btn-ghost assign-toggle${assignedToMeOnly ? ' is-active' : ''}`}
+                  aria-pressed={assignedToMeOnly}
+                  aria-label={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+                  title={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+                  data-tooltip={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+                  onClick={() => setAssignedToMeOnly((prev) => !prev)}
+                >
+                  <AssignMeIcon />
+                </button>
               }
             />
           </div>
@@ -1004,53 +1114,47 @@ export function DashboardPage({
                 </>
               ) : (
                 <>
-                <div className="stats-strip">
-                  <div className="stat">
-                    <span className="muted">Unassigned</span>
-                    <strong>{unassignedCount}</strong>
-                  </div>
-                  <div className="stat">
-                    <span className="muted">Assigned</span>
-                    <strong>{assignedCount}</strong>
-                  </div>
-                  <div className="stat">
-                    <span className="muted">In progress</span>
-                    <strong>{inProgressCount}</strong>
-                  </div>
-                  <div className="stat">
-                    <span className="muted">Completed</span>
-                    <strong>{completedCount}</strong>
-                  </div>
-                  <div className="stat">
-                    <span className="muted">Canceled</span>
-                    <strong>{canceledCount}</strong>
-                  </div>
-                  <div className="stat">
-                    <span className="muted">Archived</span>
-                    <strong>{archivedCount}</strong>
-                  </div>
-                </div>
                 <div className="card">
                   <div className="panel-header">
                     <h4>Workspace summary</h4>
+                    <FilterMenu
+                      ariaLabel="Workspace summary visibility"
+                      sections={[
+                        {
+                          label: 'Panels',
+                          options: SUMMARY_PANELS.map((panel) => ({
+                            id: panel.key,
+                            label: panel.label,
+                          })),
+                        },
+                      ]}
+                      selected={summarySelectedKeys}
+                      onChange={handleSummaryPanelChange}
+                      isActive={
+                        summarySelectedKeys.length > 0 && summarySelectedKeys.length < SUMMARY_PANELS.length
+                      }
+                      buttonClassName="workspace-summary-button"
+                      icon={<SummaryMenuIcon />}
+                    />
                   </div>
                   {workspaceStatsError ? <p className="error">{workspaceStatsError}</p> : null}
                   {!workspaceStats ? (
                     <p className="muted">Loading workspace stats...</p>
                   ) : (
-                    <div className="stats-strip">
-                      <div className="stat">
-                        <span className="muted">Assigned</span>
-                        <strong>{workspaceStats.counters?.assigned ?? 0}</strong>
-                      </div>
-                      <div className="stat">
-                        <span className="muted">In progress</span>
-                        <strong>{workspaceStats.counters?.inProgress ?? 0}</strong>
-                      </div>
-                      <div className="stat">
-                        <span className="muted">Completed</span>
-                        <strong>{workspaceStats.counters?.completed ?? 0}</strong>
-                      </div>
+                    <div className="workspace-summary-panels">
+                      {visiblePanels.length === 0 ? (
+                        <p className="muted">
+                          All panels are hidden. Use the toggles above to show at least one summary panel.
+                        </p>
+                      ) : (
+                        visiblePanels.map((panel) => (
+                          <div key={panel.key} className="workspace-summary-panel">
+                            <span className="muted">{panel.label}</span>
+                            <strong>{getPanelValue(panel.key)}</strong>
+                            <span className="workspace-summary-description">{panel.description}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>

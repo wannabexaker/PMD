@@ -592,39 +592,6 @@ export function AssignPage({
               <h3>Projects</h3>
               <span className="muted">{assignedToMeLoading ? 'Loading...' : `${projectsSource.length} total`}</span>
             </div>
-            <div className="assign-project-picker">
-              {!selectedProject ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handlePickRandomProject}
-                    disabled={eligibleProjects.length === 0}
-                  >
-                    Pick random project
-                  </button>
-                  {eligibleProjects.length === 0 ? <span className="muted">No projects available</span> : null}
-                </>
-              ) : (
-                <>
-                  <span className="chip" title={selectedProject.name ?? ''}>
-                    {formatProjectTitle(selectedProject.name)}
-                    <span className="muted"> · {formatStatusLabel(selectedProject.status ?? 'NOT_STARTED')}</span>
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={handlePickRandomProject}
-                    disabled={eligibleProjects.length === 0}
-                  >
-                    Change
-                  </button>
-                  <button type="button" className="btn btn-secondary" onClick={() => onClearSelection?.()}>
-                    Clear
-                  </button>
-                </>
-              )}
-            </div>
             <div className="assign-panel-controls">
               <ControlsBar
                 searchValue={projectSearch}
@@ -632,26 +599,42 @@ export function AssignPage({
                 searchPlaceholder="Search projects"
                 filters={[]}
                 actions={
-                  <div className="assign-random-tools">
+                  <div className="assign-project-picker">
+                    {selectedProject ? (
+                      <>
+                        <span className="chip" title={selectedProject.name ?? ''}>
+                          {formatProjectTitle(selectedProject.name)}
+                          <span className="muted"> · {formatStatusLabel(selectedProject.status ?? 'NOT_STARTED')}</span>
+                        </span>
+                        <button type="button" className="btn btn-secondary" onClick={() => onClearSelection?.()}>
+                          Clear
+                        </button>
+                      </>
+                    ) : (
+                      <span className="muted">No project selected</span>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-icon btn-ghost icon-toggle"
+                      onClick={handlePickRandomProject}
+                      disabled={eligibleProjects.length === 0}
+                      title="Pick random project"
+                      data-tooltip="Pick random project"
+                    >
+                      <DiceIcon />
+                    </button>
+                    {eligibleProjects.length === 0 ? <span className="muted">No projects available</span> : null}
+                  </div>
+                }
+                filterExtra={
+                  <div className="filter-extra-row">
+                    <label className="muted">Team</label>
                     <TeamFilterSelect
                       value={projectTeamFilterValue}
                       teams={teams}
                       onChange={handleProjectTeamFilterChange}
                       ariaLabel="Filter projects by team"
                     />
-                    <select
-                      value={randomTeamId}
-                      onChange={(event) => setRandomTeamId(event.target.value)}
-                      aria-label="Random team scope"
-                      title="Random team scope"
-                    >
-                      <option value="">Random team</option>
-                      {availableTeams.map((teamId) => (
-                        <option key={teamId} value={teamId}>
-                          {teamById.get(teamId)?.name ?? teamId}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                 }
               filterSections={[

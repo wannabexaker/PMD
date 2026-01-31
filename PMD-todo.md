@@ -880,3 +880,28 @@ TODO
 - [x] Send confirmed-email message after successful confirmation.
 - [ ] Review overdue reminder heuristic once true due dates exist.
 
+
+## 2026-01-30 - Hybrid DEV/Reviewer workflow (random port + proxy)
+
+TODO
+- [ ] Verify DEV flow: deps up -> backend random port -> frontend proxy works
+- [ ] Verify REVIEWER flow: docker compose local up --build on fixed ports
+- [ ] Confirm API calls succeed via Vite proxy (no hardcoded 8099)
+
+## 2026-01-31 - Backend port file writer
+
+DONE
+- [x] BackendPortFileWriter compiles with Boot 4 import and runs only in local/dev
+- [x] Tests pass; backend writes .runtime\\backend-port.txt when SERVER_PORT=0
+
+## 2026-01-31 - Frontend build fix (apiFetch)
+
+DONE
+- [x] Replace notifications API import to use requestJson so build passes
+
+
+## 2026-01-31 - CI/compose parity follow-ups
+- [ ] Close any running Node/Vite processes and rerun `npm ci` (EPERM esbuild.exe)
+- [ ] Run `npm run build` and `npm run lint` after npm ci succeeds
+- [ ] Build reviewer images: `docker compose -f docker-compose.local.yml --profile reviewer build --no-cache`
+- [ ] Reviewer sanity: `docker compose -f docker-compose.local.yml --profile reviewer up -d --build` + curl checks

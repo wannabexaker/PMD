@@ -1,6 +1,6 @@
 const ENV_API_BASE_URL = (import.meta as ImportMeta).env?.VITE_API_BASE_URL as string | undefined
 const MODE = (import.meta as ImportMeta).env?.MODE as string | undefined
-const DEFAULT_API_BASE_URL = MODE === 'development' ? 'http://localhost:8099' : 'http://localhost:8080'
+const DEFAULT_API_BASE_URL = MODE === 'development' ? '' : 'http://localhost:8080'
 export const API_BASE_URL =
   ENV_API_BASE_URL && ENV_API_BASE_URL.trim().length > 0 ? ENV_API_BASE_URL : DEFAULT_API_BASE_URL
 const ONLINE_EVENT = 'pmd:online'

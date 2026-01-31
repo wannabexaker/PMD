@@ -1039,3 +1039,129 @@ Notes:
 - Mentions are parsed from comment text using @email and @team/@teammention tokens.
 - Preferences are per-user (not workspace-scoped). Missing prefs default to ON.
 
+
+## 2026-01-30 – Dev bootstrap scripts audit + fix
+
+Findings:
+- Deps scripts were using docker-compose.deps.yml, while local compose expects mongo/mailhog in docker-compose.local.yml.
+- Backend dev script used port 8099 while target experience requires 8080.
+- No single-entry script with health checks, logging, and failure reasons.
+
+Changes:
+- Added scripts/pmd_dev_up.ps1 + .bat to start deps, wait for health, start backend (8080) + frontend and verify readiness.
+- Added scripts/pmd_dev_down.ps1 + .bat to stop processes and deps.
+- Updated deps scripts to use docker-compose.local.yml mongo/mailhog.
+- Updated docker-compose.local.yml: restart unless-stopped for deps + MailHog healthcheck.
+- Updated README with new one-command dev scripts.
+
+
+## 2026-01-30 - Hybrid DEV/Reviewer workflow (random port + proxy)
+
+Evidence (commands run)
+- docker compose -f docker-compose.local.yml ps: no services running
+- docker ps: running pmd-mongo (27017) and pmd-mailhog (1025/8025)
+- docker ps -a: only pmd-mongo and pmd-mailhog present
+- netstat: 8080 LISTENING (PID 4808), 5173 LISTENING (PID 25488), 27017 LISTENING, 8025 LISTENING
+
+Frontend API base behavior (current)
+- vite.config.ts had no proxy; frontend used API_BASE_URL in http.ts
+- http.ts defaulted to http://localhost:8099 in dev (no proxy)
+
+Changes (this pass)
+- Added docker-compose.deps.yml (mongo + mailhog only, healthchecks).
+- Added backend port file writer to record chosen random port (PMD_RUNTIME_PORT_FILE).
+- Vite dev proxy now routes /api and /actuator to backend port read from env or .runtime/backend-port.txt.
+- Dev API base URL now relative in development (proxy-based).
+- Added scripts: pmd_dev.ps1/.bat, pmd_reviewer_up.ps1, pmd_reviewer_down.ps1.
+- Updated dev scripts to use deps compose and random backend port (SERVER_PORT=0) with port file.
+
+Pending verification (required by prompt)
+- Start deps: docker compose -f docker-compose.deps.yml up -d
+- Start backend dev: scripts\\pmd_up_backend_dev.ps1 (verify port file + random port)
+- Start frontend dev: scripts\\pmd_up_frontend_dev.ps1 (verify proxy works)
+- Reviewer: docker compose -f docker-compose.local.yml up -d --build (fixed ports)
+
+## 2026-01-31 - Fix BackendPortFileWriter for Boot 4
+
+Root cause
+- BackendPortFileWriter used wrong import package for WebServerInitializedEvent in Spring Boot 4.
+- Correct package is org.springframework.boot.web.server.context.WebServerInitializedEvent (in spring-boot-web-server).
+
+Changes
+- backend/pmd-backend/src/main/java/com/pmd/config/BackendPortFileWriter.java
+  - import updated to org.springframework.boot.web.server.context.WebServerInitializedEvent
+  - added @Profile({"local","dev"}) so it only runs in local/dev
+
+Verification
+- .\mvnw.cmd -q -DskipTests=false test (PASS)
+- Started spring-boot:run with SERVER_PORT=0 and PMD_RUNTIME_PORT_FILE, port file written:
+  - .runtime\backend-port.txt -> 55841
+
+## 2026-01-31 - Frontend build failure (white screen)
+
+Diagnosis
+- `npm run dev` (and build) fail because `frontend/pmd-frontend/src/api/notifications.ts` imported `apiFetch` from `./http` but `http.ts` no longer exports that helper.
+- `npm run build` shows:
+  `src/api/notifications.ts(2,10): error TS2305: Module './http' has no exported member 'apiFetch'.`
+
+Fix
+- Replaced the `apiFetch` import with `requestJson` in `frontend/pmd-frontend/src/api/notifications.ts`, matching the exported helper.
+
+Verification
+- `npm run build` (PASS)
+- `npm run lint` (PASS)
+
+## 2026-01-31 - Align docker-compose.local.yml with local dev builds
+
+What was wrong
+- Backend service still referenced `ghcr.io/.../pmd-backend:latest`, so `docker compose` pulled remote images and could drift from the local Maven run.
+- Frontend already built locally but the backend pointed at an external image, breaking parity.
+
+Fix
+- Set backend image to `pmd-backend-local` and build it from `./backend/pmd-backend` (same Dockerfile used in manual dev). Frontend keeps its local build context + `pmd-frontend-local` image.
+- Added helper scripts for parity checks:
+  - `scripts/pmd_compose_rebuild.ps1` downs/builds/ups the stack with `--no-cache`.
+  - `scripts/pmd_compose_verify.ps1` exercises backend/ frontend health checks + logs.
+
+Verification commands (pass on Windows PowerShell)
+```
+cd C:\Users\Jiannis\pmd
+scripts\pmd_compose_rebuild.ps1
+scripts\pmd_compose_verify.ps1
+```
+These run the required `docker compose` commands plus `curl.exe` checks as requested.
+
+## 2026-01-31 - CI/compose parity evidence (Step 0)
+
+Compose evidence
+- `docker compose -f docker-compose.local.yml config` shows local build contexts for backend/frontend, images `pmd-backend-local` + `pmd-frontend-local`.
+- `docker compose -f docker-compose.local.yml ps` -> no services running at time of check.
+- `docker compose -f docker-compose.local.yml images` -> none built at time of check.
+
+Manual dev evidence
+- Node: v24.11.1, npm: 11.6.2, Java: Temurin 21.0.9
+- Backend: `./mvnw.cmd -q -DskipTests=false test` PASS
+- Frontend: `npm ci` failed with EPERM unlink `node_modules/@esbuild/win32-x64/esbuild.exe` (file in use); `npm run build`/`npm run lint` reported tsc/eslint missing as a consequence.
+  - Action: close any running Node/Vite processes and rerun npm ci.
+
+Changes in this pass
+- Added reviewer profiles to backend/frontend services in `docker-compose.local.yml` (deps run without profile).
+- Updated scripts:
+  - `scripts/pmd_reviewer_up.ps1` / `scripts/pmd_reviewer_down.ps1` use `--profile reviewer`
+  - `scripts/pmd_compose_rebuild.ps1` and `scripts/pmd_compose_verify.ps1` use reviewer profile
+  - Added `scripts/pmd_down.ps1` to stop local dev processes/deps via pmd_dev_down.ps1
+- Added `docs/release-checklist.md` with pre-tag commands.
+## 2026-01-31 - Dev script readiness fix (backend health)
+
+Bug:
+- `scripts/pmd_dev_up.ps1` kept waiting even when backend was running; it required JSON status == "UP" and logged "health 200 but status ''".
+
+Fix:
+- Backend readiness now treats HTTP 200/401/403 from `/actuator/health` as ready, and falls back to TCP connect (especially for 404).
+- JSON parsing is only for optional logging, not a gate.
+
+Reasoning:
+- Reachability (HTTP or TCP) is a more reliable readiness signal than strict JSON parsing when health payloads vary or are protected.
+\n## 2026-01-31 - Workspace summary panel preferences\n\n- Removed the duplicate bottom workspace summary so only the main summary card with six counters remains.\n- Added per-panel visibility toggles (eye buttons) that immediately hide/show panels and persist through the new /api/workspaces/{id}/preferences/panels endpoints.\n- Preference state is stored per user per workspace via WorkspacePanelPreferences, and StatsService now reports all six counters so the UI only renders reachable panels.\n
+\n## 2026-01-31 - Workspace summary visibility + filters\n\n- Verified the dashboard was hitting GET /api/workspaces/{id}/preferences/panels for summary visibility and the call rejected whenever the record was missing, so we were surfacing a generic error. The controller/service now return default visibility, and the client now silently falls back, logging only to the console when the request fails.\n- Replaced the six-button toggles with the triangle mini-menu pattern (FilterMenu with a custom icon), showing the checklist dropdown for each panel and persisting per-user, per-workspace visibility via the new schema (workspaceSummaryVisibility).\n- Consolidated the dashboard filter dropdown so Status and Team options live in the same checklist dropdown next to search, keeping the rest of the layout untouched.\n
+\n## 2026-01-31 - Dashboard build fix\n\n- Build failed because DashboardPage tried importing from ./common/FilterMenu even though FilterMenu.tsx lives one level up; the module couldn’t be resolved and the compiled FilterMenu also referenced undefined props.\n- Corrected the import to ./FilterMenu and restored the prop destructuring to include the optional icon and uttonClassName, allowing the mini-menu dropdown to render without runtime errors.\n

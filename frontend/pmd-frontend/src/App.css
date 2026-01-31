@@ -233,6 +233,55 @@ body {
   gap: 16px;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.settings-card {
+  min-width: 0;
+}
+
+.settings-card-body {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-scroll {
+  max-height: 380px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.settings-permissions {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-permission-group {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.settings-permission-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.settings-grid .workspace-actions .form-field {
+  margin-bottom: 0;
+}
+
+.settings-grid .workspace-actions {
+  gap: 10px;
+}
+
 .workspace-column {
   display: grid;
   gap: 12px;
@@ -247,6 +296,16 @@ body {
 @media (max-width: 900px) {
   .workspace-columns {
     grid-template-columns: 1fr;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1200px) {
+  .settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -330,6 +389,14 @@ body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.assign-project-picker .chip {
+  max-width: 220px;
+}
+
+.assign-project-picker .muted {
+  font-size: 0.85rem;
 }
 
 .invite-controls {
@@ -848,6 +915,25 @@ button {
   transform: translateY(-6px) scale(0.98);
   transition: opacity var(--motion-medium) var(--motion-ease), transform var(--motion-medium) var(--motion-ease);
   pointer-events: none;
+}
+
+.filter-extra {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-extra-row {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-extra-row label {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .filter-popover[data-state='open'] {
@@ -1405,6 +1491,41 @@ button {
   gap: 12px;
 }
 
+.workspace-summary-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workspace-summary-panels {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.workspace-summary-panel {
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+
+.workspace-summary-panel strong {
+  font-size: 1.7rem;
+}
+
+.workspace-summary-description {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 
 .dashboard-user-charts {
   display: grid;
@@ -1768,24 +1889,28 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 2px 6px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface2);
   color: var(--muted);
   cursor: pointer;
-  transition: border-color 140ms ease, color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  opacity: 0.75;
+  font-size: 0.82rem;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
 }
 
 .people-card-star:hover {
   border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
   box-shadow: var(--hover-shadow);
+  opacity: 0.95;
 }
 
 .people-card-star.is-active {
   color: var(--primary);
   border-color: color-mix(in srgb, var(--primary) 60%, var(--border));
   background: color-mix(in srgb, var(--primary) 12%, transparent);
+  opacity: 1;
 }
 
 .people-card-star-count {

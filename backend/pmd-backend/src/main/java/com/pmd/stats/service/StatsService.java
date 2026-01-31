@@ -96,6 +96,17 @@ public class StatsService {
             .filter(project -> (project.getStatus() != null ? project.getStatus() : ProjectStatus.NOT_STARTED)
                 == ProjectStatus.COMPLETED)
             .count();
+        long unassignedCount = scopedProjects.stream()
+            .filter(project -> project.getMemberIds() == null || project.getMemberIds().isEmpty())
+            .count();
+        long canceledCount = scopedProjects.stream()
+            .filter(project -> (project.getStatus() != null ? project.getStatus() : ProjectStatus.NOT_STARTED)
+                == ProjectStatus.CANCELED)
+            .count();
+        long archivedCount = scopedProjects.stream()
+            .filter(project -> (project.getStatus() != null ? project.getStatus() : ProjectStatus.NOT_STARTED)
+                == ProjectStatus.ARCHIVED)
+            .count();
 
         List<StatSlice> statusBreakdown = buildStatusBreakdown(scopedProjects);
         List<StatSlice> projectsByTeam = buildProjectsByTeam(scopedProjects, selectedTeams, teamLabels);
@@ -111,7 +122,8 @@ public class StatsService {
             );
 
         return new WorkspaceDashboardStatsResponse(
-            new DashboardCounters(assignedCount, inProgressCount, completedCount),
+            new DashboardCounters(unassignedCount, assignedCount, inProgressCount, completedCount, canceledCount,
+                archivedCount),
             pies,
             scope
         );

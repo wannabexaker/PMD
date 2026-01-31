@@ -14,6 +14,7 @@ type ControlsBarProps = {
   actions?: React.ReactNode
   filterSections?: { label: string; options: { id: string; label: string }[] }[]
   filterActive?: boolean
+  filterExtra?: React.ReactNode
 }
 
 export function ControlsBar({
@@ -29,6 +30,7 @@ export function ControlsBar({
   actions,
   filterSections,
   filterActive,
+  filterExtra,
 }: ControlsBarProps) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchVisible, setSearchVisible] = useState(false)
@@ -131,6 +133,7 @@ export function ControlsBar({
         selected={selectedFilterKeys}
         onChange={onSelectedFilterKeysChange}
         isActive={filterActive}
+        extraContent={filterExtra}
       />
       {actions ? <div className="controls-actions">{actions}</div> : null}
     </div>

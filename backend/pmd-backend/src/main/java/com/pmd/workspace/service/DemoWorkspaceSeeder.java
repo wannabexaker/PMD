@@ -134,7 +134,7 @@ public class DemoWorkspaceSeeder {
         personRepository.deleteAll(personRepository.findByWorkspaceId(workspaceId));
         teamRepository.deleteAll(teamRepository.findByWorkspaceId(workspaceId));
         workspaceInviteRepository.deleteAll(workspaceInviteRepository.findByWorkspaceId(workspaceId));
-        workspaceJoinRequestRepository.deleteAll(workspaceJoinRequestRepository.findByWorkspaceId(workspaceId));
+        workspaceJoinRequestRepository.deleteAll(workspaceJoinRequestRepository.findAllByWorkspaceId(workspaceId));
         workspaceMemberRepository.deleteAll(workspaceMemberRepository.findByWorkspaceId(workspaceId));
         workspaceRoleRepository.deleteAll(workspaceRoleRepository.findByWorkspaceId(workspaceId));
     }
