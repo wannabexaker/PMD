@@ -101,6 +101,6 @@ Always confirm the port file exists (the script waits up to 90 seconds for it) a
 | `scripts\pmd_up_backend_dev.bat` / `scripts\pmd_up_frontend_dev.bat` | Individually start backend or frontend windows (used by the menu). |
 | `docker compose -f docker-compose.deps.yml up -d` | Starts Mongo + MailHog alone when you only need the dependencies. |
 | `docker compose -f docker-compose.local.yml --profile reviewer up -d --build` | Builds/runs the full reviewer stack (backend/frontend/Mongo/MailHog) inside Docker for parity checks. |
-| `pmd.bat docker-up` / `pmd.bat docker-down` | Starts/stops the full Docker stack using the reviewer compose file. |
+| `pmd.bat docker-up` / `pmd.bat docker-down` | Starts/stops the full Docker stack; `docker-up` rebuilds images and recreates containers. |
 
 The README now reflects the current hybrid flow: dynamic backend ports, the `.runtime/backend-port.txt` contract, the PMD Control entry point, and what each Docker compose file actually provides.
