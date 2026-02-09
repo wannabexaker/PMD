@@ -38,6 +38,14 @@ if /I "%action%"=="status" (
   netstat -ano | findstr :8025
   exit /b 0
 )
+if /I "%action%"=="docker-up" (
+  call "%ROOT%scripts\pmd_reviewer_up.bat"
+  exit /b 0
+)
+if /I "%action%"=="docker-down" (
+  call "%ROOT%scripts\pmd_reviewer_down.bat"
+  exit /b 0
+)
 
 echo Usage:
 
@@ -47,6 +55,8 @@ echo Usage:
  echo pmd.bat backend   ^(start backend only^)
  echo pmd.bat frontend  ^(start frontend only^)
  echo pmd.bat status    ^(status^)
+ echo pmd.bat docker-up   ^(start full docker stack^)
+ echo pmd.bat docker-down ^(stop full docker stack^)
  exit /b 1
 
 :menu
@@ -59,6 +69,8 @@ echo [3] Start deps (mongo+mailhog)
 echo [4] Start backend
 echo [5] Start frontend
 echo [6] Status
+echo [7] Start full docker stack
+echo [8] Stop full docker stack
 echo.
 set /p choice=Select: 
 
@@ -68,5 +80,7 @@ if "%choice%"=="3" call "%ROOT%pmd.bat" deps & pause & goto menu
 if "%choice%"=="4" call "%ROOT%pmd.bat" backend & pause & goto menu
 if "%choice%"=="5" call "%ROOT%pmd.bat" frontend & pause & goto menu
 if "%choice%"=="6" call "%ROOT%pmd.bat" status & pause & goto menu
+if "%choice%"=="7" call "%ROOT%pmd.bat" docker-up & pause & goto menu
+if "%choice%"=="8" call "%ROOT%pmd.bat" docker-down & pause & goto menu
 
 goto menu
