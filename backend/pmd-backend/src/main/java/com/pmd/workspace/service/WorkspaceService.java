@@ -357,12 +357,52 @@ public class WorkspaceService {
         return request;
     }
 
-    public WorkspaceMembership updateSettings(String workspaceId, Boolean requireApproval, User requester) {
+    public WorkspaceMembership updateSettings(
+        String workspaceId,
+        Boolean requireApproval,
+        String name,
+        String slug,
+        String description,
+        String language,
+        String avatarUrl,
+        User requester
+    ) {
         WorkspaceMember member = requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_WORKSPACE_SETTINGS);
         Workspace workspace = workspaceRepository.findById(workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
         if (requireApproval != null) {
             workspace.setRequireApproval(requireApproval);
+        }
+        if (name != null) {
+            String trimmed = name.trim();
+            if (trimmed.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace name is required");
+            }
+            if (!trimmed.equalsIgnoreCase(workspace.getName())
+                && workspaceRepository.existsByNameIgnoreCaseAndIdNot(trimmed, workspace.getId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Workspace name already exists");
+            }
+            workspace.setName(trimmed);
+        }
+        if (slug != null) {
+            String normalized = slugify(slug);
+            if (normalized.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace slug is invalid");
+            }
+            if (!normalized.equalsIgnoreCase(workspace.getSlug())
+                && workspaceRepository.existsBySlugAndIdNot(normalized, workspace.getId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Workspace slug already exists");
+            }
+            workspace.setSlug(normalized);
+        }
+        if (description != null) {
+            workspace.setDescription(description.trim());
+        }
+        if (language != null) {
+            workspace.setLanguage(language.trim());
+        }
+        if (avatarUrl != null) {
+            workspace.setAvatarUrl(avatarUrl.trim());
         }
         Workspace saved = workspaceRepository.save(workspace);
         return new WorkspaceMembership(saved, member);

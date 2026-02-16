@@ -130,6 +130,9 @@ export type Workspace = {
   id?: string | null
   name?: string | null
   slug?: string | null
+  description?: string | null
+  language?: string | null
+  avatarUrl?: string | null
   role?: 'OWNER' | 'ADMIN' | 'MEMBER' | (string & {})
   roleId?: string | null
   roleName?: string | null

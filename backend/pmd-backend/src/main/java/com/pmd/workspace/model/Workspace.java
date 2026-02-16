@@ -25,11 +25,17 @@ public class Workspace {
 
     private boolean requireApproval;
 
+    private String description;
+
+    private String language;
+
+    private String avatarUrl;
+
     public Workspace() {
     }
 
     public Workspace(String id, String name, String slug, Instant createdAt, String createdByUserId, boolean demo,
-                     boolean requireApproval) {
+                     boolean requireApproval, String description, String language, String avatarUrl) {
         this.id = id;
         this.name = name;
         this.slug = slug;
@@ -37,6 +43,9 @@ public class Workspace {
         this.createdByUserId = createdByUserId;
         this.demo = demo;
         this.requireApproval = requireApproval;
+        this.description = description;
+        this.language = language;
+        this.avatarUrl = avatarUrl;
     }
 
     public String getId() {
@@ -93,5 +102,29 @@ public class Workspace {
 
     public void setRequireApproval(boolean requireApproval) {
         this.requireApproval = requireApproval;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(String language) {
+        this.language = language;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 }

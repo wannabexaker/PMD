@@ -78,7 +78,14 @@ export async function denyJoinRequest(workspaceId: string, requestId: string): P
 
 export async function updateWorkspaceSettings(
   workspaceId: string,
-  payload: { requireApproval?: boolean }
+  payload: {
+    requireApproval?: boolean
+    name?: string
+    slug?: string
+    description?: string
+    language?: string
+    avatarUrl?: string
+  }
 ): Promise<Workspace> {
   return requestJson<Workspace>(`/api/workspaces/${workspaceId}/settings`, {
     method: 'PATCH',

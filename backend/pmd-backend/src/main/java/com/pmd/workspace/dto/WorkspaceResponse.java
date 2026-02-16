@@ -18,6 +18,9 @@ public class WorkspaceResponse {
     private Instant createdAt;
     private boolean demo;
     private boolean requireApproval;
+    private String description;
+    private String language;
+    private String avatarUrl;
 
     public WorkspaceResponse() {
     }
@@ -25,7 +28,7 @@ public class WorkspaceResponse {
     public WorkspaceResponse(String id, String name, String slug, WorkspaceMemberRole role,
                              String roleId, String roleName, WorkspaceRolePermissions permissions,
                              WorkspaceMemberStatus status, Instant createdAt, boolean demo,
-                             boolean requireApproval) {
+                             boolean requireApproval, String description, String language, String avatarUrl) {
         this.id = id;
         this.name = name;
         this.slug = slug;
@@ -37,6 +40,9 @@ public class WorkspaceResponse {
         this.createdAt = createdAt;
         this.demo = demo;
         this.requireApproval = requireApproval;
+        this.description = description;
+        this.language = language;
+        this.avatarUrl = avatarUrl;
     }
 
     public String getId() {
@@ -125,5 +131,29 @@ public class WorkspaceResponse {
 
     public void setRequireApproval(boolean requireApproval) {
         this.requireApproval = requireApproval;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(String language) {
+        this.language = language;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 }

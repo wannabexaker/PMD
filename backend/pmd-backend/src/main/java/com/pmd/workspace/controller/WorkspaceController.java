@@ -187,7 +187,16 @@ public class WorkspaceController {
                                             @RequestBody WorkspaceSettingsRequest request,
                                             Authentication authentication) {
         User requester = getRequester(authentication);
-        WorkspaceMembership membership = workspaceService.updateSettings(id, request.getRequireApproval(), requester);
+        WorkspaceMembership membership = workspaceService.updateSettings(
+            id,
+            request.getRequireApproval(),
+            request.getName(),
+            request.getSlug(),
+            request.getDescription(),
+            request.getLanguage(),
+            request.getAvatarUrl(),
+            requester
+        );
         return toResponse(membership);
     }
 
@@ -229,7 +238,10 @@ public class WorkspaceController {
             membership.member().getStatus(),
             membership.workspace().getCreatedAt(),
             membership.workspace().isDemo(),
-            membership.workspace().isRequireApproval()
+            membership.workspace().isRequireApproval(),
+            membership.workspace().getDescription(),
+            membership.workspace().getLanguage(),
+            membership.workspace().getAvatarUrl()
         );
     }
 

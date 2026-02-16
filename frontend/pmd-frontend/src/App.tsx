@@ -33,6 +33,19 @@ import {
 } from './ui/uiSelectionStore'
 import './App.css'
 
+function toLandingPath(preferences: ReturnType<typeof loadUiPreferences>) {
+  switch (preferences.defaultLandingPage) {
+    case 'assign':
+      return '/assign'
+    case 'people':
+      return '/people'
+    case 'settings':
+      return '/settings'
+    default:
+      return '/dashboard'
+  }
+}
+
 function App() {
   return <AppStateful />
 }
@@ -174,16 +187,20 @@ function AppView({
   backendMessage,
   setBackendMessage,
 }: AppViewProps) {
-  const { activeWorkspaceId, activeWorkspace, workspaces, setActiveWorkspaceId } = useWorkspace()
+  const { activeWorkspaceId, activeWorkspace, workspaces, loading: workspaceLoading, setActiveWorkspaceId } = useWorkspace()
   const location = useLocation()
   const navigate = useNavigate()
   const previousPathRef = useRef<string>(location.pathname)
   const isAuthed = Boolean(currentUser)
   const isAdmin = Boolean(currentUser?.isAdmin)
   const isAssignRoute = location.pathname === '/assign'
+  const isSettingsRoute = location.pathname === '/settings'
+  const isPeopleRoute = location.pathname === '/people'
+  const isDashboardRoute = location.pathname === '/dashboard'
   const backendOffline = backendStatus === 'offline'
   const hasWorkspace = Boolean(activeWorkspaceId)
-  const workspaceRequired = isAuthed && !hasWorkspace
+  const workspaceRequired = isAuthed && !hasWorkspace && !workspaceLoading
+  const landingPath = toLandingPath(uiPreferences)
 
   const loadMe = useCallback(async () => {
     setAuthError(null)
@@ -456,7 +473,7 @@ function AppView({
       setDashboardSelectedProjectIdState(null)
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
-      navigate('/dashboard')
+      navigate(landingPath)
     } catch (err) {
       if (isApiError(err)) {
         if (err.status === 401) {
@@ -724,7 +741,7 @@ function AppView({
         </nav>
       </aside>
 
-      <main className={`container${isAssignRoute ? ' container-full' : ''}`}>
+      <main className={`container${isAssignRoute || isSettingsRoute || isPeopleRoute || isDashboardRoute ? ' container-full' : ''}`}>
         {backendOffline ? (
           <div className="banner warning" role="status">
             {backendMessage ?? `Backend unreachable (${API_BASE_URL}).`}
@@ -747,7 +764,7 @@ function AppView({
           </div>
         ) : null}
         <Routes>
-          <Route path="/" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
+          <Route path="/" element={<Navigate to={isAuthed ? landingPath : '/login'} replace />} />
           <Route
             path="/dashboard"
             element={
@@ -774,6 +791,8 @@ function AppView({
                     />
                   )}
                 </>
+                ) : workspaceLoading ? (
+                  <PmdLoader size="md" variant="panel" />
                 ) : (
                   <Navigate to="/settings" replace />
                 )
@@ -812,6 +831,8 @@ function AppView({
                     />
                   )}
                 </>
+                ) : workspaceLoading ? (
+                  <PmdLoader size="md" variant="panel" />
                 ) : (
                   <Navigate to="/settings" replace />
                 )
@@ -840,6 +861,8 @@ function AppView({
                     />
                   ) : null}
                 </>
+                ) : workspaceLoading ? (
+                  <PmdLoader size="md" variant="panel" />
                 ) : (
                   <Navigate to="/settings" replace />
                 )
@@ -854,6 +877,8 @@ function AppView({
               isAuthed ? (
                 hasWorkspace && isAdmin ? (
                   <AdminPanel users={users} projects={projects} />
+                ) : workspaceLoading ? (
+                  <PmdLoader size="md" variant="panel" />
                 ) : hasWorkspace ? (
                   <Navigate to="/dashboard" replace />
                 ) : (
@@ -869,7 +894,9 @@ function AppView({
             element={
               isAuthed ? (
                 hasWorkspace && currentUser ? (
-                  <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate('/dashboard')} />
+                  <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate(landingPath)} />
+                ) : workspaceLoading ? (
+                  <PmdLoader size="md" variant="panel" />
                 ) : (
                   <Navigate to="/settings" replace />
                 )
@@ -892,7 +919,7 @@ function AppView({
             path="/login"
             element={
               isAuthed ? (
-                <Navigate to="/dashboard" replace />
+                <Navigate to={landingPath} replace />
               ) : (
                 <LoginForm
                   onLogin={handleLogin}
@@ -907,7 +934,7 @@ function AppView({
             path="/register"
             element={
               isAuthed ? (
-                <Navigate to="/dashboard" replace />
+                <Navigate to={landingPath} replace />
               ) : (
                 <RegisterForm
                   onRegister={handleRegister}
@@ -919,7 +946,7 @@ function AppView({
             }
           />
           <Route path="/confirm-email" element={<ConfirmEmailPage />} />
-          <Route path="*" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
+          <Route path="*" element={<Navigate to={isAuthed ? landingPath : '/login'} replace />} />
         </Routes>
       </main>
     </>

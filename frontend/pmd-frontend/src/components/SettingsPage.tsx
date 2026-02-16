@@ -1,4 +1,4 @@
-import type { UiPreferences } from '../ui/uiPreferences'
+ï»¿import type { UiPreferences } from '../ui/uiPreferences'
 import { useToast } from '../shared/ui/toast/ToastProvider'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
@@ -19,7 +19,35 @@ import {
 } from '../api/workspaces'
 import { fetchUsers } from '../api/users'
 import type { WorkspaceInvite, WorkspaceJoinRequest, WorkspaceRole, WorkspacePermissions, UserSummary, NotificationPreferences } from '../types'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
+
+type SettingsPanelId = 'preferences' | 'workspaces' | 'teams' | 'notifications' | 'roles'
+
+const SETTINGS_PANEL_IDS: SettingsPanelId[] = ['workspaces', 'teams', 'roles', 'preferences', 'notifications']
+
+const SETTINGS_PANEL_ORDER_DEFAULT: SettingsPanelId[] = [
+  'workspaces',
+  'teams',
+  'roles',
+  'preferences',
+  'notifications',
+]
+
+const PANEL_MIN_HEIGHT: Record<SettingsPanelId, number> = {
+  preferences: 260,
+  workspaces: 380,
+  teams: 380,
+  notifications: 340,
+  roles: 420,
+}
+
+const PANEL_MAX_HEIGHT: Record<SettingsPanelId, number> = {
+  preferences: 560,
+  workspaces: 900,
+  teams: 900,
+  notifications: 820,
+  roles: 960,
+}
 
 const ROLE_PERMISSION_GROUPS: { label: string; items: { key: keyof WorkspacePermissions; label: string }[] }[] = [
   {
@@ -67,6 +95,67 @@ const DEFAULT_ROLE_PERMISSIONS: WorkspacePermissions = {
   manageWorkspaceSettings: false,
 }
 
+function getSystemRoleDefaults(roleName?: string | null): WorkspacePermissions {
+  const normalized = (roleName ?? '').trim().toLocaleLowerCase()
+  if (normalized === 'owner') {
+    return {
+      inviteMembers: true,
+      approveJoinRequests: true,
+      manageRoles: true,
+      manageTeams: true,
+      createProject: true,
+      editProject: true,
+      deleteProject: true,
+      assignPeople: true,
+      viewStats: true,
+      manageWorkspaceSettings: true,
+    }
+  }
+  if (normalized === 'manager') {
+    return {
+      inviteMembers: true,
+      approveJoinRequests: true,
+      manageRoles: false,
+      manageTeams: true,
+      createProject: true,
+      editProject: true,
+      deleteProject: true,
+      assignPeople: true,
+      viewStats: true,
+      manageWorkspaceSettings: true,
+    }
+  }
+  if (normalized === 'member') {
+    return {
+      inviteMembers: true,
+      approveJoinRequests: false,
+      manageRoles: false,
+      manageTeams: false,
+      createProject: true,
+      editProject: true,
+      deleteProject: false,
+      assignPeople: true,
+      viewStats: true,
+      manageWorkspaceSettings: false,
+    }
+  }
+  if (normalized === 'viewer') {
+    return {
+      inviteMembers: false,
+      approveJoinRequests: false,
+      manageRoles: false,
+      manageTeams: false,
+      createProject: false,
+      editProject: false,
+      deleteProject: false,
+      assignPeople: false,
+      viewStats: true,
+      manageWorkspaceSettings: false,
+    }
+  }
+  return { ...DEFAULT_ROLE_PERMISSIONS }
+}
+
 const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   emailOnAssign: true,
   emailOnMentionUser: true,
@@ -106,9 +195,15 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [requests, setRequests] = useState<WorkspaceJoinRequest[]>([])
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [settingsBusy, setSettingsBusy] = useState(false)
+  const [workspaceProfileName, setWorkspaceProfileName] = useState('')
+  const [workspaceProfileSlug, setWorkspaceProfileSlug] = useState('')
+  const [workspaceProfileLanguage, setWorkspaceProfileLanguage] = useState('')
+  const [workspaceProfileAvatarUrl, setWorkspaceProfileAvatarUrl] = useState('')
+  const [workspaceProfileDescription, setWorkspaceProfileDescription] = useState('')
   const [teamName, setTeamName] = useState('')
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [editingTeamName, setEditingTeamName] = useState('')
+  const [editingTeamAction, setEditingTeamAction] = useState<'rename' | 'delete' | 'toggle' | null>(null)
   const [teamError, setTeamError] = useState<string | null>(null)
   const [roles, setRoles] = useState<WorkspaceRole[]>([])
   const [rolesLoading, setRolesLoading] = useState(false)
@@ -117,6 +212,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [rolePermissions, setRolePermissions] = useState<WorkspacePermissions>({ ...DEFAULT_ROLE_PERMISSIONS })
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
   const [editingRoleName, setEditingRoleName] = useState('')
+  const [editingRoleAction, setEditingRoleAction] = useState<'rename' | 'permissions' | 'reset' | null>(null)
   const [editingRolePermissions, setEditingRolePermissions] = useState<WorkspacePermissions>({
     ...DEFAULT_ROLE_PERMISSIONS,
   })
@@ -126,6 +222,39 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [assignRoleId, setAssignRoleId] = useState('')
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences | null>(null)
   const [notificationBusy, setNotificationBusy] = useState(false)
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
+  const [panelOrder, setPanelOrder] = useState<SettingsPanelId[]>(SETTINGS_PANEL_ORDER_DEFAULT)
+  const [draggingPanel, setDraggingPanel] = useState<SettingsPanelId | null>(null)
+  const [dragOverPanel, setDragOverPanel] = useState<SettingsPanelId | 'end' | null>(null)
+  const [orderMenuPanel, setOrderMenuPanel] = useState<SettingsPanelId | null>(null)
+  const [orderTargetPosition, setOrderTargetPosition] = useState(1)
+  const [panelHeights, setPanelHeights] = useState<Record<SettingsPanelId, number>>({
+    preferences: 320,
+    workspaces: 620,
+    teams: 620,
+    notifications: 520,
+    roles: 700,
+  })
+  const [panelRowSpans, setPanelRowSpans] = useState<Record<SettingsPanelId, number>>({
+    preferences: 1,
+    workspaces: 1,
+    teams: 1,
+    notifications: 1,
+    roles: 1,
+  })
+  const [activeResize, setActiveResize] = useState<{
+    id: SettingsPanelId
+    edge: 'top' | 'bottom'
+    startY: number
+    startHeight: number
+  } | null>(null)
+  const panelRefs = useRef<Record<SettingsPanelId, HTMLDivElement | null>>({
+    preferences: null,
+    workspaces: null,
+    teams: null,
+    notifications: null,
+    roles: null,
+  })
 
   const sortedWorkspaces = useMemo(
     () => [...workspaces].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
@@ -142,6 +271,94 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const canManageRoles = Boolean(permissions.manageRoles) || isAdmin || Boolean(activeWorkspace?.demo)
   const canEditTeams = canManageTeams && Boolean(activeWorkspaceId)
   const canEditRoles = canManageRoles && Boolean(activeWorkspaceId)
+  const workspaceRole = `${activeWorkspace?.roleName ?? activeWorkspace?.role ?? ''}`.toLocaleLowerCase()
+  const canCreateTeamsByRole =
+    isAdmin || workspaceRole.includes('owner') || workspaceRole.includes('manager') || workspaceRole.includes('admin')
+  const canCreateTeams = canEditTeams && canCreateTeamsByRole
+
+  const teamMemberCountById = useMemo(() => {
+    const counts = new Map<string, number>()
+    members.forEach((member) => {
+      const teamId = member.teamId ?? ''
+      if (!teamId) return
+      counts.set(teamId, (counts.get(teamId) ?? 0) + 1)
+    })
+    return counts
+  }, [members])
+
+  const roleMemberCountByName = useMemo(() => {
+    const counts = new Map<string, number>()
+    members.forEach((member) => {
+      const roleName = (member.roleName ?? '').trim().toLocaleLowerCase()
+      if (!roleName) return
+      counts.set(roleName, (counts.get(roleName) ?? 0) + 1)
+    })
+    return counts
+  }, [members])
+
+  const editingRole = useMemo(
+    () => roles.find((role) => role.id === editingRoleId) ?? null,
+    [roles, editingRoleId]
+  )
+
+  const movePanel = useCallback((sourceId: SettingsPanelId, targetId: SettingsPanelId | 'end') => {
+    if (sourceId === targetId) return
+    setPanelOrder((prev) => {
+      const sourceIndex = prev.indexOf(sourceId)
+      if (sourceIndex === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(sourceIndex, 1)
+      const targetIndex = targetId === 'end' ? next.length : next.indexOf(targetId)
+      if (targetIndex === -1) return prev
+      next.splice(targetIndex, 0, moved)
+      return next
+    })
+  }, [])
+
+  const movePanelToPosition = useCallback((sourceId: SettingsPanelId, targetPosition: number) => {
+    setPanelOrder((prev) => {
+      const sourceIndex = prev.indexOf(sourceId)
+      if (sourceIndex === -1) return prev
+      const targetIndex = Math.max(0, Math.min(prev.length - 1, targetPosition - 1))
+      if (sourceIndex === targetIndex) return prev
+      const next = [...prev]
+      const [moved] = next.splice(sourceIndex, 1)
+      next.splice(targetIndex, 0, moved)
+      return next
+    })
+  }, [])
+
+  const setPanelRef = useCallback(
+    (id: SettingsPanelId) => (node: HTMLDivElement | null) => {
+      panelRefs.current[id] = node
+    },
+    []
+  )
+
+  const panelCardStyle = useCallback(
+    (id: SettingsPanelId) => ({
+      order: panelOrder.indexOf(id) + 1,
+      height: `${panelHeights[id]}px`,
+      gridRowEnd: `span ${panelRowSpans[id]}`,
+    }),
+    [panelHeights, panelOrder, panelRowSpans]
+  )
+
+  const handleResizeStart = useCallback(
+    (id: SettingsPanelId, edge: 'top' | 'bottom') =>
+      (event: ReactMouseEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        const card = event.currentTarget.closest('.settings-card') as HTMLElement | null
+        const fallbackHeight = card?.getBoundingClientRect().height ?? 700
+        setActiveResize({
+          id,
+          edge,
+          startY: event.clientY,
+          startHeight: panelHeights[id] ?? fallbackHeight,
+        })
+      },
+    [panelHeights]
+  )
 
   const parseInviteToken = (value: string) => {
     const trimmed = value.trim()
@@ -378,18 +595,33 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   }, [activeWorkspaceId, canApproveRequests, loadRequests])
 
   useEffect(() => {
+    setWorkspaceProfileName(activeWorkspace?.name ?? '')
+    setWorkspaceProfileSlug(activeWorkspace?.slug ?? '')
+    setWorkspaceProfileLanguage(activeWorkspace?.language ?? '')
+    setWorkspaceProfileAvatarUrl(activeWorkspace?.avatarUrl ?? '')
+    setWorkspaceProfileDescription(activeWorkspace?.description ?? '')
+  }, [
+    activeWorkspace?.id,
+    activeWorkspace?.name,
+    activeWorkspace?.slug,
+    activeWorkspace?.language,
+    activeWorkspace?.avatarUrl,
+    activeWorkspace?.description,
+  ])
+
+  useEffect(() => {
     if (!activeWorkspaceId) {
       setRoles([])
       setMembers([])
       return
     }
     loadRoles(activeWorkspaceId)
-    if (canManageRoles) {
+    if (canManageRoles || canManageTeams) {
       loadMembers(activeWorkspaceId)
     } else {
       setMembers([])
     }
-  }, [activeWorkspaceId, canManageRoles, loadMembers, loadRoles])
+  }, [activeWorkspaceId, canManageRoles, canManageTeams, loadMembers, loadRoles])
 
   useEffect(() => {
     if (!user?.id) {
@@ -410,6 +642,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       })
   }, [user?.id, showToast])
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setBrowserPermission('unsupported')
+      return
+    }
+    setBrowserPermission(Notification.permission)
+  }, [])
+
   const handleAddInitialTeam = () => {
     setInitialTeams((prev) => [...prev, ''])
   }
@@ -423,6 +663,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   }
 
   const handleCreateTeam = async () => {
+    if (!canCreateTeams) {
+      setTeamError('Only workspace owner/manager can create a team.')
+      return
+    }
     const name = teamName.trim()
     if (name.length < 2 || name.length > 40) {
       setTeamError('Team name must be 2-40 characters.')
@@ -443,26 +687,81 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     if (!id) return
     setEditingTeamId(id)
     setEditingTeamName(name ?? '')
+    setEditingTeamAction(null)
+    setTeamError(null)
+  }
+
+  const handleCancelEditTeam = () => {
+    setEditingTeamId(null)
+    setEditingTeamName('')
+    setEditingTeamAction(null)
+    setTeamError(null)
   }
 
   const handleSaveTeam = async () => {
-    if (!editingTeamId) return
+    if (!editingTeamId || !canEditTeams) return
     const name = editingTeamName.trim()
     if (name.length < 2 || name.length > 40) {
       setTeamError('Team name must be 2-40 characters.')
       return
     }
+    const duplicate = teams.some(
+      (team) => team.id !== editingTeamId && (team.name ?? '').trim().toLocaleLowerCase() === name.toLocaleLowerCase()
+    )
+    if (duplicate) {
+      setTeamError('Team name already exists.')
+      return
+    }
     const updated = await updateTeam(editingTeamId, { name })
     if (updated?.id) {
-      setEditingTeamId(null)
-      setEditingTeamName('')
-      setTeamError(null)
+      handleCancelEditTeam()
       await refreshTeams()
       showToast({ type: 'success', message: 'Team updated.' })
     } else {
+      setTeamError('Failed to update team. Check permissions or try a different name.')
       showToast({ type: 'error', message: 'Failed to update team.' })
     }
   }
+
+  const handleSaveWorkspaceProfile = async () => {
+    if (!activeWorkspaceId || !canManageWorkspaceSettings) return
+    const trimmedName = workspaceProfileName.trim()
+    if (!trimmedName) {
+      showToast({ type: 'error', message: 'Workspace name is required.' })
+      return
+    }
+    setSettingsBusy(true)
+    try {
+      await updateWorkspaceSettings(activeWorkspaceId, {
+        name: trimmedName,
+        slug: workspaceProfileSlug.trim() || undefined,
+        language: workspaceProfileLanguage.trim() || undefined,
+        avatarUrl: workspaceProfileAvatarUrl.trim() || undefined,
+        description: workspaceProfileDescription.trim(),
+      })
+      await refresh()
+      showToast({ type: 'success', message: 'Workspace profile updated.' })
+    } catch {
+      showToast({ type: 'error', message: 'Failed to update workspace profile.' })
+    } finally {
+      setSettingsBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!editingTeamId) return
+    if (!canEditTeams || !teams.some((team) => team.id === editingTeamId)) {
+      handleCancelEditTeam()
+    }
+  }, [canEditTeams, editingTeamId, teams])
+
+  useEffect(() => {
+    if (!editingRoleId) return
+    if (!canEditRoles || !roles.some((role) => role.id === editingRoleId)) {
+      handleCancelEditRole()
+    }
+  }, [canEditRoles, editingRoleId, roles])
+
   const handleToggleTeamActive = async (teamId?: string | null, nextActive?: boolean) => {
     if (!teamId) return
     const updated = await updateTeam(teamId, { isActive: nextActive ?? false })
@@ -471,6 +770,23 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       showToast({ type: "success", message: updated.isActive === false ? "Team deactivated." : "Team restored." })
     } else {
       showToast({ type: "error", message: "Failed to update team." })
+    }
+  }
+
+  const handleConfirmTeamAction = async (teamId?: string | null, currentActive?: boolean | null) => {
+    if (!teamId || !editingTeamAction || !canEditTeams) return
+    if (editingTeamAction === 'rename') {
+      await handleSaveTeam()
+      return
+    }
+    if (editingTeamAction === 'delete') {
+      await handleToggleTeamActive(teamId, false)
+      handleCancelEditTeam()
+      return
+    }
+    if (editingTeamAction === 'toggle') {
+      await handleToggleTeamActive(teamId, !(currentActive ?? true))
+      handleCancelEditTeam()
     }
   }
 
@@ -486,6 +802,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     setEditingRoleId(role.id)
     setEditingRoleName(role.name ?? '')
     setEditingRolePermissions(normalizePermissions(role.permissions))
+    setEditingRoleAction(null)
+  }
+
+  const handleCancelEditRole = () => {
+    setEditingRoleId(null)
+    setEditingRoleName('')
+    setEditingRolePermissions({ ...DEFAULT_ROLE_PERMISSIONS })
+    setEditingRoleAction(null)
   }
 
   const handleCreateRole = async () => {
@@ -509,6 +833,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const handleSaveRole = async () => {
     if (!activeWorkspaceId || !editingRoleId) return
     const name = editingRoleName.trim()
+    if (editingRole?.system && editingRole.name && name.toLocaleLowerCase() !== editingRole.name.toLocaleLowerCase()) {
+      showToast({ type: 'error', message: 'System/demo role name cannot be changed.' })
+      return
+    }
     if (name.length < 2 || name.length > 40) {
       showToast({ type: 'error', message: 'Role name must be 2-40 characters.' })
       return
@@ -518,14 +846,36 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
         name,
         permissions: editingRolePermissions,
       })
-      setEditingRoleId(null)
-      setEditingRoleName('')
-      setEditingRolePermissions({ ...DEFAULT_ROLE_PERMISSIONS })
+      handleCancelEditRole()
       await loadRoles(activeWorkspaceId)
       showToast({ type: 'success', message: 'Role updated.' })
     } catch {
       showToast({ type: 'error', message: 'Failed to update role.' })
     }
+  }
+
+  const handleResetRoleDefaults = async () => {
+    if (!activeWorkspaceId || !editingRoleId || !editingRole?.system) return
+    try {
+      const defaults = getSystemRoleDefaults(editingRole.name)
+      await updateRole(activeWorkspaceId, editingRoleId, {
+        permissions: defaults,
+      })
+      setEditingRolePermissions(defaults)
+      await loadRoles(activeWorkspaceId)
+      showToast({ type: 'success', message: 'Demo role permissions reset.' })
+    } catch {
+      showToast({ type: 'error', message: 'Failed to reset role defaults.' })
+    }
+  }
+
+  const handleConfirmRoleAction = async () => {
+    if (!editingRoleAction) return
+    if (editingRoleAction === 'reset') {
+      await handleResetRoleDefaults()
+      return
+    }
+    await handleSaveRole()
   }
 
   const handleAssignRole = async () => {
@@ -570,75 +920,406 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     }
   }
 
+  const handleEnableBrowserNotifications = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      showToast({ type: 'error', message: 'Browser notifications are not supported.' })
+      return
+    }
+    try {
+      const result = await Notification.requestPermission()
+      setBrowserPermission(result)
+      showToast({
+        type: result === 'granted' ? 'success' : 'info',
+        message: result === 'granted' ? 'Browser notifications enabled.' : 'Browser notifications not granted.',
+      })
+    } catch {
+      showToast({ type: 'error', message: 'Failed to request browser notification permission.' })
+    }
+  }
+
+  useEffect(() => {
+    if (!activeResize) return
+    const handleMouseMove = (event: MouseEvent) => {
+      const delta = event.clientY - activeResize.startY
+      const rawHeight = activeResize.edge === 'bottom' ? activeResize.startHeight + delta : activeResize.startHeight - delta
+      const nextHeight = Math.max(PANEL_MIN_HEIGHT[activeResize.id], Math.min(PANEL_MAX_HEIGHT[activeResize.id], Math.round(rawHeight)))
+      setPanelHeights((prev) => ({ ...prev, [activeResize.id]: nextHeight }))
+    }
+    const handleMouseUp = () => setActiveResize(null)
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [activeResize])
+
+  useEffect(() => {
+    if (activeResize) return
+    const fitPanel = (id: SettingsPanelId) => {
+      const card = panelRefs.current[id]
+      if (!card) return
+      const header = card.querySelector('.panel-header') as HTMLElement | null
+      const body = card.querySelector('.settings-card-body') as HTMLElement | null
+      if (!header || !body) return
+      const desired = header.offsetHeight + body.scrollHeight + 28
+      const nextHeight = Math.max(PANEL_MIN_HEIGHT[id], Math.min(PANEL_MAX_HEIGHT[id], Math.round(desired)))
+      setPanelHeights((prev) => (prev[id] === nextHeight ? prev : { ...prev, [id]: nextHeight }))
+    }
+    const raf = window.requestAnimationFrame(() => {
+      SETTINGS_PANEL_IDS.forEach((id) => fitPanel(id))
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [
+    activeResize,
+    panelOrder,
+    userWorkspaces.length,
+    demoWorkspaces.length,
+    invites.length,
+    requests.length,
+    teams.length,
+    roles.length,
+    members.length,
+    notificationPreferences,
+    workspaceName,
+    teamName,
+    roleName,
+    editingTeamId,
+    editingRoleId,
+  ])
+
+  useEffect(() => {
+    if (!orderMenuPanel) return
+    const handleDocumentClick = () => setOrderMenuPanel(null)
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOrderMenuPanel(null)
+      }
+    }
+    window.addEventListener('click', handleDocumentClick)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('click', handleDocumentClick)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [orderMenuPanel])
+
+  useEffect(() => {
+    const grid = document.querySelector('.settings-grid') as HTMLElement | null
+    if (!grid) return
+    const styles = window.getComputedStyle(grid)
+    const rowHeight = Number.parseFloat(styles.getPropertyValue('grid-auto-rows')) || 8
+    const rowGap = Number.parseFloat(styles.getPropertyValue('row-gap')) || 16
+    const nextSpans: Record<SettingsPanelId, number> = {
+      preferences: 1,
+      workspaces: 1,
+      teams: 1,
+      notifications: 1,
+      roles: 1,
+    }
+    SETTINGS_PANEL_IDS.forEach((id) => {
+      const card = panelRefs.current[id]
+      if (!card) return
+      const height = card.getBoundingClientRect().height
+      const span = Math.max(1, Math.ceil((height + rowGap) / (rowHeight + rowGap)))
+      nextSpans[id] = span
+    })
+    setPanelRowSpans((prev) => {
+      const changed = SETTINGS_PANEL_IDS.some((id) => prev[id] !== nextSpans[id])
+      return changed ? nextSpans : prev
+    })
+  }, [panelHeights, panelOrder, draggingPanel, dragOverPanel])
+
+  const handlePanelDragStart = useCallback(
+    (id: SettingsPanelId) =>
+      (event: DragEvent<HTMLElement>) => {
+        setDraggingPanel(id)
+        setOrderMenuPanel(null)
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('text/plain', id)
+      },
+    []
+  )
+
+  const handlePanelDragOver = useCallback(
+    (targetId: SettingsPanelId | 'end') =>
+      (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+        setDragOverPanel(targetId)
+      },
+    []
+  )
+
+  const handlePanelDrop = useCallback(
+    (targetId: SettingsPanelId | 'end') =>
+      (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        const sourceId = (event.dataTransfer.getData('text/plain') || draggingPanel) as SettingsPanelId | null
+        if (sourceId && sourceId !== targetId) {
+          movePanel(sourceId, targetId)
+        }
+        setDraggingPanel(null)
+        setDragOverPanel(null)
+      },
+    [draggingPanel, movePanel]
+  )
+
+  const openOrderMenu = useCallback(
+    (id: SettingsPanelId) => {
+      setOrderMenuPanel((prev) => (prev === id ? null : id))
+      setOrderTargetPosition(panelOrder.indexOf(id) + 1)
+    },
+    [panelOrder]
+  )
+
+  const applyOrderMove = useCallback(
+    (id: SettingsPanelId) => {
+      movePanelToPosition(id, orderTargetPosition)
+      setOrderMenuPanel(null)
+    },
+    [movePanelToPosition, orderTargetPosition]
+  )
+
+  const renderOrderControl = (id: SettingsPanelId, label: string) => (
+    <div className="settings-order-control">
+      <button
+        type="button"
+        className="settings-drag-icon"
+        draggable
+        onDragStart={handlePanelDragStart(id)}
+        onDragEnd={() => {
+          setDraggingPanel(null)
+          setDragOverPanel(null)
+        }}
+        onClick={(event) => {
+          event.stopPropagation()
+          openOrderMenu(id)
+        }}
+        title="Drag to reorder or click to set position"
+        aria-label={`Reorder ${label} panel`}
+      >
+        ::
+      </button>
+      {orderMenuPanel === id ? (
+        <div className="settings-order-popover" onClick={(event) => event.stopPropagation()}>
+          <label htmlFor={`panel-order-${id}`}>Move to position</label>
+          <div className="settings-order-row">
+            <select
+              id={`panel-order-${id}`}
+              value={orderTargetPosition}
+              onChange={(event) => setOrderTargetPosition(Number(event.target.value))}
+            >
+              {panelOrder.map((_, index) => (
+                <option key={`${id}-pos-${index + 1}`} value={index + 1}>
+                  {index + 1}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="btn btn-secondary" onClick={() => applyOrderMove(id)}>
+              Move
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setOrderMenuPanel(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+
 
   return (
-    <section className="panel">
+    <section className="panel settings-page-panel">
       <div className="panel-header">
         <div>
           <h2>Settings</h2>
-          <p className="muted">Control how selections persist while you navigate.</p>
-        </div>
-      </div>
-      <div className="card">
-        <div className="form-field">
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={preferences.rememberDashboardProject}
-              onChange={(event) =>
-                onChange({
-                  ...preferences,
-                  rememberDashboardProject: event.target.checked,
-                })
-              }
-            />
-            <span>Remember selected project on Dashboard</span>
-          </label>
-        </div>
-        <div className="form-field">
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={preferences.rememberAssignProject}
-              onChange={(event) =>
-                onChange({
-                  ...preferences,
-                  rememberAssignProject: event.target.checked,
-                })
-              }
-            />
-            <span>Remember selected project on Assign</span>
-          </label>
-        </div>
-        <div className="form-field">
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={preferences.rememberPeopleSelection}
-              onChange={(event) =>
-                onChange({
-                  ...preferences,
-                  rememberPeopleSelection: event.target.checked,
-                })
-              }
-            />
-            <span>Remember selections on People</span>
-          </label>
         </div>
       </div>
       <div className="settings-grid">
-        <div className="card settings-card">
-          <div className="panel-header">
+        <div
+          className={`card settings-card settings-card-compact${dragOverPanel === 'preferences' ? ' is-drop-target' : ''}`}
+          ref={setPanelRef('preferences')}
+          style={panelCardStyle('preferences')}
+          onDragOver={handlePanelDragOver('preferences')}
+          onDrop={handlePanelDrop('preferences')}
+          onDragLeave={() => setDragOverPanel((prev) => (prev === 'preferences' ? null : prev))}
+        >
+          <div className="settings-resize-handle top" onMouseDown={handleResizeStart('preferences', 'top')} />
+          <div className="panel-header settings-card-handle">
+            <div>
+              <h3>Preferences</h3>
+            </div>
+            {renderOrderControl('preferences', 'Preferences')}
+          </div>
+          <div className="settings-card-body">
+            <div className="workspace-group">
+              <div className="form-field">
+                <label htmlFor="prefDefaultLanding">Default landing page</label>
+                <select
+                  id="prefDefaultLanding"
+                  value={preferences.defaultLandingPage}
+                  onChange={(event) =>
+                    onChange({
+                      ...preferences,
+                      defaultLandingPage: event.target.value as typeof preferences.defaultLandingPage,
+                    })
+                  }
+                >
+                  <option value="dashboard">Dashboard</option>
+                  <option value="assign">Assign</option>
+                  <option value="people">People</option>
+                  <option value="settings">Settings</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={preferences.rememberDashboardProject}
+                    onChange={(event) =>
+                      onChange({
+                        ...preferences,
+                        rememberDashboardProject: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Remember selected project on Dashboard</span>
+                </label>
+              </div>
+              <div className="form-field">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={preferences.rememberAssignProject}
+                    onChange={(event) =>
+                      onChange({
+                        ...preferences,
+                        rememberAssignProject: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Remember selected project on Assign</span>
+                </label>
+              </div>
+              <div className="form-field">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={preferences.rememberPeopleSelection}
+                    onChange={(event) =>
+                      onChange({
+                        ...preferences,
+                        rememberPeopleSelection: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Remember selections on People</span>
+                </label>
+              </div>
+              <div className="form-field">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={preferences.confirmDestructiveActions}
+                    onChange={(event) =>
+                      onChange({
+                        ...preferences,
+                        confirmDestructiveActions: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Confirm destructive actions</span>
+                </label>
+              </div>
+              <div className="form-field">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={preferences.keyboardShortcutsEnabled}
+                    onChange={(event) =>
+                      onChange({
+                        ...preferences,
+                        keyboardShortcutsEnabled: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Enable keyboard shortcuts</span>
+                </label>
+              </div>
+              <div className="form-field">
+                <label htmlFor="prefDateTimeFormat">Date/time format</label>
+                <select
+                  id="prefDateTimeFormat"
+                  value={preferences.dateTimeFormat}
+                  onChange={(event) =>
+                    onChange({
+                      ...preferences,
+                      dateTimeFormat: event.target.value as typeof preferences.dateTimeFormat,
+                    })
+                  }
+                >
+                  <option value="24h">24-hour</option>
+                  <option value="12h">12-hour</option>
+                </select>
+              </div>
+              <div className="workspace-divider" />
+              <div className="workspace-group-header">
+                <h4>Coming soon</h4>
+              </div>
+              <div className="form-field coming-soon-control" title="Coming soon">
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={preferences.compactMode} disabled />
+                  <span>Compact mode</span>
+                </label>
+                <span className="pill coming-soon-pill">Soon</span>
+              </div>
+              <div className="form-field coming-soon-control" title="Coming soon">
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={preferences.rememberOpenPanels} disabled />
+                  <span>Remember open panels</span>
+                </label>
+                <span className="pill coming-soon-pill">Soon</span>
+              </div>
+              <div className="form-field coming-soon-control" title="Coming soon">
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={preferences.defaultFiltersPreset} disabled />
+                  <span>Default filters preset</span>
+                </label>
+                <span className="pill coming-soon-pill">Soon</span>
+              </div>
+              <div className="form-field coming-soon-control" title="Coming soon">
+                <label htmlFor="prefAutoRefresh">Auto-refresh interval</label>
+                <select id="prefAutoRefresh" value={preferences.autoRefreshIntervalSeconds} disabled>
+                  <option value={0}>Off</option>
+                  <option value={30}>30s</option>
+                  <option value={60}>60s</option>
+                </select>
+                <span className="pill coming-soon-pill">Soon</span>
+              </div>
+            </div>
+          </div>
+          <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('preferences', 'bottom')} />
+        </div>
+        <div
+          className={`card settings-card${dragOverPanel === 'workspaces' ? ' is-drop-target' : ''}`}
+          ref={setPanelRef('workspaces')}
+          style={panelCardStyle('workspaces')}
+          onDragOver={handlePanelDragOver('workspaces')}
+          onDrop={handlePanelDrop('workspaces')}
+          onDragLeave={() => setDragOverPanel((prev) => (prev === 'workspaces' ? null : prev))}
+        >
+          <div className="settings-resize-handle top" onMouseDown={handleResizeStart('workspaces', 'top')} />
+          <div className="panel-header settings-card-handle">
             <div>
               <h3>Workspaces</h3>
-              <p className="muted">Create or join workspaces using an invite token or link.</p>
             </div>
+            {renderOrderControl('workspaces', 'Workspaces')}
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
               <div className="workspace-group-header">
                 <h4>Your workspaces</h4>
-                <p className="muted">Workspaces you belong to.</p>
               </div>
               {userWorkspaces.length > 0 ? (
                 <div className="workspace-list compact settings-scroll">
@@ -662,7 +1343,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             <div className="workspace-group">
               <div className="workspace-group-header">
                 <h4>Demo workspaces</h4>
-                <p className="muted">Explore seeded data without affecting real workspaces.</p>
               </div>
               <div className="row space">
                 <button type="button" className="btn btn-secondary" onClick={handleEnterDemo}>
@@ -697,7 +1377,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             <div className="workspace-group">
               <div className="workspace-group-header">
                 <h4>Workspace actions</h4>
-                <p className="muted">Create, join, or manage your current workspace.</p>
               </div>
               <div className="workspace-current">
                 <span className="muted">Current workspace</span>
@@ -724,6 +1403,53 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     />
                     <span>Require approval to join</span>
                   </label>
+                </div>
+              ) : null}
+              {canManageWorkspaceSettings && activeWorkspace?.id ? (
+                <div className="form-field">
+                  <label>Workspace profile</label>
+                  <div className="workspace-actions">
+                    <div className="workspace-row">
+                      <input
+                        value={workspaceProfileName}
+                        onChange={(event) => setWorkspaceProfileName(event.target.value)}
+                        placeholder="Workspace name"
+                      />
+                      <input
+                        value={workspaceProfileSlug}
+                        onChange={(event) => setWorkspaceProfileSlug(event.target.value)}
+                        placeholder="Slug (e.g. product-team)"
+                      />
+                    </div>
+                    <div className="workspace-row">
+                      <input
+                        value={workspaceProfileLanguage}
+                        onChange={(event) => setWorkspaceProfileLanguage(event.target.value)}
+                        placeholder="Language (e.g. en-US)"
+                      />
+                      <input
+                        value={workspaceProfileAvatarUrl}
+                        onChange={(event) => setWorkspaceProfileAvatarUrl(event.target.value)}
+                        placeholder="Avatar URL"
+                      />
+                    </div>
+                    <textarea
+                      value={workspaceProfileDescription}
+                      onChange={(event) => setWorkspaceProfileDescription(event.target.value)}
+                      placeholder="Workspace description"
+                      rows={3}
+                    />
+                    <div className="workspace-inline-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handleSaveWorkspaceProfile}
+                        disabled={settingsBusy}
+                      >
+                        Save profile
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : null}
               <div className="workspace-actions">
@@ -792,6 +1518,27 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   </div>
                 </div>
               </div>
+              <div className="workspace-divider" />
+              <div className="workspace-group-header">
+                <h4>Coming soon</h4>
+              </div>
+              <div className="workspace-actions">
+                <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                  Member lifecycle (suspend/remove/re-activate) - Coming soon
+                </button>
+                <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                  Default role on join invite - Coming soon
+                </button>
+                <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                  Audit log - Coming soon
+                </button>
+                <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                  Workspace limits (projects/members/storage) - Coming soon
+                </button>
+                <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                  Export/backup data (admin only) - Coming soon
+                </button>
+              </div>
               {activeWorkspace?.id && (canInviteMembers || canApproveRequests) ? (
                 <div className="workspace-management">
                   {canInviteMembers ? (
@@ -799,7 +1546,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       <div className="panel-header">
                         <div>
                           <h4>Invites</h4>
-                          <p className="muted">Generate invite links or codes for this workspace.</p>
                         </div>
                       </div>
                       <div className="invite-controls">
@@ -856,8 +1602,8 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                       ? `Expires ${new Date(invite.expiresAt).toLocaleDateString()}`
                                       : 'No expiry'}
                                     {typeof remaining === 'number'
-                                      ? ` · ${remaining} uses left`
-                                      : ' · Unlimited uses'}
+                                      ? ` - ${remaining} uses left`
+                                      : ' - Unlimited uses'}
                                   </div>
                                 </div>
                                 <div className="invite-actions">
@@ -899,7 +1645,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       <div className="panel-header">
                         <div>
                           <h4>Pending requests</h4>
-                          <p className="muted">Approve or deny pending join requests.</p>
                         </div>
                       </div>
                       {requestsLoading ? <p className="muted">Loading requests...</p> : null}
@@ -940,55 +1685,116 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               ) : null}
             </div>
           </div>
+          <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('workspaces', 'bottom')} />
         </div>
-        <div className="card settings-card">
-          <div className="panel-header">
+        <div
+          className={`card settings-card${dragOverPanel === 'teams' ? ' is-drop-target' : ''}`}
+          ref={setPanelRef('teams')}
+          style={panelCardStyle('teams')}
+          onDragOver={handlePanelDragOver('teams')}
+          onDrop={handlePanelDrop('teams')}
+          onDragLeave={() => setDragOverPanel((prev) => (prev === 'teams' ? null : prev))}
+        >
+          <div className="settings-resize-handle top" onMouseDown={handleResizeStart('teams', 'top')} />
+          <div className="panel-header settings-card-handle">
             <div>
               <h3>Teams</h3>
-              <p className="muted">Create and manage teams inside the current workspace.</p>
             </div>
+            {renderOrderControl('teams', 'Teams')}
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
-              <div className="workspace-group-header">
-                <h4>Teams</h4>
-                <p className="muted">All teams in this workspace.</p>
-              </div>
               {teams.length === 0 ? <p className="muted">No teams yet.</p> : null}
               {teams.length > 0 ? (
                 <div className="workspace-list compact settings-scroll">
                   {teams.map((team) => (
-                    <div key={team.id ?? team.name} className="workspace-item compact">
-                      {editingTeamId === team.id && canEditTeams ? (
-                        <div className="workspace-row">
-                          <input
-                            value={editingTeamName}
-                            onChange={(event) => {
-                              setEditingTeamName(event.target.value)
-                              if (teamError) setTeamError(null)
-                            }}
-                          />
-                          <button type="button" className="btn btn-secondary" onClick={handleSaveTeam}>
-                            Save
-                          </button>
-                        </div>
-                      ) : (
+                    <div key={team.id ?? team.name} className="workspace-item compact settings-edit-item">
+                      <div className="workspace-row team-list-row">
                         <div className="workspace-name truncate" title={team.name ?? ''}>
                           {team.name ?? 'Untitled'}
                         </div>
-                      )}
-                      <div className="workspace-badges">
-                        {team.isActive === false ? <span className="pill">Inactive</span> : null}
-                        {canEditTeams && editingTeamId !== team.id ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => handleStartEditTeam(team.id, team.name)}
-                          >
-                            Rename
-                          </button>
-                        ) : null}
+                        <div className="workspace-inline-actions">
+                          <span className="pill team-member-count">{teamMemberCountById.get(team.id ?? '') ?? 0}</span>
+                          {team.isActive === false ? <span className="pill">Inactive</span> : null}
+                          {canEditTeams && editingTeamId !== team.id ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary team-edit-trigger"
+                              onClick={() => handleStartEditTeam(team.id, team.name)}
+                            >
+                              Edit
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
+                      {editingTeamId === team.id && canEditTeams ? (
+                        <div className="team-edit-box">
+                          <div className="workspace-inline-actions">
+                            <button
+                              type="button"
+                              className={`btn btn-ghost${editingTeamAction === 'rename' ? ' assign-toggle is-active' : ''}`}
+                              onClick={() => setEditingTeamAction('rename')}
+                            >
+                              Rename
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn btn-ghost${editingTeamAction === 'toggle' ? ' assign-toggle is-active' : ''}`}
+                              onClick={() => setEditingTeamAction('toggle')}
+                            >
+                              {team.isActive === false ? 'Activate' : 'Deactivate'}
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn btn-ghost${editingTeamAction === 'delete' ? ' assign-toggle is-active' : ''}`}
+                              onClick={() => setEditingTeamAction('delete')}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                          {editingTeamAction === 'rename' ? (
+                            <input
+                              value={editingTeamName}
+                              onChange={(event) => {
+                                setEditingTeamName(event.target.value)
+                                if (teamError) setTeamError(null)
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault()
+                                  void handleConfirmTeamAction(team.id, team.isActive)
+                                }
+                                if (event.key === 'Escape') {
+                                  event.preventDefault()
+                                  handleCancelEditTeam()
+                                }
+                              }}
+                              placeholder="New team name"
+                            />
+                          ) : (
+                            <p className="muted team-edit-note">
+                              {editingTeamAction === 'delete'
+                                ? 'Delete will deactivate this team.'
+                                : editingTeamAction === 'toggle'
+                                  ? `This will ${team.isActive === false ? 'activate' : 'deactivate'} this team.`
+                                  : 'Choose an action.'}
+                            </p>
+                          )}
+                          <div className="workspace-inline-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => void handleConfirmTeamAction(team.id, team.isActive)}
+                              disabled={!editingTeamAction}
+                            >
+                              Confirm
+                            </button>
+                            <button type="button" className="btn btn-ghost" onClick={handleCancelEditTeam}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -998,7 +1804,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             <div className="workspace-group">
               <div className="workspace-group-header">
                 <h4>Team actions</h4>
-                <p className="muted">Add, rename, or disable teams.</p>
               </div>
               <div className="workspace-actions">
                 <div className="form-field">
@@ -1012,14 +1817,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                         if (teamError) setTeamError(null)
                       }}
                       placeholder="New team name"
-                      disabled={!canEditTeams}
+                      disabled={!canCreateTeams}
                     />
                     <button
                       type="button"
                       className="btn btn-secondary"
                       onClick={handleCreateTeam}
-                      disabled={!canEditTeams}
-                      title={!canEditTeams ? 'You do not have permission to manage teams.' : undefined}
+                      disabled={!canCreateTeams}
+                      title={!canCreateTeams ? 'Only workspace owner/manager can create teams.' : undefined}
                     >
                       Add team
                     </button>
@@ -1030,44 +1835,30 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     <p className="muted">You do not have permission to manage teams.</p>
                   ) : null}
                 </div>
-                {canEditTeams ? (
-                  <div className="form-field">
-                    <label>Deactivate teams</label>
-                    <div className="workspace-list compact">
-                      {teams.map((team) => (
-                        <div key={`toggle-${team.id ?? team.name}`} className="workspace-row">
-                          <span className="truncate" title={team.name ?? ''}>
-                            {team.name ?? 'Untitled'}
-                          </span>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => handleToggleTeamActive(team.id, !(team.isActive ?? true))}
-                            disabled={!team.id}
-                          >
-                            {team.isActive === false ? 'Restore' : 'Deactivate'}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </div>
           </div>
+          <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('teams', 'bottom')} />
         </div>
-        <div className="card settings-card">
-          <div className="panel-header">
+        <div
+          className={`card settings-card${dragOverPanel === 'notifications' ? ' is-drop-target' : ''}`}
+          ref={setPanelRef('notifications')}
+          style={panelCardStyle('notifications')}
+          onDragOver={handlePanelDragOver('notifications')}
+          onDrop={handlePanelDrop('notifications')}
+          onDragLeave={() => setDragOverPanel((prev) => (prev === 'notifications' ? null : prev))}
+        >
+          <div className="settings-resize-handle top" onMouseDown={handleResizeStart('notifications', 'top')} />
+          <div className="panel-header settings-card-handle">
             <div>
               <h3>Notifications</h3>
-              <p className="muted">Control which emails you receive.</p>
             </div>
+            {renderOrderControl('notifications', 'Notifications')}
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
               <div className="workspace-group-header">
                 <h4>Mail</h4>
-                <p className="muted">Verification emails always send.</p>
               </div>
               {notificationPreferences ? (
                 <div className="workspace-actions">
@@ -1125,25 +1916,98 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     />
                     <span>Email overdue reminders</span>
                   </label>
+                  <div className="workspace-divider" />
+                  <div className="form-field">
+                    <label>Browser notifications</label>
+                    <div className="workspace-row">
+                      <input
+                        value={
+                          browserPermission === 'unsupported'
+                            ? 'Unsupported'
+                            : browserPermission === 'granted'
+                              ? 'Enabled'
+                              : browserPermission === 'denied'
+                                ? 'Blocked'
+                                : 'Not enabled'
+                        }
+                        readOnly
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handleEnableBrowserNotifications}
+                        disabled={browserPermission === 'unsupported' || browserPermission === 'granted'}
+                      >
+                        Enable
+                      </button>
+                    </div>
+                  </div>
+                  <div className="workspace-divider" />
+                  <div className="workspace-group-header">
+                    <h4>Coming soon</h4>
+                  </div>
+                  <div className="form-field coming-soon-control" title="Coming soon">
+                    <label className="checkbox-row">
+                      <input type="checkbox" disabled />
+                      <span>In-app notification center</span>
+                    </label>
+                    <span className="pill coming-soon-pill">Soon</span>
+                  </div>
+                  <div className="form-field coming-soon-control" title="Coming soon">
+                    <label className="checkbox-row">
+                      <input type="checkbox" disabled />
+                      <span>Digest mode (hourly/daily)</span>
+                    </label>
+                    <span className="pill coming-soon-pill">Soon</span>
+                  </div>
+                  <div className="form-field coming-soon-control" title="Coming soon">
+                    <label className="checkbox-row">
+                      <input type="checkbox" disabled />
+                      <span>Quiet hours</span>
+                    </label>
+                    <span className="pill coming-soon-pill">Soon</span>
+                  </div>
+                  <div className="form-field coming-soon-control" title="Coming soon">
+                    <label className="checkbox-row">
+                      <input type="checkbox" disabled />
+                      <span>Per-workspace notification profile</span>
+                    </label>
+                    <span className="pill coming-soon-pill">Soon</span>
+                  </div>
+                  <div className="form-field coming-soon-control" title="Coming soon">
+                    <label className="checkbox-row">
+                      <input type="checkbox" disabled />
+                      <span>Snooze notifications</span>
+                    </label>
+                    <span className="pill coming-soon-pill">Soon</span>
+                  </div>
                 </div>
               ) : (
                 <p className="muted">Loading preferences...</p>
               )}
             </div>
           </div>
+          <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('notifications', 'bottom')} />
         </div>
-        <div className="card settings-card">
-          <div className="panel-header">
+        <div
+          className={`card settings-card${dragOverPanel === 'roles' ? ' is-drop-target' : ''}`}
+          ref={setPanelRef('roles')}
+          style={panelCardStyle('roles')}
+          onDragOver={handlePanelDragOver('roles')}
+          onDrop={handlePanelDrop('roles')}
+          onDragLeave={() => setDragOverPanel((prev) => (prev === 'roles' ? null : prev))}
+        >
+          <div className="settings-resize-handle top" onMouseDown={handleResizeStart('roles', 'top')} />
+          <div className="panel-header settings-card-handle">
             <div>
               <h3>Roles</h3>
-              <p className="muted">Manage workspace roles and permissions.</p>
             </div>
+            {renderOrderControl('roles', 'Roles')}
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
               <div className="workspace-group-header">
                 <h4>Roles</h4>
-                <p className="muted">Define access for each role.</p>
               </div>
               {rolesLoading ? <p className="muted">Loading roles...</p> : null}
               {rolesError ? <p className="field-error">{rolesError}</p> : null}
@@ -1151,22 +2015,107 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               {roles.length > 0 ? (
                 <div className="workspace-list compact settings-scroll">
                   {roles.map((role) => (
-                    <div key={role.id ?? role.name} className="workspace-item compact">
-                      <div className="workspace-name truncate" title={role.name ?? ''}>
-                        {role.name ?? 'Untitled'}
+                    <div key={role.id ?? role.name} className="workspace-item compact settings-edit-item">
+                      <div className="workspace-row role-list-row">
+                        <div className="workspace-name truncate" title={role.name ?? ''}>
+                          {role.name ?? 'Untitled'}
+                        </div>
+                        <div className="workspace-inline-actions">
+                          <span className="pill team-member-count">
+                            {roleMemberCountByName.get((role.name ?? '').trim().toLocaleLowerCase()) ?? 0}
+                          </span>
+                          {role.system ? (
+                            <span className="pill">{activeWorkspace?.demo ? 'Demo' : 'System'}</span>
+                          ) : null}
+                          {canEditRoles ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary team-edit-trigger"
+                              onClick={() => handleStartEditRole(role)}
+                            >
+                              Edit
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="workspace-badges">
-                        {role.system ? <span className="pill">System</span> : null}
-                        {canEditRoles ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => handleStartEditRole(role)}
-                          >
-                            Edit
-                          </button>
-                        ) : null}
-                      </div>
+                      {editingRoleId === role.id && canEditRoles ? (
+                        <div className="team-edit-box">
+                          <div className="workspace-inline-actions">
+                            <button
+                              type="button"
+                              className={`btn btn-ghost${editingRoleAction === 'rename' ? ' assign-toggle is-active' : ''}`}
+                              onClick={() => setEditingRoleAction('rename')}
+                              disabled={Boolean(role.system)}
+                              title={role.system ? 'Demo/System role name is fixed.' : undefined}
+                            >
+                              Rename
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn btn-ghost${editingRoleAction === 'permissions' ? ' assign-toggle is-active' : ''}`}
+                              onClick={() => setEditingRoleAction('permissions')}
+                            >
+                              Permissions
+                            </button>
+                            {role.system ? (
+                              <button
+                                type="button"
+                                className={`btn btn-ghost${editingRoleAction === 'reset' ? ' assign-toggle is-active' : ''}`}
+                                onClick={() => setEditingRoleAction('reset')}
+                              >
+                                Reset default
+                              </button>
+                            ) : null}
+                          </div>
+                          {editingRoleAction === 'rename' ? (
+                            <input
+                              value={editingRoleName}
+                              onChange={(event) => setEditingRoleName(event.target.value)}
+                              placeholder="Role name"
+                              disabled={Boolean(role.system)}
+                            />
+                          ) : null}
+                          {editingRoleAction === 'permissions' ? (
+                            <div className="settings-permissions">
+                              {ROLE_PERMISSION_GROUPS.map((group) => (
+                                <div key={`inline-edit-${group.label}`} className="settings-permission-group">
+                                  <div className="settings-permission-title">{group.label}</div>
+                                  {group.items.map((item) => (
+                                    <label key={item.key} className="checkbox-row">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(editingRolePermissions?.[item.key])}
+                                        onChange={() =>
+                                          setEditingRolePermissions((prev) => toggleRolePermission(prev, item.key))
+                                        }
+                                      />
+                                      <span>{item.label}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {editingRoleAction === 'reset' ? (
+                            <p className="muted team-edit-note">
+                              This will restore the default permission set for this {activeWorkspace?.demo ? 'demo' : 'system'} role.
+                            </p>
+                          ) : null}
+                          <div className="workspace-inline-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => void handleConfirmRoleAction()}
+                              disabled={!editingRoleAction}
+                            >
+                              Confirm
+                            </button>
+                            <button type="button" className="btn btn-ghost" onClick={handleCancelEditRole}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -1176,7 +2125,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             <div className="workspace-group">
               <div className="workspace-group-header">
                 <h4>Role actions</h4>
-                <p className="muted">Create roles, edit permissions, and assign members.</p>
               </div>
               <div className="workspace-actions">
                 <div className="form-field">
@@ -1223,45 +2171,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 ) : (
                   <p className="muted">You do not have permission to manage roles.</p>
                 )}
-                {editingRoleId ? (
-                  <div className="form-field">
-                    <label>Edit role</label>
-                    <div className="workspace-row">
-                      <input
-                        value={editingRoleName}
-                        onChange={(event) => setEditingRoleName(event.target.value)}
-                        disabled={!canEditRoles}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={handleSaveRole}
-                        disabled={!canEditRoles}
-                      >
-                        Save
-                      </button>
-                    </div>
-                    <div className="settings-permissions">
-                      {ROLE_PERMISSION_GROUPS.map((group) => (
-                        <div key={`edit-${group.label}`} className="settings-permission-group">
-                          <div className="settings-permission-title">{group.label}</div>
-                          {group.items.map((item) => (
-                            <label key={item.key} className="checkbox-row">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(editingRolePermissions?.[item.key])}
-                                onChange={() =>
-                                  setEditingRolePermissions((prev) => toggleRolePermission(prev, item.key))
-                                }
-                              />
-                              <span>{item.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
                 <div className="form-field">
                   <label>Assign role</label>
                   <div className="workspace-row">
@@ -1303,11 +2212,24 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               </div>
             </div>
           </div>
+          <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('roles', 'bottom')} />
         </div>
+        {draggingPanel ? (
+          <div
+            className={`settings-empty-slot${dragOverPanel === 'end' ? ' is-drop-target' : ''}`}
+            style={{ order: panelOrder.length + 1 }}
+            onDragOver={handlePanelDragOver('end')}
+            onDrop={handlePanelDrop('end')}
+            onDragLeave={() => setDragOverPanel((prev) => (prev === 'end' ? null : prev))}
+          >
+            Drop Here
+          </div>
+        ) : null}
       </div>
     </section>
   )
 }
+
 
 
 

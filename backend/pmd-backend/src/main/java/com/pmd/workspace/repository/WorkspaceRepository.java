@@ -10,4 +10,8 @@ public interface WorkspaceRepository extends MongoRepository<Workspace, String> 
     boolean existsBySlug(String slug);
 
     boolean existsByNameIgnoreCase(String name);
+
+    boolean existsBySlugAndIdNot(String slug, String id);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, String id);
 }
