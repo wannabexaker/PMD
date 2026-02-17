@@ -48,6 +48,7 @@ const PANEL_MAX_HEIGHT: Record<SettingsPanelId, number> = {
   notifications: 820,
   roles: 960,
 }
+const MAX_CUSTOM_ROLES_PER_WORKSPACE = 10
 
 const ROLE_PERMISSION_GROUPS: { label: string; items: { key: keyof WorkspacePermissions; label: string }[] }[] = [
   {
@@ -300,6 +301,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     () => roles.find((role) => role.id === editingRoleId) ?? null,
     [roles, editingRoleId]
   )
+  const customRolesCount = useMemo(
+    () => roles.filter((role) => !role.system).length,
+    [roles]
+  )
+  const customRolesLimitReached = customRolesCount >= MAX_CUSTOM_ROLES_PER_WORKSPACE
 
   const movePanel = useCallback((sourceId: SettingsPanelId, targetId: SettingsPanelId | 'end') => {
     if (sourceId === targetId) return
@@ -814,6 +820,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
 
   const handleCreateRole = async () => {
     if (!activeWorkspaceId) return
+    if (customRolesLimitReached) {
+      showToast({ type: 'error', message: 'Custom role limit reached (10 per workspace).' })
+      return
+    }
     const name = roleName.trim()
     if (name.length < 2 || name.length > 40) {
       showToast({ type: 'error', message: 'Role name must be 2-40 characters.' })
@@ -825,8 +835,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       setRolePermissions({ ...DEFAULT_ROLE_PERMISSIONS })
       await loadRoles(activeWorkspaceId)
       showToast({ type: 'success', message: 'Role created.' })
-    } catch {
-      showToast({ type: 'error', message: 'Failed to create role.' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create role.'
+      showToast({ type: 'error', message })
     }
   }
 
@@ -1103,7 +1114,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       </button>
       {orderMenuPanel === id ? (
         <div className="settings-order-popover" onClick={(event) => event.stopPropagation()}>
-          <label htmlFor={`panel-order-${id}`}>Move to position</label>
+          <label htmlFor={`panel-order-${id}`}>Position</label>
           <div className="settings-order-row">
             <select
               id={`panel-order-${id}`}
@@ -1336,7 +1347,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   ))}
                 </div>
               ) : (
-                <p className="muted">No workspaces yet.</p>
+                <p className="muted">No workspaces yet. Create your first workspace below.</p>
               )}
             </div>
             <div className="workspace-divider" />
@@ -2006,9 +2017,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
-              <div className="workspace-group-header">
-                <h4>Roles</h4>
-              </div>
               {rolesLoading ? <p className="muted">Loading roles...</p> : null}
               {rolesError ? <p className="field-error">{rolesError}</p> : null}
               {!rolesLoading && roles.length === 0 ? <p className="muted">No roles yet.</p> : null}
@@ -2125,6 +2133,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             <div className="workspace-group">
               <div className="workspace-group-header">
                 <h4>Role actions</h4>
+                <span className={`muted${customRolesLimitReached ? ' field-error' : ''}`}>
+                  Custom roles: {customRolesCount}/{MAX_CUSTOM_ROLES_PER_WORKSPACE}
+                </span>
               </div>
               <div className="workspace-actions">
                 <div className="form-field">
@@ -2135,13 +2146,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       value={roleName}
                       onChange={(event) => setRoleName(event.target.value)}
                       placeholder="Role name"
-                      disabled={!canEditRoles}
+                      disabled={!canEditRoles || customRolesLimitReached}
                     />
                     <button
                       type="button"
                       className="btn btn-secondary"
                       onClick={handleCreateRole}
-                      disabled={!canEditRoles}
+                      disabled={!canEditRoles || customRolesLimitReached}
                     >
                       Add role
                     </button>

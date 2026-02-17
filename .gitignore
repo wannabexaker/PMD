@@ -25,6 +25,7 @@ pnpm-debug.log*
 # --- backend (Spring Boot / Maven) ---
 backend/**/target/
 backend/**/*.log
+backend/**/uploads/
 
 # --- OS / IDE ---
 .DS_Store

@@ -41,6 +41,7 @@ public class WorkspaceService {
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
     private static final Pattern TRIM_DASH = Pattern.compile("(^-+|-+$)");
+    private static final int MAX_CUSTOM_ROLES_PER_WORKSPACE = 10;
 
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
@@ -246,6 +247,13 @@ public class WorkspaceService {
         String trimmed = name != null ? name.trim() : "";
         if (trimmed.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role name is required");
+        }
+        long customRoles = workspaceRoleRepository.findByWorkspaceIdAndIsSystem(workspaceId, false).size();
+        if (customRoles >= MAX_CUSTOM_ROLES_PER_WORKSPACE) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Custom role limit reached (10 per workspace)"
+            );
         }
         if (workspaceRoleRepository.findByWorkspaceIdAndNameIgnoreCase(workspaceId, trimmed).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Role name already exists");

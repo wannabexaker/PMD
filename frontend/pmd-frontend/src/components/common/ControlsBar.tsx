@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { FilterMenu } from '../FilterMenu'
 
 type ControlsBarProps = {
@@ -11,7 +11,10 @@ type ControlsBarProps = {
   searchAriaLabel?: string
   filterAriaLabel?: string
   searchOverlay?: boolean
+  filterBeforeSearch?: boolean
+  leadingActions?: React.ReactNode
   actions?: React.ReactNode
+  trailingActions?: React.ReactNode
   filterSections?: { label: string; options: { id: string; label: string }[] }[]
   filterActive?: boolean
   filterExtra?: React.ReactNode
@@ -27,13 +30,17 @@ export function ControlsBar({
   searchAriaLabel = 'Search',
   filterAriaLabel = 'Filter',
   searchOverlay = false,
+  filterBeforeSearch = false,
+  leadingActions,
   actions,
+  trailingActions,
   filterSections,
   filterActive,
   filterExtra,
 }: ControlsBarProps) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchVisible, setSearchVisible] = useState(false)
+  const [searchPopoverStyle, setSearchPopoverStyle] = useState<CSSProperties | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const closeTimerRef = useRef<number | null>(null)
@@ -83,8 +90,71 @@ export function ControlsBar({
     }
   }, [])
 
+  useLayoutEffect(() => {
+    if (!searchOverlay || !searchOpen || !searchVisible) {
+      return
+    }
+    const updatePopoverPosition = () => {
+      const root = rootRef.current
+      if (!root) {
+        return
+      }
+      const button = root.querySelector('.search-button') as HTMLElement | null
+      const popover = root.querySelector('.controls-search-popover') as HTMLElement | null
+      if (!button || !popover) {
+        return
+      }
+      const margin = 8
+      const spacing = 8
+      const triggerRect = button.getBoundingClientRect()
+      const popoverRect = popover.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+
+      let left = triggerRect.left
+      if (left + popoverRect.width > viewportWidth - margin) {
+        left = viewportWidth - popoverRect.width - margin
+      }
+      left = Math.max(margin, left)
+
+      let top = triggerRect.bottom + spacing
+      if (top + popoverRect.height > viewportHeight - margin) {
+        const aboveTop = triggerRect.top - popoverRect.height - spacing
+        top = aboveTop >= margin ? aboveTop : Math.max(margin, viewportHeight - popoverRect.height - margin)
+      }
+
+      setSearchPopoverStyle({
+        position: 'fixed',
+        top: `${Math.round(top)}px`,
+        left: `${Math.round(left)}px`,
+      })
+    }
+
+    updatePopoverPosition()
+    window.addEventListener('resize', updatePopoverPosition)
+    window.addEventListener('scroll', updatePopoverPosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePopoverPosition)
+      window.removeEventListener('scroll', updatePopoverPosition, true)
+    }
+  }, [searchOverlay, searchOpen, searchVisible])
+
+  const resolvedTrailingActions = trailingActions ?? actions
+
   return (
     <div className="controls-bar" ref={rootRef}>
+      {leadingActions ? <div className="controls-actions">{leadingActions}</div> : null}
+      {filterBeforeSearch ? (
+        <FilterMenu
+          ariaLabel={filterAriaLabel}
+          options={filters.map((filter) => ({ id: filter.key, label: filter.label }))}
+          sections={filterSections}
+          selected={selectedFilterKeys}
+          onChange={onSelectedFilterKeysChange}
+          isActive={filterActive}
+          extraContent={filterExtra}
+        />
+      ) : null}
       <button
         type="button"
         className="btn btn-icon btn-ghost icon-toggle search-button"
@@ -105,7 +175,7 @@ export function ControlsBar({
       </button>
       {searchOpen ? (
         searchOverlay ? (
-          <div className="controls-search-popover" data-state={searchVisible ? 'open' : 'closed'}>
+          <div className="controls-search-popover" data-state={searchVisible ? 'open' : 'closed'} style={searchPopoverStyle}>
             <input
               ref={inputRef}
               type="search"
@@ -126,16 +196,18 @@ export function ControlsBar({
           />
         )
       ) : null}
-      <FilterMenu
-        ariaLabel={filterAriaLabel}
-        options={filters.map((filter) => ({ id: filter.key, label: filter.label }))}
-        sections={filterSections}
-        selected={selectedFilterKeys}
-        onChange={onSelectedFilterKeysChange}
-        isActive={filterActive}
-        extraContent={filterExtra}
-      />
-      {actions ? <div className="controls-actions">{actions}</div> : null}
+      {!filterBeforeSearch ? (
+        <FilterMenu
+          ariaLabel={filterAriaLabel}
+          options={filters.map((filter) => ({ id: filter.key, label: filter.label }))}
+          sections={filterSections}
+          selected={selectedFilterKeys}
+          onChange={onSelectedFilterKeysChange}
+          isActive={filterActive}
+          extraContent={filterExtra}
+        />
+      ) : null}
+      {resolvedTrailingActions ? <div className="controls-actions">{resolvedTrailingActions}</div> : null}
     </div>
   )
 }

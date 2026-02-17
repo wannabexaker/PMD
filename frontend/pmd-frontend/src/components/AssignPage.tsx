@@ -599,32 +599,16 @@ export function AssignPage({
                 searchPlaceholder="Search projects"
                 filters={[]}
                 actions={
-                  <div className="assign-project-picker">
-                    {selectedProject ? (
-                      <>
-                        <span className="chip" title={selectedProject.name ?? ''}>
-                          {formatProjectTitle(selectedProject.name)}
-                          <span className="muted"> · {formatStatusLabel(selectedProject.status ?? 'NOT_STARTED')}</span>
-                        </span>
-                        <button type="button" className="btn btn-secondary" onClick={() => onClearSelection?.()}>
-                          Clear
-                        </button>
-                      </>
-                    ) : (
-                      <span className="muted">No project selected</span>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-icon btn-ghost icon-toggle"
-                      onClick={handlePickRandomProject}
-                      disabled={eligibleProjects.length === 0}
-                      title="Pick random project"
-                      data-tooltip="Pick random project"
-                    >
-                      <DiceIcon />
-                    </button>
-                    {eligibleProjects.length === 0 ? <span className="muted">No projects available</span> : null}
-                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-icon btn-ghost icon-toggle"
+                    onClick={handlePickRandomProject}
+                    disabled={eligibleProjects.length === 0}
+                    title="Pick random project"
+                    data-tooltip="Pick random project"
+                  >
+                    <DiceIcon />
+                  </button>
                 }
                 filterExtra={
                   <div className="filter-extra-row">
@@ -658,8 +642,24 @@ export function AssignPage({
               searchAriaLabel="Search projects"
               filterAriaLabel="Filter"
               filterActive={isFilterActive}
+              searchOverlay
             />
             </div>
+          </div>
+          <div className={`assign-selected-project${selectedProject ? '' : ' is-empty'}`}>
+            <span className="assign-selected-label">Selected</span>
+            {selectedProject ? (
+              <>
+                <strong className="truncate" title={selectedProject.name ?? ''}>
+                  {selectedProject.name ?? '-'}
+                </strong>
+                <span className={`status-badge status-${selectedProject.status ?? 'NOT_STARTED'}`}>
+                  {formatStatusLabel(selectedProject.status ?? 'NOT_STARTED')}
+                </span>
+              </>
+            ) : (
+              <span className="muted">No project selected</span>
+            )}
           </div>
           <div className="assign-panel-body assign-folders">
             {foldersToShow.map((folder) => {

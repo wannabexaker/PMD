@@ -1,4 +1,6 @@
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot\pmd_guard.ps1"
 
 Write-Host 'Stopping PMD dependencies...'
-docker compose -f docker-compose.deps.yml stop mongo mailhog
+docker compose -f docker-compose.deps.yml down --remove-orphans
+Clear-PmdActiveMode

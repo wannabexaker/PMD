@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type {
   CreateProjectPayload,
   Project,
@@ -43,6 +43,15 @@ type DashboardPageProps = {
 const MAX_PROJECT_TITLE_LENGTH = 32
 const STATUS_COLORS = ['#a855f7', '#38bdf8', '#22c55e', '#f97316', '#64748b']
 const TEAM_COLORS = ['#38bdf8', '#a855f7', '#f97316', '#22c55e', '#facc15', '#e879f9']
+type DashboardChartId = 'projectsByStatus' | 'projectsByTeam' | 'workloadByTeam' | 'assignmentCoverage'
+const DASHBOARD_CHART_ORDER_DEFAULT: DashboardChartId[] = [
+  'projectsByStatus',
+  'projectsByTeam',
+  'workloadByTeam',
+  'assignmentCoverage',
+]
+const DASHBOARD_CHART_MIN_HEIGHT = 330
+const DASHBOARD_CHART_MAX_HEIGHT = 760
 const SUMMARY_PANELS: Array<{ key: WorkspaceSummaryPanelKey; label: string; description: string }> = [
   { key: 'unassigned', label: 'Unassigned', description: 'Projects without any members' },
   { key: 'assigned', label: 'Assigned', description: 'Projects with team members' },
@@ -51,6 +60,37 @@ const SUMMARY_PANELS: Array<{ key: WorkspaceSummaryPanelKey; label: string; desc
   { key: 'canceled', label: 'Canceled', description: 'Canceled or stopped projects' },
   { key: 'archived', label: 'Archived', description: 'Archived or closed projects' },
 ]
+const SUMMARY_PANEL_MEASURE_LABEL: Record<WorkspaceSummaryPanelKey, string> = {
+  unassigned: 'Unassigned projects',
+  assigned: 'Assigned projects',
+  inProgress: 'Active projects',
+  completed: 'Completed projects',
+  canceled: 'Canceled projects',
+  archived: 'Archived projects',
+}
+
+type SummaryRange = '1m' | '10m' | '30m' | '1h' | '8h' | '12h' | '24h' | '7d' | '30d' | '1y' | '2y' | '5y'
+type WorkspaceSummarySnapshot = {
+  ts: number
+  counters: Record<WorkspaceSummaryPanelKey, number>
+}
+const SUMMARY_RANGE_OPTIONS: Array<{ id: SummaryRange; label: string }> = [
+  { id: '1m', label: '1m' },
+  { id: '10m', label: '10m' },
+  { id: '30m', label: '30m' },
+  { id: '1h', label: '1h' },
+  { id: '8h', label: '8h' },
+  { id: '12h', label: '12h' },
+  { id: '24h', label: '24h' },
+  { id: '7d', label: '7d' },
+  { id: '30d', label: '30d' },
+  { id: '1y', label: '1y' },
+  { id: '2y', label: '2y' },
+  { id: '5y', label: '5y' },
+]
+const SUMMARY_HISTORY_KEY_PREFIX = 'pmd.workspaceSummaryHistory.'
+const SUMMARY_HISTORY_MAX = 1200
+const SUMMARY_RANGE_KEY_PREFIX = 'pmd.workspaceSummaryRange.'
 
 const DEFAULT_PANEL_VISIBILITY: Record<WorkspaceSummaryPanelKey, boolean> = WORKSPACE_SUMMARY_PANEL_KEYS.reduce(
   (acc, key) => {
@@ -98,6 +138,89 @@ function formatProjectTitle(value?: string | null) {
     : value
 }
 
+function readSummaryHistory(workspaceId: string): WorkspaceSummarySnapshot[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(`${SUMMARY_HISTORY_KEY_PREFIX}${workspaceId}`)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as WorkspaceSummarySnapshot[]
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((item) => item && typeof item.ts === 'number' && item.counters)
+      .slice(-SUMMARY_HISTORY_MAX)
+  } catch {
+    return []
+  }
+}
+
+function writeSummaryHistory(workspaceId: string, data: WorkspaceSummarySnapshot[]) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(`${SUMMARY_HISTORY_KEY_PREFIX}${workspaceId}`, JSON.stringify(data.slice(-SUMMARY_HISTORY_MAX)))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function readSummaryRange(workspaceId: string): SummaryRange {
+  if (typeof window === 'undefined') return '24h'
+  const value = localStorage.getItem(`${SUMMARY_RANGE_KEY_PREFIX}${workspaceId}`)
+  return value === '1m' || value === '10m' || value === '30m' || value === '1h' || value === '8h' || value === '12h' || value === '7d' || value === '30d' || value === '1y' || value === '2y' || value === '5y' ? value : '24h'
+}
+
+function writeSummaryRange(workspaceId: string, range: SummaryRange) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(`${SUMMARY_RANGE_KEY_PREFIX}${workspaceId}`, range)
+}
+
+function rangeLookbackMs(range: SummaryRange): number {
+  if (range === '1m') return 60 * 1000
+  if (range === '10m') return 10 * 60 * 1000
+  if (range === '30m') return 30 * 60 * 1000
+  if (range === '1h') return 60 * 60 * 1000
+  if (range === '8h') return 8 * 60 * 60 * 1000
+  if (range === '12h') return 12 * 60 * 60 * 1000
+  if (range === '24h') return 24 * 60 * 60 * 1000
+  if (range === '7d') return 7 * 24 * 60 * 60 * 1000
+  if (range === '30d') return 30 * 24 * 60 * 60 * 1000
+  if (range === '2y') return 2 * 365 * 24 * 60 * 60 * 1000
+  if (range === '5y') return 5 * 365 * 24 * 60 * 60 * 1000
+  return 365 * 24 * 60 * 60 * 1000
+}
+
+function buildTrendPath(values: number[], width: number, height: number): string {
+  if (values.length <= 1) return ''
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = Math.max(1, max - min)
+  const stepX = width / Math.max(1, values.length - 1)
+  return values
+    .map((value, index) => {
+      const x = index * stepX
+      const ratio = (value - min) / span
+      const y = height - ratio * height
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`
+    })
+    .join(' ')
+}
+
+function buildTrendAreaPath(values: number[], width: number, height: number): string {
+  if (values.length <= 1) return ''
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = Math.max(1, max - min)
+  const stepX = width / Math.max(1, values.length - 1)
+  const line = values
+    .map((value, index) => {
+      const x = index * stepX
+      const ratio = (value - min) / span
+      const y = height - ratio * height
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`
+    })
+    .join(' ')
+  return `${line} L ${width.toFixed(2)} ${height.toFixed(2)} L 0 ${height.toFixed(2)} Z`
+}
+
 export function DashboardPage({
   projects,
   users,
@@ -128,6 +251,35 @@ export function DashboardPage({
   const [panelVisibility, setPanelVisibility] = useState<Record<WorkspaceSummaryPanelKey, boolean>>(() =>
     buildPanelVisibility()
   )
+  const [summaryRange, setSummaryRange] = useState<SummaryRange>('24h')
+  const [summaryHistory, setSummaryHistory] = useState<WorkspaceSummarySnapshot[]>([])
+  const [chartOrder, setChartOrder] = useState<DashboardChartId[]>(DASHBOARD_CHART_ORDER_DEFAULT)
+  const [draggingChart, setDraggingChart] = useState<DashboardChartId | null>(null)
+  const [dragOverChart, setDragOverChart] = useState<DashboardChartId | null>(null)
+  const [chartHeights, setChartHeights] = useState<Record<DashboardChartId, number>>({
+    projectsByStatus: 420,
+    projectsByTeam: 420,
+    workloadByTeam: 420,
+    assignmentCoverage: 420,
+  })
+  const [chartRowSpans, setChartRowSpans] = useState<Record<DashboardChartId, number>>({
+    projectsByStatus: 1,
+    projectsByTeam: 1,
+    workloadByTeam: 1,
+    assignmentCoverage: 1,
+  })
+  const [activeChartResize, setActiveChartResize] = useState<{
+    id: DashboardChartId
+    edge: 'top' | 'bottom'
+    startY: number
+    startHeight: number
+  } | null>(null)
+  const chartRefs = useRef<Record<DashboardChartId, HTMLDivElement | null>>({
+    projectsByStatus: null,
+    projectsByTeam: null,
+    workloadByTeam: null,
+    assignmentCoverage: null,
+  })
 
   const availableTeamIds = useMemo(() => {
     return teams.map((team) => team.id).filter(Boolean) as string[]
@@ -212,6 +364,29 @@ export function DashboardPage({
     () => WORKSPACE_SUMMARY_PANEL_KEYS.filter((key) => Boolean(panelVisibility[key])),
     [panelVisibility]
   )
+  const summaryRangeLookback = useMemo(() => rangeLookbackMs(summaryRange), [summaryRange])
+  const summaryTrendData = useMemo(() => {
+    const cutoff = Date.now() - summaryRangeLookback
+    const scopedHistory = summaryHistory.filter((item) => item.ts >= cutoff)
+    return WORKSPACE_SUMMARY_PANEL_KEYS.reduce((acc, key) => {
+      const points = scopedHistory.map((item) => item.counters[key] ?? 0)
+      const min = points.length > 0 ? Math.min(...points) : 0
+      const max = points.length > 0 ? Math.max(...points) : 0
+      const sum = points.reduce((total, point) => total + point, 0)
+      const avg = points.length > 0 ? sum / points.length : 0
+      const last = points.length > 0 ? points[points.length - 1] : 0
+      acc[key] = {
+        points,
+        min,
+        max,
+        avg,
+        last,
+        path: points.length > 1 ? buildTrendPath(points, 100, 40) : '',
+        areaPath: points.length > 1 ? buildTrendAreaPath(points, 100, 40) : '',
+      }
+      return acc
+    }, {} as Record<WorkspaceSummaryPanelKey, { points: number[]; min: number; max: number; avg: number; last: number; path: string; areaPath: string }>)
+  }, [summaryHistory, summaryRangeLookback])
 
   const persistPanelVisibility = useCallback(
     async (nextVisibility: Record<WorkspaceSummaryPanelKey, boolean>) => {
@@ -243,6 +418,95 @@ export function DashboardPage({
     [persistPanelVisibility]
   )
 
+  const handleSummaryRangeChange = useCallback(
+    (range: SummaryRange) => {
+      setSummaryRange(range)
+      if (activeWorkspaceId) {
+        writeSummaryRange(activeWorkspaceId, range)
+      }
+    },
+    [activeWorkspaceId]
+  )
+
+  const moveChart = useCallback((sourceId: DashboardChartId, targetId: DashboardChartId) => {
+    if (sourceId === targetId) return
+    setChartOrder((prev) => {
+      const sourceIndex = prev.indexOf(sourceId)
+      const targetIndex = prev.indexOf(targetId)
+      if (sourceIndex === -1 || targetIndex === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(sourceIndex, 1)
+      next.splice(targetIndex, 0, moved)
+      return next
+    })
+  }, [])
+
+  const setChartRef = useCallback(
+    (id: DashboardChartId) => (node: HTMLDivElement | null) => {
+      chartRefs.current[id] = node
+    },
+    []
+  )
+
+  const chartCardStyle = useCallback(
+    (id: DashboardChartId) => ({
+      order: chartOrder.indexOf(id) + 1,
+      height: `${chartHeights[id]}px`,
+      gridRowEnd: `span ${chartRowSpans[id]}`,
+    }),
+    [chartHeights, chartOrder, chartRowSpans]
+  )
+
+  const handleChartResizeStart = useCallback(
+    (id: DashboardChartId, edge: 'top' | 'bottom') =>
+      (event: ReactMouseEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        const card = event.currentTarget.closest('.dashboard-user-chart') as HTMLElement | null
+        const fallbackHeight = card?.getBoundingClientRect().height ?? 420
+        setActiveChartResize({
+          id,
+          edge,
+          startY: event.clientY,
+          startHeight: chartHeights[id] ?? fallbackHeight,
+        })
+      },
+    [chartHeights]
+  )
+
+  const handleChartDragStart = useCallback(
+    (id: DashboardChartId) =>
+      (event: DragEvent<HTMLElement>) => {
+        setDraggingChart(id)
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('text/plain', id)
+      },
+    []
+  )
+
+  const handleChartDragOver = useCallback(
+    (targetId: DashboardChartId) =>
+      (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+        setDragOverChart(targetId)
+      },
+    []
+  )
+
+  const handleChartDrop = useCallback(
+    (targetId: DashboardChartId) =>
+      (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        const sourceId = (event.dataTransfer.getData('text/plain') || draggingChart) as DashboardChartId | null
+        if (sourceId && sourceId !== targetId) {
+          moveChart(sourceId, targetId)
+        }
+        setDraggingChart(null)
+        setDragOverChart(null)
+      },
+    [draggingChart, moveChart]
+  )
+
   const selectedStatusSet = useMemo(() => {
     return new Set(
       selectedFilters
@@ -256,6 +520,8 @@ export function DashboardPage({
   const selectedProjectStatuses = useMemo(() => {
     return new Set(Array.from(selectedStatusSet).filter((status) => status !== UNASSIGNED_FILTER_KEY))
   }, [selectedStatusSet])
+
+  const hasAnyStatusFilterSelected = selectedProjectStatuses.size > 0 || unassignedFilterActive
 
   const selectedTeamSet = useMemo(() => {
     return new Set(
@@ -352,6 +618,85 @@ export function DashboardPage({
   }, [activeWorkspaceId])
 
   useEffect(() => {
+    if (!activeWorkspaceId) {
+      setSummaryRange('24h')
+      setSummaryHistory([])
+      return
+    }
+    setSummaryRange(readSummaryRange(activeWorkspaceId))
+    setSummaryHistory(readSummaryHistory(activeWorkspaceId))
+  }, [activeWorkspaceId])
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !workspaceStats?.counters) {
+      return
+    }
+    const snapshot: WorkspaceSummarySnapshot = {
+      ts: Date.now(),
+      counters: WORKSPACE_SUMMARY_PANEL_KEYS.reduce((acc, key) => {
+        acc[key] = workspaceStats.counters[key] ?? 0
+        return acc
+      }, {} as Record<WorkspaceSummaryPanelKey, number>),
+    }
+    setSummaryHistory((prev) => {
+      const last = prev[prev.length - 1]
+      if (last) {
+        const sameCounters = WORKSPACE_SUMMARY_PANEL_KEYS.every((key) => (last.counters[key] ?? 0) === snapshot.counters[key])
+        if (sameCounters && snapshot.ts - last.ts < 60_000) {
+          return prev
+        }
+      }
+      const next = [...prev, snapshot].slice(-SUMMARY_HISTORY_MAX)
+      writeSummaryHistory(activeWorkspaceId, next)
+      return next
+    })
+  }, [activeWorkspaceId, workspaceStats])
+
+  useEffect(() => {
+    if (!activeChartResize) return
+    const handleMouseMove = (event: MouseEvent) => {
+      const delta = event.clientY - activeChartResize.startY
+      const rawHeight =
+        activeChartResize.edge === 'bottom'
+          ? activeChartResize.startHeight + delta
+          : activeChartResize.startHeight - delta
+      const nextHeight = Math.max(DASHBOARD_CHART_MIN_HEIGHT, Math.min(DASHBOARD_CHART_MAX_HEIGHT, Math.round(rawHeight)))
+      setChartHeights((prev) => ({ ...prev, [activeChartResize.id]: nextHeight }))
+    }
+    const handleMouseUp = () => setActiveChartResize(null)
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [activeChartResize])
+
+  useEffect(() => {
+    const grid = document.querySelector('.dashboard-user-charts') as HTMLElement | null
+    if (!grid) return
+    const styles = window.getComputedStyle(grid)
+    const rowHeight = Number.parseFloat(styles.getPropertyValue('grid-auto-rows')) || 8
+    const rowGap = Number.parseFloat(styles.getPropertyValue('row-gap')) || 12
+    const nextSpans: Record<DashboardChartId, number> = {
+      projectsByStatus: 1,
+      projectsByTeam: 1,
+      workloadByTeam: 1,
+      assignmentCoverage: 1,
+    }
+    DASHBOARD_CHART_ORDER_DEFAULT.forEach((id) => {
+      const card = chartRefs.current[id]
+      if (!card) return
+      const height = card.getBoundingClientRect().height
+      nextSpans[id] = Math.max(1, Math.ceil((height + rowGap) / (rowHeight + rowGap)))
+    })
+    setChartRowSpans((prev) => {
+      const changed = DASHBOARD_CHART_ORDER_DEFAULT.some((id) => prev[id] !== nextSpans[id])
+      return changed ? nextSpans : prev
+    })
+  }, [chartHeights, chartOrder, draggingChart, dragOverChart])
+
+  useEffect(() => {
     if (!selectedProjectId) {
       return
     }
@@ -361,11 +706,12 @@ export function DashboardPage({
     }
     const statusKey = match.status ?? 'NOT_STARTED'
     const memberCount = (match.memberIds ?? []).length
-    const statusMismatch = selectedProjectStatuses.size > 0 && !selectedProjectStatuses.has(statusKey)
-    const unassignedMismatch = unassignedFilterActive && memberCount > 0
+    const matchesSelectedStatus = selectedProjectStatuses.has(statusKey)
+    const matchesUnassigned = unassignedFilterActive && memberCount === 0
+    const statusMismatch = hasAnyStatusFilterSelected && !(matchesSelectedStatus || matchesUnassigned)
     const assignedToMeMismatch =
       assignedToMeOnly && currentUserId && !(match.memberIds ?? []).includes(currentUserId)
-    if (statusMismatch || unassignedMismatch || assignedToMeMismatch || !projectMatchesTeamFilter(match)) {
+    if (statusMismatch || assignedToMeMismatch || !projectMatchesTeamFilter(match)) {
       onClearSelection()
     }
   }, [
@@ -373,6 +719,7 @@ export function DashboardPage({
     projects,
     selectedProjectStatuses,
     unassignedFilterActive,
+    hasAnyStatusFilterSelected,
     assignedToMeOnly,
     currentUserId,
     projectMatchesTeamFilter,
@@ -588,13 +935,12 @@ export function DashboardPage({
     return projects.filter((project) => {
       const statusKey = project.status ?? 'NOT_STARTED'
       const memberCount = (project.memberIds ?? []).length
-      if (selectedProjectStatuses.size === 0 && !unassignedFilterActive) {
+      if (!hasAnyStatusFilterSelected) {
         return false
       }
-      if (selectedProjectStatuses.size > 0 && !selectedProjectStatuses.has(statusKey)) {
-        return false
-      }
-      if (unassignedFilterActive && memberCount > 0) {
+      const matchesSelectedStatus = selectedProjectStatuses.has(statusKey)
+      const matchesUnassigned = unassignedFilterActive && memberCount === 0
+      if (!(matchesSelectedStatus || matchesUnassigned)) {
         return false
       }
       if (assignedToMeOnly && currentUserId) {
@@ -614,6 +960,7 @@ export function DashboardPage({
     projects,
     selectedProjectStatuses,
     unassignedFilterActive,
+    hasAnyStatusFilterSelected,
     assignedToMeOnly,
     currentUserId,
     search,
@@ -691,6 +1038,35 @@ export function DashboardPage({
     }))
   }, [scopedProjects, selectedTeamSet, teamByUserId, teamLabelByKey])
 
+  const assignmentCoverageSlices = useMemo(() => {
+    let assigned = 0
+    let unassigned = 0
+    scopedProjects.forEach((project) => {
+      if ((project.memberIds ?? []).length > 0) {
+        assigned += 1
+      } else {
+        unassigned += 1
+      }
+    })
+    return [
+      { label: 'Assigned', value: assigned, color: '#22c55e' },
+      { label: 'Unassigned', value: unassigned, color: '#f97316' },
+    ]
+  }, [scopedProjects])
+
+  const chartMetricsHealth = useMemo(() => {
+    const scopedTotal = scopedProjects.length
+    const statusTotal = statusSlices.reduce((sum, slice) => sum + slice.value, 0)
+    const coverageTotal = assignmentCoverageSlices.reduce((sum, slice) => sum + slice.value, 0)
+    const consistent = scopedTotal === statusTotal && scopedTotal === coverageTotal
+    return {
+      consistent,
+      scopedTotal,
+      statusTotal,
+      coverageTotal,
+    }
+  }, [assignmentCoverageSlices, scopedProjects, statusSlices])
+
   const visibleProjects = scopedProjects
 
   const filteredAssigned = useMemo(() => {
@@ -732,20 +1108,51 @@ export function DashboardPage({
 
   return (
     <section className="panel">
-      <div className="panel-header">
+      <div className="panel-header dashboard-header-compact">
         <div>
           <h2>Dashboard</h2>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary btn-icon"
-          onClick={() => setShowCreate(true)}
-          aria-label="Add project"
-          title="Add project"
-          data-tooltip="Add project"
-        >
-          +
-        </button>
+        <ControlsBar
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search projects"
+          filters={[]}
+          filterSections={dashboardFilterSections}
+          selectedFilterKeys={selectedFilters}
+          onSelectedFilterKeysChange={handleFilterMenuChange}
+          searchAriaLabel="Search projects"
+          filterAriaLabel="Filter projects by status or team"
+          filterActive={isFilterActive}
+          searchOverlay
+          filterBeforeSearch
+          leadingActions={
+            <button
+              type="button"
+              className={`btn btn-icon btn-ghost assign-toggle${assignedToMeOnly ? ' is-active' : ''}`}
+              aria-pressed={assignedToMeOnly}
+              aria-label={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+              title={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+              data-tooltip={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
+              onClick={() => setAssignedToMeOnly((prev) => !prev)}
+            >
+              <AssignMeIcon />
+            </button>
+          }
+          trailingActions={
+            <>
+              <button
+                type="button"
+                className="btn btn-primary btn-icon"
+                onClick={() => setShowCreate(true)}
+                aria-label="Add project"
+                title="Add project"
+                data-tooltip="Add project"
+              >
+                +
+              </button>
+            </>
+          }
+        />
       </div>
 
       {error ? <p className="error">{error}</p> : null}
@@ -771,33 +1178,6 @@ export function DashboardPage({
 
       <div className="dashboard-split">
         <div className="dashboard-list">
-          <div className="dashboard-controls">
-            <ControlsBar
-              searchValue={search}
-              onSearchChange={setSearch}
-              searchPlaceholder="Search projects"
-              filters={[]}
-              filterSections={dashboardFilterSections}
-              selectedFilterKeys={selectedFilters}
-              onSelectedFilterKeysChange={handleFilterMenuChange}
-              searchAriaLabel="Search projects"
-              filterAriaLabel="Filter projects by status or team"
-              filterActive={isFilterActive}
-              actions={
-                <button
-                  type="button"
-                  className={`btn btn-icon btn-ghost assign-toggle${assignedToMeOnly ? ' is-active' : ''}`}
-                  aria-pressed={assignedToMeOnly}
-                  aria-label={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                  title={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                  data-tooltip={assignedToMeOnly ? 'Assigned to me (On)' : 'Assigned to me'}
-                  onClick={() => setAssignedToMeOnly((prev) => !prev)}
-                >
-                  <AssignMeIcon />
-                </button>
-              }
-            />
-          </div>
           <ul className="list compact">
             {visibleProjects.length === 0 ? <li className="muted">No projects yet.</li> : null}
             {foldersToShow.map((folder) => {
@@ -827,10 +1207,11 @@ export function DashboardPage({
                       const memberCount = project.memberIds?.length ?? 0
                       const isAssigned = currentUserId && (project.memberIds ?? []).includes(currentUserId)
                       const isSelected = selectedProjectId === project.id
+                      const isRowUpdating = Boolean(project.id && updatingId === project.id)
                       return (
                         <li
                           key={project.id ?? project.name ?? 'project-' + folder.key + '-' + index}
-                          className={`card project-row motion-card${isSelected ? ' selected' : ''}`}
+                          className={`card project-row motion-card${isSelected ? ' selected' : ''}${isRowUpdating ? ' is-updating' : ''}`}
                           onClick={() => {
                             if (!project.id) return
                             if (isSelected) {
@@ -918,25 +1299,34 @@ export function DashboardPage({
                                 ) : null}
                               </div>
                             </div>
-                            <div className="project-row-meta">
+                            <div className="project-row-sub">
+                              <div
+                                className="project-row-description muted truncate"
+                                title={project.description ?? 'No description'}
+                              >
+                                {project.description?.trim() ? project.description : 'No description'}
+                              </div>
                               {isArchived ? (
-                                <span className="muted">Archived</span>
+                                <span className="muted status-label-archived">Archived</span>
                               ) : (
-                                <select
-                                  className="status-select"
-                                  value={status}
-                                  onClick={(event) => event.stopPropagation()}
-                                  onChange={(event) =>
-                                    handleStatusChange(project, event.target.value as ProjectStatus)
-                                  }
-                                  disabled={Boolean(updatingId === project.id)}
-                                >
-                                  {PROJECT_STATUS_SELECTABLE.map((value) => (
-                                    <option key={value} value={value}>
-                                      {formatStatusLabel(value)}
-                                    </option>
-                                  ))}
-                                </select>
+                                <div className="project-status-wrap">
+                                  <select
+                                    className="status-select"
+                                    value={status}
+                                    onClick={(event) => event.stopPropagation()}
+                                    onChange={(event) =>
+                                      handleStatusChange(project, event.target.value as ProjectStatus)
+                                    }
+                                    disabled={isRowUpdating}
+                                  >
+                                    {PROJECT_STATUS_SELECTABLE.map((value) => (
+                                      <option key={value} value={value}>
+                                        {formatStatusLabel(value)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {isRowUpdating ? <span className="project-inline-loading">Saving...</span> : null}
+                                </div>
                               )}
                             </div>
                             {isAssigned ? <div className="assigned-me centered">Assigned to me</div> : null}
@@ -956,7 +1346,7 @@ export function DashboardPage({
               {selectedProject ? (
                 <>
                 <div className="details-header">
-                  <div>
+                  <div className="details-header-main">
                     <input
                       className="details-title"
                       value={draftProject?.name ?? ''}
@@ -977,9 +1367,36 @@ export function DashboardPage({
                       placeholder="Add a description"
                       disabled={selectedIsArchived}
                     />
+                  </div>
+                  <div className="details-header-side">
+                    {selectedIsArchived ? (
+                      <div className="actions">
+                        <button type="button" className="btn btn-secondary" onClick={() => handleRestore(selectedProject)}>
+                          Restore
+                        </button>
+                        <button type="button" className="btn btn-danger" onClick={() => handleDelete(selectedProject)}>
+                          Delete
+                        </button>
+                      </div>
+                    ) : (
+                      <select
+                        className="status-select"
+                        value={draftProject?.status ?? 'NOT_STARTED'}
+                        onChange={(event) =>
+                          draftProject &&
+                          setDraftProject({ ...draftProject, status: event.target.value as ProjectStatus })
+                        }
+                      >
+                        {PROJECT_STATUS_SELECTABLE.map((value) => (
+                          <option key={value} value={value}>
+                            {formatStatusLabel(value)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     {selectedProject?.createdByName || selectedProject?.createdByUserId ? (
                       <div
-                        className="muted truncate"
+                        className="muted details-created-by"
                         title={`Created by ${
                           selectedProject.createdByName ?? selectedProject.createdByUserId ?? 'Unknown'
                         }${
@@ -992,43 +1409,20 @@ export function DashboardPage({
                       </div>
                     ) : null}
                   </div>
-                  {selectedIsArchived ? (
-                    <div className="actions">
-                      <button type="button" className="btn btn-secondary" onClick={() => handleRestore(selectedProject)}>
-                        Restore
-                      </button>
-                      <button type="button" className="btn btn-danger" onClick={() => handleDelete(selectedProject)}>
-                        Delete
-                      </button>
-                    </div>
-                  ) : (
-                    <select
-                      className="status-select"
-                      value={draftProject?.status ?? 'NOT_STARTED'}
-                      onChange={(event) =>
-                        draftProject &&
-                        setDraftProject({ ...draftProject, status: event.target.value as ProjectStatus })
-                      }
-                    >
-                      {PROJECT_STATUS_SELECTABLE.map((value) => (
-                        <option key={value} value={value}>
-                          {formatStatusLabel(value)}
-                        </option>
-                      ))}
-                    </select>
-                  )}
                 </div>
                 {!selectedIsArchived ? (
                   <>
                     <div className="members-editor">
-                      <div className="card">
-                        <h4>Members in this project</h4>
-                        <input
-                          type="search"
-                          placeholder="Search members"
-                          value={memberSearch}
-                          onChange={(event) => setMemberSearch(event.target.value)}
-                        />
+                      <div className="card member-panel-card">
+                        <div className="member-panel-head">
+                          <h4>Members in this project</h4>
+                          <input
+                            type="search"
+                            placeholder="Search members"
+                            value={memberSearch}
+                            onChange={(event) => setMemberSearch(event.target.value)}
+                          />
+                        </div>
                         <div className="member-list">
                           {filteredAssigned.length === 0 ? (
                             <p className="muted">No members yet.</p>
@@ -1055,14 +1449,16 @@ export function DashboardPage({
                           )}
                         </div>
                       </div>
-                      <div className="card">
-                        <h4>Assign people</h4>
-                        <input
-                          type="search"
-                          placeholder="Search people"
-                          value={availableSearch}
-                          onChange={(event) => setAvailableSearch(event.target.value)}
-                        />
+                      <div className="card member-panel-card">
+                        <div className="member-panel-head">
+                          <h4>Assign people</h4>
+                          <input
+                            type="search"
+                            placeholder="Search people"
+                            value={availableSearch}
+                            onChange={(event) => setAvailableSearch(event.target.value)}
+                          />
+                        </div>
                         <div className="member-list">
                           {filteredAvailable.length === 0 ? (
                             <p className="muted">No available people.</p>
@@ -1114,7 +1510,7 @@ export function DashboardPage({
                 </>
               ) : (
                 <>
-                <div className="card">
+                <div className="card workspace-summary-card">
                   <div className="panel-header">
                     <h4>Workspace summary</h4>
                     <FilterMenu
@@ -1135,6 +1531,22 @@ export function DashboardPage({
                       }
                       buttonClassName="workspace-summary-button"
                       icon={<SummaryMenuIcon />}
+                      extraContent={
+                        <div className="filter-extra-row">
+                          <label htmlFor="dashboard-summary-range">Range</label>
+                          <select
+                            id="dashboard-summary-range"
+                            value={summaryRange}
+                            onChange={(event) => handleSummaryRangeChange(event.target.value as SummaryRange)}
+                          >
+                            {SUMMARY_RANGE_OPTIONS.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      }
                     />
                   </div>
                   {workspaceStatsError ? <p className="error">{workspaceStatsError}</p> : null}
@@ -1149,32 +1561,101 @@ export function DashboardPage({
                       ) : (
                         visiblePanels.map((panel) => (
                           <div key={panel.key} className="workspace-summary-panel">
+                            <div className="workspace-summary-chart-bg" aria-hidden="true">
+                              <svg viewBox="0 0 100 40" preserveAspectRatio="none">
+                                {summaryTrendData[panel.key]?.areaPath ? (
+                                  <path className="workspace-summary-chart-area" d={summaryTrendData[panel.key].areaPath} />
+                                ) : null}
+                                {summaryTrendData[panel.key]?.path ? (
+                                  <path className="workspace-summary-chart-line" d={summaryTrendData[panel.key].path} />
+                                ) : null}
+                              </svg>
+                              <span className="workspace-summary-axis workspace-summary-axis-top">
+                                {summaryTrendData[panel.key]?.max ?? 0}
+                              </span>
+                              <span className="workspace-summary-axis workspace-summary-axis-bottom">
+                                {summaryTrendData[panel.key]?.min ?? 0}
+                              </span>
+                              <span className="workspace-summary-axis workspace-summary-axis-range">{summaryRange}</span>
+                            </div>
                             <span className="muted">{panel.label}</span>
                             <strong>{getPanelValue(panel.key)}</strong>
                             <span className="workspace-summary-description">{panel.description}</span>
+                            <div className="workspace-summary-metrics">
+                              <span>{SUMMARY_PANEL_MEASURE_LABEL[panel.key]}: {summaryTrendData[panel.key]?.last ?? 0}</span>
+                              <span>Avg: {Math.round(summaryTrendData[panel.key]?.avg ?? 0)}</span>
+                              <span>Peak: {summaryTrendData[panel.key]?.max ?? 0}</span>
+                            </div>
                           </div>
                         ))
                       )}
                     </div>
                   )}
                 </div>
+                {!chartMetricsHealth.consistent ? (
+                  <div className="banner error" role="alert">
+                    Stats mismatch detected: projects={chartMetricsHealth.scopedTotal}, status total=
+                    {chartMetricsHealth.statusTotal}, coverage total={chartMetricsHealth.coverageTotal}.
+                  </div>
+                ) : null}
                 <div className="dashboard-user-charts">
-                  <div className="card stats-card dashboard-user-chart">
-                    <h4>Projects by status</h4>
-                    <PieChart data={statusSlices} />
-                  </div>
-                  <div className="card stats-card dashboard-user-chart">
-                    <h4 title="Projects with at least one member in the team">
-                      Projects by team
-                    </h4>
-                    <PieChart data={projectsByTeamSlices} />
-                  </div>
-                  <div className="card stats-card dashboard-user-chart">
-                    <h4 title="Active assignments for team members (Not Started + In Progress)">
-                      People workload by team
-                    </h4>
-                    <PieChart data={workloadByTeamSlices} />
-                  </div>
+                  {chartOrder.map((chartId) => {
+                    const meta =
+                      chartId === 'projectsByStatus'
+                        ? {
+                            title: 'Projects by status',
+                            tooltip: undefined,
+                            data: statusSlices,
+                          }
+                        : chartId === 'projectsByTeam'
+                          ? {
+                              title: 'Projects by team',
+                              tooltip: 'Projects with at least one member in the team',
+                              data: projectsByTeamSlices,
+                            }
+                          : chartId === 'workloadByTeam'
+                            ? {
+                                title: 'People workload by team',
+                                tooltip: 'Active assignments for team members (Not Started + In Progress)',
+                                data: workloadByTeamSlices,
+                              }
+                            : {
+                                title: 'Assignment coverage',
+                                tooltip: 'Share of projects with members vs unassigned projects',
+                                data: assignmentCoverageSlices,
+                              }
+                    return (
+                      <div
+                        key={chartId}
+                        ref={setChartRef(chartId)}
+                        className={`card stats-card dashboard-user-chart${dragOverChart === chartId ? ' is-drop-target' : ''}`}
+                        style={chartCardStyle(chartId)}
+                        onDragOver={handleChartDragOver(chartId)}
+                        onDrop={handleChartDrop(chartId)}
+                        onDragLeave={() => setDragOverChart((prev) => (prev === chartId ? null : prev))}
+                      >
+                        <div className="dashboard-chart-resize-handle top" onMouseDown={handleChartResizeStart(chartId, 'top')} />
+                        <div className="dashboard-chart-header">
+                          <h4 title={meta.tooltip}>{meta.title}</h4>
+                          <span
+                            className="settings-drag-icon"
+                            draggable
+                            onDragStart={handleChartDragStart(chartId)}
+                            onDragEnd={() => {
+                              setDraggingChart(null)
+                              setDragOverChart(null)
+                            }}
+                            title="Drag to reorder"
+                            aria-label={`Drag ${meta.title} chart`}
+                          >
+                            ⋮⋮
+                          </span>
+                        </div>
+                        <PieChart data={meta.data} />
+                        <div className="dashboard-chart-resize-handle bottom" onMouseDown={handleChartResizeStart(chartId, 'bottom')} />
+                      </div>
+                    )
+                  })}
                 </div>
                 </>
               )}

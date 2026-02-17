@@ -37,9 +37,9 @@ function Show-Port {
     return
   }
   $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
-  foreach ($pid in $pids) {
-    $proc = tasklist /FI "PID eq $pid" | Select-Object -Last 1
-    Write-Host "  PID $pid -> $proc"
+  foreach ($processId in $pids) {
+    $proc = tasklist /FI "PID eq $processId" | Select-Object -Last 1
+    Write-Host "  PID $processId -> $proc"
   }
 }
 

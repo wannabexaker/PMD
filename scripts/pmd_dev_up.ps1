@@ -6,6 +6,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot\pmd_guard.ps1"
 
 function Write-Step($message) {
   Write-Host "[PMD] $message"
@@ -177,6 +178,7 @@ $portFile = Join-Path $Root '.runtime\backend-port.txt'
 $pidFile = Join-Path $PSScriptRoot ".pmd-dev-pids.json"
 
 Write-Step "Starting PMD dev (deps + backend + frontend)..."
+Ensure-PmdMode -TargetMode 'dev'
 
 Write-Step "Checking Docker..."
 try { docker info | Out-Null } catch { Fail "Docker is not running. Start Docker Desktop and retry." }
@@ -202,8 +204,6 @@ $mailhogRunning = Test-MailhogRunning
 
 if (-not $mongoRunning -or -not $mailhogRunning) {
   Write-Step "Starting deps (mongo + mailhog)..."
-  if (-not $mongoRunning) { try { docker start pmd-mongo | Out-Null } catch { } }
-  if (-not $mailhogRunning) { try { docker start pmd-mailhog | Out-Null } catch { } }
   $services = @()
   if (-not $mongoRunning) { $services += "mongo" }
   if (-not $mailhogRunning) { $services += "mailhog" }
@@ -301,6 +301,11 @@ $pids = @{
   startedAt = (Get-Date).ToString("o")
 }
 $pids | ConvertTo-Json | Set-Content -Path $pidFile
+Set-PmdActiveMode -Mode 'dev' -Metadata @{
+  backendPid = $backendPid
+  frontendPid = $frontendPid
+  backendPort = $backendPort
+}
 
 Write-Step "Ready:"
 Write-Host "  Frontend: http://localhost:5173"

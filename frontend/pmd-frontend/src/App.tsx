@@ -238,7 +238,8 @@ function AppView({
     }
   }, [activeWorkspaceId, setUsers, setUsersError, setUsersLoading])
 
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async (options?: { background?: boolean }) => {
+    const background = Boolean(options?.background)
     if (!activeWorkspaceId) {
       setProjects([])
       setProjectLoading(false)
@@ -246,7 +247,9 @@ function AppView({
       return
     }
     setProjectError(null)
-    setProjectLoading(true)
+    if (!background) {
+      setProjectLoading(true)
+    }
     try {
       const data = await fetchProjects(activeWorkspaceId)
       setProjects(data)
@@ -264,7 +267,9 @@ function AppView({
         setAssignSelectedProjectIdState(null)
       }
     } finally {
-      setProjectLoading(false)
+      if (!background) {
+        setProjectLoading(false)
+      }
     }
   }, [
     activeWorkspaceId,
@@ -277,14 +282,18 @@ function AppView({
     setProjects,
   ])
 
+  const refreshProjectsBackground = useCallback(async () => {
+    await loadProjects({ background: true })
+  }, [loadProjects])
+
   const handleProjectCreated = useCallback(
     (project?: Project) => {
       if (project?.id) {
         setProjects((prev) => [project, ...prev.filter((item) => item.id !== project.id)])
       }
-      loadProjects()
+      refreshProjectsBackground()
     },
-    [loadProjects, setProjects]
+    [refreshProjectsBackground, setProjects]
   )
 
   useEffect(() => {
@@ -776,7 +785,7 @@ function AppView({
                   ) : projectError ? (
                     <p className="error">{projectError}</p>
                   ) : null}
-                  {projectLoading ? (
+                  {projectLoading && projects.length === 0 ? (
                     <PmdLoader size="md" variant="panel" />
                   ) : (
                     <DashboardPage
@@ -787,7 +796,7 @@ function AppView({
                       onSelectProject={(id) => setDashboardSelectedProjectIdState(id)}
                       onClearSelection={() => setDashboardSelectedProjectIdState(null)}
                       onCreated={handleProjectCreated}
-                      onRefresh={loadProjects}
+                      onRefresh={refreshProjectsBackground}
                     />
                   )}
                 </>
@@ -815,7 +824,7 @@ function AppView({
                       {projectError ? <p className="error">{projectError}</p> : null}
                     </>
                   )}
-                  {projectLoading ? (
+                  {projectLoading && projects.length === 0 ? (
                     <PmdLoader size="md" variant="panel" />
                   ) : (
                     <AssignPage
@@ -827,7 +836,7 @@ function AppView({
                         setAssignSelectedProjectIdState(assignSelectedProjectId === id ? null : id)
                       }
                       onClearSelection={() => setAssignSelectedProjectIdState(null)}
-                      onRefresh={loadProjects}
+                      onRefresh={refreshProjectsBackground}
                     />
                   )}
                 </>

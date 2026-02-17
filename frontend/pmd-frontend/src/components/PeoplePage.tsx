@@ -542,7 +542,6 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
       <div className="panel-header">
         <div>
           <h2>People</h2>
-          {!isAdmin ? <p className="muted">Workspace members.</p> : null}
         </div>
       </div>
       {isAdmin ? (
@@ -550,7 +549,6 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
           <div className="panel-header">
             <div>
               <h3>People records</h3>
-              <p className="muted">Admin-only records used for staffing data.</p>
             </div>
           </div>
           {peopleError ? <p className="error">{peopleError}</p> : null}
@@ -750,7 +748,11 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
       </div>
       <div className="people-layout">
         <div className="card people-directory-card">
-          <h3>Directory</h3>
+          <div className="panel-header">
+            <div>
+              <h3>Directory</h3>
+            </div>
+          </div>
           <div className="people-directory-scroll">
             <div className="people-grid people-directory">
               {visibleUsers.length === 0 ? <div className="muted">No people yet in this workspace.</div> : null}
@@ -815,7 +817,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                           {tooltipLoading ? (
                             <span className="muted">Loading...</span>
                           ) : recommenders.length === 0 ? (
-                            <span className="muted">No recommendations yet.</span>
+                            <span className="muted">No Rec yet.</span>
                           ) : (
                             recommenders.map((recommender, i) => (
                               <div
@@ -986,7 +988,6 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                 <div className="panel-header">
                   <div>
                     <h3>Overview</h3>
-                    <p className="muted">Select a person to view assigned projects.</p>
                   </div>
                 </div>
                 {statsError ? <p className="error">Failed to load stats.</p> : null}

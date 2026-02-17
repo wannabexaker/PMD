@@ -14,9 +14,7 @@ if /I "%action%"=="down" (
   exit /b 0
 )
 if /I "%action%"=="deps" (
-  docker start pmd-mongo
-  docker start pmd-mailhog
-  docker compose -f docker-compose.deps.yml up -d mongo mailhog
+  call "%ROOT%scripts\pmd_up_deps.bat"
   exit /b 0
 )
 if /I "%action%"=="backend" (

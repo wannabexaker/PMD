@@ -8,3 +8,7 @@ spring:
 pmd:
   jwt:
     secret: ${PMD_JWT_SECRET}
+  security:
+    rate-limit:
+      per-minute: ${PMD_RATE_LIMIT_PER_MINUTE:600}
+      per-hour: ${PMD_RATE_LIMIT_PER_HOUR:12000}

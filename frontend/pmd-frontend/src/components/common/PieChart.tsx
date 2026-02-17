@@ -14,7 +14,9 @@ export function PieChart({ data, emptyLabel = 'No data yet.' }: PieChartProps) {
   if (total === 0) {
     return <p className="muted">{emptyLabel}</p>
   }
-  const radius = 42
+  const radius = 56
+  const size = 156
+  const center = size / 2
   const circumference = 2 * Math.PI * radius
   const dashValues = data.map((slice) => (slice.value / total) * circumference)
   const cumulative = dashValues.reduce<number[]>((acc, dash, index) => {
@@ -25,8 +27,9 @@ export function PieChart({ data, emptyLabel = 'No data yet.' }: PieChartProps) {
 
   return (
     <div className="pie-chart">
-      <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
-        <circle cx="60" cy="60" r={radius} stroke="var(--border)" strokeWidth="14" fill="none" />
+      <div className="pie-chart-visual">
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} aria-hidden="true">
+        <circle cx={center} cy={center} r={radius} stroke="var(--border)" strokeWidth="16" fill="none" />
         {data.map((slice, index) => {
           if (slice.value === 0) return null
           const dash = dashValues[index]
@@ -36,20 +39,25 @@ export function PieChart({ data, emptyLabel = 'No data yet.' }: PieChartProps) {
           return (
             <circle
               key={`${slice.label}-${index}`}
-              cx="60"
-              cy="60"
+              cx={center}
+              cy={center}
               r={radius}
               stroke={slice.color}
-              strokeWidth="14"
+              strokeWidth="16"
               strokeDasharray={dashArray}
               strokeDashoffset={dashOffset}
               strokeLinecap="round"
               fill="none"
-              transform="rotate(-90 60 60)"
+              transform={`rotate(-90 ${center} ${center})`}
             />
           )
         })}
       </svg>
+      <div className="pie-chart-total">
+        <strong>{total}</strong>
+        <span className="muted">total</span>
+      </div>
+      </div>
       <div className="pie-legend">
         {data.map((slice) => (
           <div key={slice.label} className="legend-item">
@@ -57,7 +65,9 @@ export function PieChart({ data, emptyLabel = 'No data yet.' }: PieChartProps) {
             <span className="truncate" title={slice.label}>
               {slice.label}
             </span>
-            <span className="muted">{slice.value}</span>
+            <span className="muted">
+              {slice.value} ({Math.round((slice.value / total) * 100)}%)
+            </span>
           </div>
         ))}
       </div>

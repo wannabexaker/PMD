@@ -19,6 +19,29 @@ pmd:
     from: no-reply@pmd.local
   jwt:
     expirationSeconds: ${PMD_JWT_EXPIRATIONSECONDS:86400}
+  security:
+    allowed-origins: ${PMD_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+    rate-limit:
+      per-minute: ${PMD_RATE_LIMIT_PER_MINUTE:180}
+      per-hour: ${PMD_RATE_LIMIT_PER_HOUR:3000}
 
 server:
   port: 8080
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    SECURITY: WARN

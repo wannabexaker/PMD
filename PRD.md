@@ -2453,3 +2453,158 @@ Implemented
 Rationale
 - PID values are per-machine/per-session runtime metadata for stop scripts, not deterministic project config.
 - Keeping it out of commits avoids noisy diffs and accidental cross-machine process cleanup issues.
+
+## 2026-02-16 - Workspace summary trend background
+
+Implemented
+- Workspace Summary panels now support history range selection inside the triangle menu:
+  - `1m`, `10m`, `30m`, `1h`, `8h`, `12h`, `24h`, `7d`, `30d`, `1y`, `2y`, `5y`
+- Added subtle background sparkline trend behind each summary counter card (`Unassigned`, `Assigned`, `In progress`, `Completed`, `Canceled`, `Archived`).
+- Trend history is captured from dashboard stats snapshots and stored per workspace in local storage.
+- Range selection is persisted per workspace in local storage.
+
+Behavior details
+- If data points are not enough for a trend (fewer than 2), no line is shown.
+- Snapshot writes are throttled for unchanged counters (skips duplicate snapshots within 60 seconds).
+
+UI
+- Maintains existing design identity and card layout.
+- Trend line is low-opacity and non-interactive, so main values remain primary.
+
+## 2026-02-16 - Workspace summary trend visual refinement
+
+Implemented
+- Refined summary trend UI to a cleaner minimal style:
+  - compact line chart strip per card
+  - visible min/max values around the sparkline
+  - dotted baseline caption in the format `min .... range`
+- Added short ranges in selector:
+  - `1m`, `10m`, `30m`, `1h`, `8h`, `12h`, `24h`, `7d`, `30d`, `1y`, `2y`, `5y`
+
+## 2026-02-16 - Workspace summary Grafana-style polish
+
+Implemented
+- Updated trend visuals to a more Grafana-like style:
+  - cooler green/cyan line palette
+  - subtle glow on the line
+  - lightweight chart grid in the trend strip
+  - low-noise blurred background accent inside each trend frame
+
+## 2026-02-16 - Full-panel background trend + meaningful panel metrics
+
+Implemented
+- Workspace summary trend chart is now rendered as full background inside each `workspace-summary-panel`.
+- Chart labels are intentionally very small (tiny axis labels) to keep emphasis on primary counters.
+- Added per-panel metric row with meaningful values:
+  - contextual current metric (`Unassigned/Assigned/Active/Completed/Canceled/Archived projects`)
+  - `Avg`
+  - `Peak`
+
+## 2026-02-16 - Project refresh behavior (no full-page loading on status change)
+
+Implemented
+- Split project refresh behavior into:
+  - foreground load (keeps existing full loader behavior for initial/route-level loading)
+  - background refresh (updates project data without toggling page-level `projectLoading`)
+- Dashboard and Assign `onRefresh` now use background refresh to avoid full screen/panel loader when:
+  - changing status
+  - saving project edits
+  - assignment actions
+
+## 2026-02-16 - Local loading UX for project updates
+
+Implemented
+- Prevented dashboard/assign route panel replacement with loader when project data already exists:
+  - route loader now appears only when `projectLoading` and project list is empty.
+- Added row-level loading feedback in Dashboard project list:
+  - updating row gets `is-updating` visual state
+  - inline `Saving...` indicator near status control
+  - status control disabled only for the row being updated
+
+## 2026-02-16 - Filter menu bulk-actions UI polish
+
+Implemented
+- Redesigned filter bulk action buttons from `Check all / Uncheck all` to compact segmented style:
+  - `All`
+  - `None`
+- Added disabled states for clarity:
+  - `All` disabled when all options are already selected
+  - `None` disabled when no options are selected
+
+## 2026-02-16 - Filter popover viewport-safe positioning
+
+Implemented
+- Filter popovers now use viewport-safe positioning to avoid opening outside screen bounds.
+- Added adaptive placement logic:
+  - keeps popover inside left/right viewport edges
+  - flips upward when there is not enough space below
+  - clamps max height based on available viewport space
+- Updated outside-click handling to work correctly with fixed-position popover.
+
+## 2026-02-16 - People recommendation tooltip layering fix
+
+Implemented
+- Fixed star-hover recommendation tooltip visibility in People directory.
+- Adjusted stacking and overflow rules so tooltip is not hidden behind neighboring cards/layers:
+  - `people-card` now establishes local stacking context and raises on hover/focus
+  - tooltip anchor and tooltip z-index increased
+  - People directory card overflow changed to visible for tooltip rendering
+
+## 2026-02-16 - Settings order popover compact sizing
+
+Implemented
+- Reduced unnecessary width of the `Move to position` context popover in Settings.
+- Updated label to `Position` and tightened spacing/padding/font sizes for a cleaner compact window.
+
+## 2026-02-16 - Overlay search behavior aligned across pages
+
+Implemented
+- Applied the same overlay-style search behavior used in People to:
+  - Dashboard
+  - Assign
+- Search popover now renders as fixed overlay with high z-index so it appears above surrounding cards/layers.
+- Added viewport-aware repositioning on open/scroll/resize to keep the search overlay visible and anchored to the search button.
+
+## 2026-02-16 - Settings Roles duplicate title cleanup
+
+Implemented
+- Removed the duplicate inner `Roles` subtitle inside the Roles card body.
+- Kept only the main card title `Roles` in the panel header.
+
+## 2026-02-16 - Workspaces empty-state guidance
+
+Implemented
+- Updated Workspaces empty state copy from `No workspaces yet.` to:
+  - `No workspaces yet. Create your first workspace below.`
+
+## 2026-02-16 - Workspace default roles + custom role cap
+
+Implemented
+- Workspace creation keeps the default system roles aligned with demo defaults:
+  - `Owner`, `Manager`, `Member`, `Viewer` with default permission presets.
+- Added workspace-level cap for non-system roles:
+  - maximum `10` custom roles per workspace.
+- Backend now blocks creation above limit with explicit error message.
+- Settings UI now shows `Custom roles: X/10` and disables role creation controls when limit is reached.
+
+## 2026-02-16 - Attachment image fix in dev
+
+Implemented
+- Fixed comment attachment image rendering issue in local dev by adding Vite proxy route:
+  - `/uploads` -> backend
+- This prevents image URLs from resolving to the frontend app server and returning invalid content.
+
+## 2026-02-16 - Dashboard header control alignment
+
+Implemented
+- Moved `controls-bar` alignment to the top-right area of the Dashboard header.
+- Replaced fixed left offset with responsive right alignment (`margin-left: auto`) and `space-between` header layout.
+
+## 2026-02-16 - Global layering cleanup (windows/popovers/modals)
+
+Implemented
+- Audited overlay layering and unified z-index levels with CSS tokens:
+  - `--z-topbar`, `--z-tooltip`, `--z-popover`, `--z-drawer-overlay`, `--z-drawer`, `--z-modal`, `--z-image-modal`
+- Applied the scale across interactive windows/popovers:
+  - search popover, filter popover, settings order popover, project actions menu, drawer, modal, image modal
+- Updated settings cards to `overflow: visible` so internal popovers are not clipped by parent cards.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
 type FilterOption = {
   id: string
@@ -30,6 +30,7 @@ export function FilterMenu({
 }: FilterMenuProps) {
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
+  const [popoverStyle, setPopoverStyle] = useState<CSSProperties | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const closeTimerRef = useRef<number | null>(null)
@@ -44,6 +45,8 @@ export function FilterMenu({
   const selectedSet = useMemo(() => new Set(selected), [selected])
   const derivedActive = selected.length > 0 && selected.length < allOptions.length
   const active = isActive ?? derivedActive
+  const allChecked = allOptions.length > 0 && selected.length === allOptions.length
+  const noneChecked = selected.length === 0
 
   const requestClose = useCallback(() => {
     setVisible(false)
@@ -57,7 +60,7 @@ export function FilterMenu({
     if (!open) return
     const handleClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null
-      if (target && rootRef.current?.contains(target)) {
+      if (target && (rootRef.current?.contains(target) || popoverRef.current?.contains(target))) {
         return
       }
       requestClose()
@@ -78,6 +81,45 @@ export function FilterMenu({
       window.removeEventListener('keydown', handleKey)
     }
   }, [open, requestClose])
+
+  useLayoutEffect(() => {
+    if (!open || !visible) return
+    const root = rootRef.current
+    const popover = popoverRef.current
+    if (!root || !popover) return
+    const margin = 8
+    const spacing = 8
+    const triggerRect = root.getBoundingClientRect()
+    const popoverRect = popover.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+
+    let left = triggerRect.right - popoverRect.width
+    left = Math.max(margin, Math.min(left, viewportWidth - popoverRect.width - margin))
+
+    let top = triggerRect.bottom + spacing
+    let openAbove = false
+    if (top + popoverRect.height > viewportHeight - margin) {
+      const aboveTop = triggerRect.top - popoverRect.height - spacing
+      if (aboveTop >= margin) {
+        top = aboveTop
+        openAbove = true
+      } else {
+        top = margin
+      }
+    }
+
+    const availableHeight = openAbove
+      ? Math.max(140, triggerRect.top - margin - spacing)
+      : Math.max(140, viewportHeight - top - margin)
+
+    setPopoverStyle({
+      position: 'fixed',
+      top: `${Math.round(top)}px`,
+      left: `${Math.round(left)}px`,
+      ['--filter-popover-max-height' as string]: `${Math.round(availableHeight)}px`,
+    })
+  }, [open, visible])
 
   useEffect(() => {
     return () => {
@@ -122,14 +164,27 @@ export function FilterMenu({
           aria-label={ariaLabel}
           ref={popoverRef}
           data-state={visible ? 'open' : 'closed'}
+          style={popoverStyle}
         >
           {extraContent ? <div className="filter-extra">{extraContent}</div> : null}
-          <div className="filter-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => onChange(allOptions.map((o) => o.id))}>
-              Check all
+          <div className="filter-actions" role="group" aria-label="Bulk filter actions">
+            <button
+              type="button"
+              className="btn btn-secondary filter-action-btn"
+              onClick={() => onChange(allOptions.map((o) => o.id))}
+              disabled={allChecked}
+              title="Check all filters"
+            >
+              All
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => onChange([])}>
-              Uncheck all
+            <button
+              type="button"
+              className="btn btn-secondary filter-action-btn"
+              onClick={() => onChange([])}
+              disabled={noneChecked}
+              title="Uncheck all filters"
+            >
+              None
             </button>
           </div>
           <div className="filter-options">
