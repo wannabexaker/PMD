@@ -15,7 +15,7 @@ PMD is a Windows-friendly hybrid development playground for a lightweight projec
    - Launches the backend in the `local` profile with `SERVER_PORT=0` and `.runtime/backend-port.txt` so the chosen port is recorded.
    - Starts the frontend (`npm run dev -- --host 0.0.0.0 --port 5173`) after reading the backend port and exporting it as `PMD_BACKEND_PORT`.
 3. When you want to stop everything, go back to PMD Control and choose **[2] Stop ALL**, or run `pmd.bat down`/`scripts\pmd_dev_down.bat` from PowerShell.
-4. Use **PMD Control** options [3]-[6] or the same verbs (`pmd.bat deps`, `pmd.bat backend`, `pmd.bat frontend`, `pmd.bat status`) if you need a single service or want to inspect running ports.
+4. Use **PMD Control** options [3]-[9] or the same verbs (`pmd.bat deps`, `pmd.bat backend`, `pmd.bat frontend`, `pmd.bat status`, `pmd.bat ops`) if you need a single service, want status, or want the animated ops cockpit in a separate PowerShell window.
 
 > PMD Control verifies Docker, Java, and Node before starting anything and waits for Mongo, MailHog, and the backend health check to succeed, so the UI is ready as soon as the script prints `Ready:` with the URLs.
 
@@ -69,6 +69,23 @@ Use `scripts\pmd_dev_down.bat`, `pmd.bat down`, or stop the Maven/Node processes
 
 Because Mongo and MailHog are already wired into this compose file, you do **not** need `docker-compose.deps.yml` when you run `docker compose -f docker-compose.local.yml --profile reviewer up -d --build`. This compose stack should be treated as a reviewer/CI path rather than the default day-to-day flow.
 
+### Release readiness check (Docker/Nginx)
+
+Use this sequence before tagging/pushing a release:
+
+1. Validate compose files:
+   - `docker compose -f docker-compose.yml config`
+   - `docker compose -f docker-compose.deps.yml config`
+   - `docker compose -f docker-compose.local.yml config`
+   - `docker compose -f docker-compose.prod.yml config`
+2. Validate Nginx config used by the frontend image:
+   - `docker run --rm -v "${PWD}/frontend/pmd-frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.27-alpine nginx -t`
+3. Build reviewer images:
+   - `docker compose -f docker-compose.local.yml --profile reviewer build`
+4. If `pmd-mongo`/`pmd-mailhog` already exist from deps mode, stop the previous stack first:
+   - `docker compose -f docker-compose.deps.yml down`
+   - or `docker compose -f docker-compose.local.yml down`
+
 ### Production compose note
 
 `docker-compose.prod.yml` expects `PMD_JWT_SECRET` to be set.
@@ -109,7 +126,7 @@ Always confirm the port file exists (the script waits up to 90 seconds for it) a
 
 | Script | What it does |
 | --- | --- |
-| `PMD.bat` | Windows menu; `up` starts everything, `down` stops, `deps` brings up Mongo/MailHog, `status` prints Docker and netstat info. |
+| `PMD.bat` | Windows menu; `up` starts everything, `down` stops, `deps` brings up Mongo/MailHog, `status` prints Docker/netstat info, `ops` opens `scripts/pmdops.py` in a new PowerShell. |
 | `scripts\pmd_dev_up.bat` | Starts deps, backend (dynamic port), and frontend (Vite). Logs readiness and writes `.runtime/backend-port.txt`. |
 | `scripts\pmd_dev_down.bat` | Stops the Maven/Node processes listed in `.pmd-dev-pids.json` and optionally the Docker deps. |
 | `scripts\pmd_up_backend_dev.bat` / `scripts\pmd_up_frontend_dev.bat` | Individually start backend or frontend windows (used by the menu). |

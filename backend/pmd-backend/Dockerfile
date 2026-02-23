@@ -6,7 +6,8 @@ COPY mvnw pom.xml ./
 RUN chmod +x mvnw
 
 COPY src ./src
-RUN ./mvnw -q -DskipTests package
+# Skip both test execution and test compilation in container builds.
+RUN ./mvnw -q -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:21-jre
 

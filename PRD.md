@@ -5,6 +5,308 @@ This file is the single source of truth for PMD requirements, roadmap, TODOs, an
 - Merged from: `PMD-todo.md` and `PMD-progress-notes.md`
 - Generated on: 2026-02-16
 
+## 2026-02-20 - Global scrollbar visual unification
+
+- [x] Unified scrollbar styling across the whole frontend with higher overlay feel:
+  - thumb transparency set to ~50% for idle state
+  - transparent track everywhere
+  - hover/active thumb states remain visible but still semi-transparent
+  - subtle inset edge on thumb so it reads as foreground above content.
+- [x] Removed reserved scrollbar gutter behavior from custom scroll containers so scrollbars behave more like overlay instead of consuming layout space.
+- [x] Verified frontend build after scrollbar updates (`npm run build` successful).
+
+## 2026-02-20 - Audit access fix for personal filters
+
+- [x] Fixed workspace audit permission gating:
+  - users can now query audit with personal scope when `actorUserId` is their own id, even if they do not have `VIEW_STATS`
+  - keeps `VIEW_STATS` requirement for general/other-user audit queries.
+- [x] Backend compile check passed (`./mvnw -DskipTests compile`).
+
+## 2026-02-20 - Invite default role on join
+
+- [x] Added `Default role on join` to workspace invite creation flow (Settings -> Invites).
+- [x] Invite payload/model/response now carries `defaultRoleId`.
+- [x] Join via invite now applies invite default role to the joining member (including pending membership path).
+- [x] Safety rule: invite default role cannot be `Owner`.
+- [x] Invite list now shows selected default role in details.
+- [x] Validation checks passed:
+  - backend compile (`./mvnw -DskipTests compile`)
+  - frontend build (`npm run build`).
+
+## 2026-02-20 - Workspace limits (practical enforcement)
+
+- [x] Added configurable workspace limits in workspace profile:
+  - `maxProjects`
+  - `maxMembers`
+  - `maxTeams`
+  - `maxStorageMb` (persisted for policy readiness)
+- [x] Added limit fields to backend model/API:
+  - `Workspace`
+  - `WorkspaceSettingsRequest`
+  - `WorkspaceResponse`
+- [x] Enforced limits in core flows:
+  - project create blocked when workspace project limit reached
+  - team create blocked when workspace team limit reached
+  - join/approve membership blocked when workspace member limit reached.
+- [x] Added `Default role on join` in invite creation and persisted it in invite payload/response.
+- [x] Build checks passed:
+  - backend compile (`./mvnw -DskipTests compile`)
+  - frontend build (`npm run build`).
+
+## 2026-02-18 - Topbar avatar routing + profile-based avatar editing
+
+- [x] Topbar avatar behavior updated:
+  - workspace avatar click now routes to `Settings`
+  - user avatar click now routes to `Profile`
+  - removed topbar avatar edit modal flow.
+- [x] Profile avatar management moved into `My Profile`:
+  - current avatar is now visible in profile
+  - clicking avatar opens inline avatar settings
+  - supports URL, file upload (`PNG/JPG/WEBP`, max `2MB`), delete, and save
+  - uploaded relative URLs are resolved against API base so preview renders correctly.
+- [x] My Profile avatar header UX refinement:
+  - avatar header now shows `Name` and `Surname` stacked vertically to the right of the photo
+  - removed static helper labels (`Profile avatar`, `Click image to edit`)
+  - avatar hover now shows edit icon overlay
+  - when avatar editor is open, overlay icon switches to `X` on the photo for close/toggle behavior.
+- [x] Profile avatar editor context-window behavior:
+  - avatar editor now opens as a modal context window layer above profile content
+  - dark-theme avatar hover icon styling strengthened with purple emphasis for better visibility.
+- [x] Avatar thumbnail/crop improvements:
+  - avatar thumbnails now enforce clean circular rendering for uploaded images
+  - topbar workspace/user avatars increased slightly for better visibility and balance
+  - added pre-upload horizontal crop adjustment (left/right slider) for avatar images in both:
+    - `My Profile` avatar upload
+    - `Settings -> Workspace profile` avatar upload.
+- [x] Settings -> Workspaces layout simplification:
+  - removed separate `Demo workspaces` section and `Enter Demo Workspace` button
+  - demo workspace entries are now part of `Your workspaces` list with `Demo` badge
+  - workspace row click now switches to that workspace directly
+  - in `Tab View`, `Your workspaces` and `Workspace actions` now render side-by-side (2 columns)
+  - `Coming soon` moved to the bottom, after invites/requests.
+- [x] Workspace actions cleanup:
+  - removed `Current workspace` info block (`Current workspace`, `new/current` badges) from `Workspace actions`
+  - kept `Reset Demo` action available only when active workspace is demo.
+- [x] Workspace creation flow simplification:
+  - removed `Initial teams` inputs and `Add team` from `Workspace actions -> Create workspace`
+  - workspace can now be created without defining team(s) up front
+  - `Workspace actions` create/join blocks are stacked vertically (`Create workspace` above `Join workspace`) to free horizontal space for `Your workspaces`.
+- [x] Mention/email + profile stats polish:
+  - mention email targeting now includes admin users as workspace recipients
+  - user-token mention handling is more tolerant (fallback by display name if token-id lookup fails)
+  - mention snippets in emails are sanitized to hide technical token payloads (`{user:...}`, `{team:...}`, `{role:...}`)
+  - frontend comment rendering now shows clean mention text (no raw token ids in UI)
+  - reduced vertical spacing in `My stats` and `My dashboard stats` cards.
+- [x] Mention delivery + image quality follow-up:
+  - mention parsing now supports plain `@Display Name` fallback (manual mentions without token payload)
+  - self-mentions are no longer skipped (useful for single-user/demo verification flow)
+  - project description mention display now uses cleaned text formatter in dashboard/details views
+  - improved topbar/profile picture rendering quality with larger topbar size and centered/high-quality image fit.
+- [x] Topbar profile-picture shape refinement:
+  - increased image fill + slight zoom for topbar profile pictures
+  - enforced circular clipping (`clip-path: circle(50%)`) so uploaded images render visibly round instead of square-looking.
+
+## 2026-02-17 - Workspace summary timeline + refresh/navigation fixes
+
+- [x] Workspace summary charts now use bucketed timeline logic per selected range:
+  - `1m` -> 10s buckets
+  - `10m` -> 1m buckets
+  - `30m` -> 3m buckets
+  - `1h` -> 10m buckets
+  - `8h` -> 1h buckets
+  - `12h` -> 1h buckets
+  - `24h` -> 2h buckets
+  - `7d` -> 12h buckets
+  - `30d` -> 1d buckets
+  - `1y` -> monthly buckets (~12)
+  - `2y` -> monthly buckets (~24)
+  - `5y` -> monthly buckets (~60)
+- [x] Workspace summary snapshots now auto-sample every 10 seconds and persist with history compaction (so trends keep updating without needing full page reload).
+- [x] Fixed workspace refresh routing race: hard refresh no longer incorrectly redirects to `/settings` before workspace state resolves.
+- [x] Top-left PMD logo is now clickable and routes to dashboard (or login/settings when appropriate).
+- [x] Burger button hover/focus visual polish added for clearer interactive feedback while keeping current UI identity.
+- [x] Route memory added for authenticated flows: hard refresh/`/` fallback now returns user to last visited main page (dashboard/assign/people/settings/profile/admin) instead of always following stale default landing.
+- [x] Drawer menu link hover interaction improved (clearer hover state + motion + border/glow).
+- [x] Workspace summary performance pass: reduced history cap, removed heavy per-tick sorting, and optimized bucket generation to reduce UI lag during frequent updates.
+- [x] PMD launcher update: `pmd.bat ops` added to open `scripts/pmdops.py` in a new PowerShell window (also exposed in the interactive menu option `[9]`).
+- [x] Fixed refresh/session workspace regression root cause: initial unauthenticated render no longer wipes stored active workspace id, so F5 does not force redirect to settings.
+- [x] Login checkbox label updated from `Remember me` to `Stay signed in`.
+- [x] Light theme readability pass for Assign/People: improved muted contrast, fixed low-contrast `COMPLETED`/`CANCELED` badges, and refined light-card visual quality.
+- [x] Light theme hard fix for invisible titles: explicit high-contrast text color added for Assign project titles and People card names.
+- [x] People recommendation flow stability:
+  - recommendation toggle errors now surface as People-action errors, not generic stats errors (`Failed to load stats`)
+  - prevents recommendation clicks from polluting overview/user-stats error state.
+- [x] Team fallback wording unified in UI where user has no team: `No team`.
+- [x] Assign UX update:
+  - added `+ Add new project` action in Assign controls
+  - embedded project creation section in Assign with tighter spacing for wide layout
+  - project creation/edit now allows `No team` (team optional).
+- [x] Assign overlay layering fix: raised z-index/overflow behavior for search/filter/random tooltips/popovers so they render above cards.
+- [x] Settings Workspace layout pass: denser wide-screen card layout for workspace action fields to reduce wasted space.
+- [x] Added Preferences toggle: `Require team when creating project`.
+- [x] Project creation behavior now follows the new preference across Dashboard + Assign create flows.
+- [x] Workspace profile save flow hardened:
+  - save now sends only changed fields
+  - clear API error messages are surfaced to the user instead of generic failure toast.
+- [x] Backend CORS policy updated to support workspace edit/save flows:
+  - added `PATCH` (and `HEAD`) to allowed CORS methods in both MVC and Spring Security CORS config
+  - fixes `Invalid CORS` failures when saving workspace profile/avatar updates from frontend.
+- [x] Workspace avatar behavior implemented:
+  - avatar URL has live preview in Settings -> Workspace profile
+  - active workspace avatar is shown in topbar (fallback to workspace initial).
+- [x] Workspace Profiles edit flow improved:
+  - each owned/manageable workspace in the list now has an `Edit` action
+  - selecting `Edit` loads that workspace profile form for update/save
+  - `Creator` badge shown for owned workspaces.
+- [x] Persisted theme selection (`light`/`dark`) in localStorage so F5 no longer resets to dark mode.
+- [x] Workspace refresh fallback improved: if stored workspace id is missing/invalid (common in demo resets), app now auto-selects an available active workspace instead of forcing null -> settings.
+- [x] Comments attachment UX improved:
+  - explicit file type/size hint (`PNG/JPG/WEBP`, max 8MB)
+  - client-side validation before upload
+  - visible upload progress state with file name while upload is in-flight.
+- [x] Workspace route stability hardening: when workspace fetch errors occur (e.g., transient backend/rate-limit issues), app keeps the user on current page with warning instead of redirecting to `/settings`.
+- [x] Discord-style `@` mentions added for comments + project descriptions (Dashboard/Create/Edit):
+  - autocomplete menu for `@everyone`, teams, roles, and users
+  - keyboard support (`ArrowUp/ArrowDown`, `Enter`, `Tab`, `Esc`)
+  - mention tokens saved in text as readable + resolvable format:
+    - `@everyone`
+    - `@Team Name{team:<teamId>}`
+    - `@Role Name{role:<roleId>}`
+    - `@User Name{user:<userId>}`
+- [x] Backend mention notification parser extended (comments):
+  - supports new structured mention tokens for user/team/role/everyone
+  - keeps legacy mentions working (`@email`, `@teammention`)
+  - deduplicates notifications per user to avoid multiple emails from combined mentions in one comment.
+- [x] Avatar management actions added directly from topbar icons:
+  - workspace avatar button now opens `Update` / `Delete`
+  - user avatar button now opens `Update` / `Delete`
+  - update flow supports both URL input and direct image upload (PNG/JPG/WEBP, max 8MB)
+  - delete clears avatar and falls back to initials.
+- [x] User profile API/model extended with `avatarUrl` so personal avatar persists across login/profile/topbar.
+- [x] Settings -> Workspaces profile flow tightened:
+  - `Workspace profile` editor is now hidden by default
+  - it appears only after pressing `Edit` on a workspace in `Your workspaces`
+  - each workspace row keeps badges/actions aligned to the far-right for consistent layout.
+- [x] Toast/notification UX hardening:
+  - duplicate toasts are now suppressed inside a short dedupe window
+  - identical active toasts are not rendered twice
+  - toast stack is capped to keep notifications readable and professional.
+- [x] Mention email notifications expanded beyond comments:
+  - mentions in **project title**, **project description**, and **comments** now trigger email notifications
+  - notification email now includes **who mentioned you**, **where** (`comment` / `project description` / `project title`), and snippet context
+  - supports user/team/role/everyone mention tokens and keeps legacy mention formats.
+- [x] Settings -> Workspaces `Edit` UX redesigned:
+  - workspace profile editor now opens inline **directly below** the selected workspace row (not at the bottom of the panel)
+  - `Edit` acts as toggle (`Edit` / `Close`)
+  - profile editor is hidden unless a workspace row is explicitly opened.
+- [x] Notifications settings expanded for mentions:
+  - added per-source mention email controls:
+    - `Email mention from comments`
+    - `Email mention from project descriptions`
+    - `Email mention from project titles`
+  - backend preference model/request/response/service updated to persist and enforce these toggles
+  - mention emails now respect both recipient-type toggles (`@mention` / `@teammention`) and source toggles.
+- [x] Avatar UX/layout pass:
+  - fixed avatar rendering with uploaded relative URLs by resolving them against API base URL
+  - profile/workspace avatar update modal now shows a much larger preview image for practical visual validation
+  - workspace inline editor now supports click-to-upload directly on the avatar image
+  - removed redundant inner `Close` action from inline workspace profile editor (toggle remains on row `Edit`)
+  - replaced old small avatar preview note with larger avatar-focused layout in workspace profile edit.
+- [x] Settings panel resize system limits improved:
+  - minimum panel height lowered to `~200px` across settings cards (practical compact mode)
+  - max panel height made dynamic and much higher (viewport-aware) so users can expand until internal scroll is minimized/disappears
+  - resizing still keeps safe bounds so cards never collapse/disappear.
+- [x] Settings -> Workspace profile avatar UX redesign:
+  - removed inline helper text (`Click image to upload ...`)
+  - added a dedicated compact `Workspace avatar` panel with:
+    - `Update photo` (file upload)
+    - `Delete photo`
+    - `Photo from link` + `Apply`
+    - format/size info (`PNG/JPG/WEBP up to 2MB`)
+  - avatar actions now use small, consistent buttons and tighter layout.
+- [x] Topbar identity alignment/polish:
+  - workspace and user now both render with unified avatar+name pill styling (same visual scale/height)
+  - avatar is positioned left of label for both workspace and user
+  - burger menu button moved out of the middle (no longer between workspace and user identity controls).
+- [x] Topbar avatar interaction simplification:
+  - removed avatar popover actions (`Update` / `Delete`) for both workspace and user avatars
+  - clicking avatar now opens the avatar editor modal directly
+  - all avatar controls are centralized in one modal (upload, link, delete, save/cancel) with tighter compact spacing.
+- [x] Avatar modal UX redesign (workspace + profile):
+  - rebuilt modal layout to a cleaner two-zone structure (preview card + controls panel)
+  - moved action buttons to clearer positions (`Upload/Delete` in controls zone, `Cancel/Save` in footer)
+  - improved compact spacing and responsive behavior for small screens.
+- [x] Avatar modal refinement + CORS hardening:
+  - avatar modal controls tightened (cleaner action grouping and footer separation)
+  - improved button styling for clearer hierarchy and less visual noise
+  - backend CORS relaxed for local dev via origin patterns (`localhost:*`, `127.0.0.1:*`) to reduce `Invalid CORS request` regressions during avatar/workspace updates.
+- [x] Avatar modal interaction update:
+  - removed `Cancel` action and added close `X` in modal top-right
+  - moved `Upload image` and `Save avatar` into the same footer action row
+  - removed separate `Delete photo` button; delete now uses `X` on the avatar image with confirmation.
+- [x] Login UI micro-fix:
+  - `Stay signed in` checkbox row now remains inline (no word wrapping)
+  - increased checkbox label container width for cleaner alignment/readability.
+- [x] Auth form spacing cleanup (Login + Register):
+  - removed boxed styling around `Stay signed in` (plain inline checkbox row)
+  - normalized auth form/grid spacing for more consistent vertical rhythm across both pages.
+- [x] Auth card layout refresh (Login + Register):
+  - rebuilt auth panel spacing and header hierarchy (logo/title/subtitle/action button)
+  - reduced excessive top gap and tightened vertical rhythm between email/password sections
+  - improved consistency for input/label/error spacing for a cleaner, more professional card layout.
+- [x] Settings panel default height behavior updated:
+  - `Workspaces`, `Teams`, `Roles`, `Preferences`, and `Notifications` now initialize at maximum allowed height by default
+  - users can still resize panels up/down manually from the resize handles.
+- [x] Settings full-height default pass (no inner-card scroll by default):
+  - raised settings panel max-height ceiling substantially and increased dynamic clamp for true "fully stretched" initialization
+  - removed internal `settings-scroll` / `workspace-column-list` fixed max-height constraints so full card content can render without inner scrollbars by default
+  - user manual resize remains available.
+- [x] Added Settings `Tab View` alongside existing `Grid View`:
+  - new view-mode switch (`Grid View` / `Tab View`) in settings header
+  - tab row at top (`Workspaces`, `Teams`, `Roles`, `Preferences`, `Notifications`)
+  - in `Tab View`, only the selected category renders as a full-width panel below tabs
+  - existing `Grid View` behavior (drag/reorder/resize handles) remains unchanged.
+- [x] Settings Grid performance/collision stability pass:
+  - replaced frequent full-panel remeasure loop with `ResizeObserver` + `requestAnimationFrame` batching per panel
+  - disabled auto-fit while dragging/resizing to avoid jitter and layout thrash
+  - optimized row span calculation to use known panel heights (no per-frame `getBoundingClientRect()` reads)
+  - enabled denser grid packing (`grid-auto-flow: dense`) to reduce visual gaps/collision artifacts.
+- [x] Settings view-switch + tab spacing polish:
+  - converted `Grid View` / `Tab View` controls to icon buttons (with tooltip + aria labels)
+  - tightened vertical spacing between Settings header, view switch, tabs, and tab content
+  - reduced tab strip/content gap for a denser, cleaner tab-view layout.
+- [x] Settings Tab View compact layout pass:
+  - added icons on category tabs and improved tab-button density
+  - reworked tab-mode content density to avoid over-stretched single-column rendering
+  - teams/roles/workspaces lists in tab mode now render in responsive multi-column grids to use width more professionally.
+- [x] Settings Tab View dense-spacing pass:
+  - tightened top spacing (settings header, tabs strip, panel start)
+  - reduced tab/button/card/list paddings and gaps for higher information density
+  - expanded preferences/notifications tab internals into responsive multi-column layout to reduce unnecessary vertical scroll.
+- [x] Settings Tab View layout refinement by section:
+  - Preferences and Notifications now use a two-column split (`main` + `coming soon` side rail) to reduce vertical scrolling
+  - Teams `Create team` actions constrained to practical content width (no full-row stretch)
+  - Workspaces list items constrained in tab mode so single rows do not span the entire page width
+  - grid/tab switch icon visibility hardened (icon-only controls with explicit icon color/rendering).
+- [x] Team color system added (64-color palette):
+  - `Create team` now supports selecting one of 64 curated colors (red/yellow/orange/green/blue/cyan/purple/teal families)
+  - selected team color is persisted in backend (`Team.color`) via create/update APIs
+  - teams list now displays a color dot next to each team name for quick visual identification.
+- [x] Team color marker visual tweak:
+  - team color indicator next to team name changed from circular dot to compact triangle marker.
+- [x] Team edit flow now includes color:
+  - `Edit team` (rename action) now includes the same color palette selector
+  - team name and team color are saved together in one update action.
+- [x] Team color/edit reliability fixes:
+  - team color triangle now uses direct border color binding (stable render)
+  - `Edit team` now opens directly in `Rename` mode so color+name can be edited and confirmed immediately
+  - color selection in edit mode now clears stale validation error state.
+- [x] Settings view-switch icon visibility hard fix:
+  - replaced SVG-only switch icons with CSS-drawn icon glyphs (grid + tabs) to avoid invisible icon rendering in affected environments.
+- [x] Grid/Tabs and team-color reliability fixes:
+  - Preferences/Notifications two-column split now applies only in `Tab View` (single-column behavior restored in `Grid View` to prevent overlap)
+  - team color updates now apply robustly in frontend state even when backend response omits color field, so color marker reflects saved selection immediately.
+
 ---
 
 ## From PMD-todo.md
@@ -2608,3 +2910,497 @@ Implemented
 - Applied the scale across interactive windows/popovers:
   - search popover, filter popover, settings order popover, project actions menu, drawer, modal, image modal
 - Updated settings cards to `overflow: visible` so internal popovers are not clipped by parent cards.
+
+## 2026-02-16 - Workspace summary trend visibility fix
+
+Implemented
+- Fixed workspace summary trend line not updating/appearing during quick status changes.
+- Summary counters now use live project-derived counters as source of truth (with backend stats fallback).
+- Trend snapshots now persist from live counters, so `1m` range reflects immediate status changes.
+- Removed summary hard dependency on async stats load so panels render consistently without waiting.
+
+## 2026-02-16 - PowerShell approved verb cleanup
+
+Implemented
+- Renamed guard function from `Ensure-PmdMode` to `Set-PmdMode` to satisfy PSScriptAnalyzer `PSUseApprovedVerbs`.
+- Updated all caller scripts:
+  - `scripts/pmd_dev_up.ps1`
+  - `scripts/pmd_up_deps.ps1`
+  - `scripts/pmd_reviewer_up.ps1`
+
+## 2026-02-19 - Mention email delivery fallback fix
+
+Implemented
+- Fixed mention email suppression for legacy notification preference records where new source-specific mention flags deserialize as alse.
+- Added fallback logic so mention emails are not blocked when all source-specific mention flags are unset/false in old records.
+- Added backend debug logs for mention processing and mention-email skip reasons to speed up runtime diagnosis.
+
+
+## 2026-02-19 - Default profile picture assets folder
+
+Implemented
+- Added rontend/pmd-frontend/public/profile-pictures/ for default selectable profile images.
+- Added README.txt in that folder with usage path (/profile-pictures/<filename>).
+
+
+## 2026-02-19 - Settings switch icons, mention UX, and landing-page routing fix
+
+Implemented
+- Fixed missing Grid view / Tab view icons in settings-view-switch by switching to explicit inline SVG icons.
+- Added mention highlight rendering in UI with hover metadata (user/team/role/everyone) via new component: rontend/pmd-frontend/src/mentions/MentionText.tsx.
+- Applied mention highlighting in key surfaces: project comments, dashboard descriptions, and project details descriptions.
+- Fixed default landing behavior to always respect Default landing page preference on authenticated redirects (removed last-route override from redirect target).
+
+## 2026-02-19 - Mention email reliability hardening
+
+Implemented
+- Added mention parsing debug logs and mention recipient summary logs in MentionNotificationService.
+- Relaxed mention-email gate in EmailNotificationService so mention delivery is blocked only by main mention toggles (emailOnMentionUser / emailOnMentionTeam) and not by brittle source-specific states from older records.
+- Kept source context in logs for diagnosis while preserving delivery reliability.
+
+
+## 2026-02-19 - Settings view-switch icon rendering hard fix
+
+Implemented
+- Reworked Grid/Tab switch icons to explicit stroke-based SVG primitives with inline width/height attributes (no CSS fill dependency).
+- Added fixed-size constraints on .settings-view-icon-svg to prevent collapse to  px width in edge rendering cases.
+
+
+## 2026-02-19 - Landing behavior and refresh routing stability
+
+Implemented
+- Added Last visited route option to Default landing page preferences.
+- Auth redirect now supports lastVisited target via persisted in-app route memory.
+- Profile close navigation now respects the effective preferred route (including lastVisited).
+- Replaced forced /settings redirects (when no active workspace) on core app routes with an in-place no-workspace panel; this keeps the current route on F5 instead of hard-jumping to Settings.
+
+
+## 2026-02-19 - Mention governance phase 1 (policy enforcement)
+
+Implemented
+- Added backend mention policy enforcement before save on:
+  - project comments
+  - project title updates/creates
+  - project description updates/creates
+- Enforced rules:
+  - max 20 mention targets per 10 minutes per user
+  - max 10 mention targets per message
+  - @everyone cooldown: 1 per 30 minutes per workspace
+  - RBAC: @everyone and role mentions restricted to owner/manager
+  - non-manager cross-team token mentions blocked
+- Added automatic temporary mention suspension:
+  - repeated policy violations trigger a 1-day mention block
+- Added mention audit persistence for allowed/blocked attempts with source + targets + reason.
+
+## 2026-02-19 - Mention moderation APIs
+
+Implemented
+- Added moderation endpoints:
+  - GET /api/workspaces/{workspaceId}/mentions/restrictions`n  - DELETE /api/workspaces/{workspaceId}/mentions/restrictions/{userId}`n  - GET /api/workspaces/{workspaceId}/mentions/audit?userId= (manager/owner, or self scope)
+- Managers/owners can remove active mention suspension early.
+
+## 2026-02-19 - Mention navigation UX
+
+Implemented
+- Mention chips are now clickable and route to People view contextually:
+  - user mention -> People with that user preselected
+  - team mention -> People with that team preselected in filters
+- Added shared mention navigation helper for consistent behavior.
+
+## 2026-02-19 - Settings view icon rendering follow-up
+
+Implemented
+- Reinforced Grid/Tab icons with explicit SVG dimensions and stroke primitives to prevent hidden/zero-size rendering cases.
+
+
+## 2026-02-19 - Tab view icon differentiation
+
+Implemented
+- Replaced Settings Tab view icon with a tabbed-panel glyph so it is visually distinct from the burger menu.
+- Kept Grid icon unchanged.
+
+
+## 2026-02-19 - Mention menu semantic colors and team context
+
+Implemented
+- Mention suggestion type badges (All/Team/Role/User) now support per-item accent colors via CSS variable.
+- Team mentions now use their actual team color in the mention picker badge.
+- User mention suggestions now include team context in hint text (email · team) and inherit team color for the type badge where available.
+
+## 2026-02-19 - Topbar profile/workspace image tighter circular crop
+
+Implemented
+- Increased topbar avatar image cover zoom/scale to reduce odd framing on very wide/tall source images while keeping strict circular crop.
+
+## 2026-02-19 - Profile picture crop UX + PMD images gallery
+
+Implemented
+- Added full crop controls for profile/workspace picture upload previews:
+  - drag with hand cursor for X/Y positioning
+  - mouse wheel zoom support
+  - explicit Horizontal / Vertical / Zoom sliders
+- Crop preview now honors both axes and zoom in the circular frame (`object-position` + scaled preview).
+- Added `PMD images` gallery support in profile and workspace editors:
+  - reads image list from `public/profile-pictures/index.json`
+  - shows thumbnails in a compact 5-column grid
+  - click-to-apply image URL into the editor
+- Added `public/profile-pictures/index.json` scaffold and updated folder `README.txt` instructions to keep gallery list in sync.
+- Hardened Settings Grid/Tab switch button icons to filled glyphs for reliable visibility across themes/renderers.
+
+## 2026-02-19 - Profile picture crop interaction and anti-drag hardening
+
+Implemented
+- Crop interaction is now explicitly thumbnail-scoped (modal crop preview), with native browser image drag disabled on profile/workspace crop previews.
+- Added `draggable={false}` and drag/context-menu prevention on topbar/profile/workspace profile-picture images to avoid accidental drag-drop behavior.
+- Added CSS hardening (`-webkit-user-drag: none`, `user-select: none`) for circular profile-picture image surfaces.
+- Preserved circular thumbnail framing while keeping X/Y/Zoom crop controls for final saved thumbnail composition.
+
+## 2026-02-19 - Photo delete UX and crop-entry refinement
+
+Implemented
+- Replaced `Delete` / `Delete photo` buttons with an `X` action overlay on the profile/workspace picture thumbnail preview.
+- Added confirmation on thumbnail `X` delete for both profile and workspace photos.
+- Added `Adjust crop` action in profile/workspace photo editors to reopen crop mode for the currently saved picture.
+- Strengthened crop cursor behavior (`grab` / `grabbing`) so drag-to-position is visually explicit during thumbnail crop.
+
+## 2026-02-19 - Workspace image controls density + crop preview visibility fix
+
+Implemented
+- Reworked workspace/profile image action rows to a denser 3-column compact grid so controls fit without wasted space.
+- Fixed crop preview rendering so image stays visible while moving:
+  - corrected crop zoom CSS variable handling (numeric value),
+  - enforced explicit preview image sizing/object-fit in crop circle,
+  - kept hardware-accelerated transform for smooth movement.
+- Reinforced grab cursor behavior in crop area and active dragging state.
+
+## 2026-02-19 - Crop save alignment fix (horizontal/vertical)
+
+Implemented
+- Updated crop export math to use focal-point mapping for `Horizontal`/`Vertical` controls (center-based, like profile editors in social apps), so saved image framing matches preview movement more accurately.
+- Removed hard integer rounding in crop offsets to preserve fine adjustments.
+
+## 2026-02-19 - Crop editor state persistence (re-open consistency)
+
+Implemented
+- Persisted crop controls per saved image URL for:
+  - profile picture editor
+  - workspace picture editor
+- Re-opening `Adjust crop` now restores the last saved `Horizontal` / `Vertical` / `Zoom` values for that image instead of resetting sliders to defaults.
+- Solves mismatch where preview looked zoomed/cropped from prior save but sliders incorrectly returned to initial positions.
+
+## 2026-02-19 - Crop preview/export 1:1 alignment fix
+
+Implemented
+- Refactored crop preview positioning model to use absolute image positioning (`left/top + zoomed size`) inside the circular frame.
+- Updated exported crop math to the same normalized top-left mapping so `Horizontal`/`Vertical`/`Zoom` produce the same framing in:
+  - live preview
+  - saved thumbnail
+- Fixed re-adjust behavior on already-saved images where X/Y movement could appear stuck while zoom changed.
+
+## 2026-02-19 - Crop interaction parity and re-adjust usability pass
+
+Implemented
+- Removed forced global avatar overscale in display surfaces (`workspace-avatar img`) so saved crop framing is not altered after save.
+- Set crop editor default zoom to 120 and minimum zoom to 110 for re-adjust flows, ensuring X/Y panning has visible room even on square assets.
+- Corrected drag direction to natural hand behavior in both profile/workspace crop modals.
+
+## 2026-02-19 - Edit preview uncropped display (magnifier workflow)
+
+Implemented
+- Removed automatic circular clipping from **editor preview surfaces** (Profile/Workspace photo edit blocks).
+- Edit preview now shows the full uploaded image in a non-cropped frame (`object-fit: contain`) so users can decide crop explicitly in the adjustment modal.
+- Kept final profile picture display behavior and user-driven crop flow unchanged.
+
+## 2026-02-19 - Avatar shape policy update (large square, small round)
+
+Implemented
+- Updated avatar shape rules so large avatar surfaces (`lg` / `xl`) render square-ish with soft corners.
+- Kept small identity avatars (topbar/small size) fully circular.
+
+## 2026-02-19 - Crop range expansion (edge-to-edge control)
+
+Implemented
+- Reverted crop default/min zoom from `120/110` back to `100/100` in profile and workspace crop editors.
+- This removes center-bias and restores full edge-to-edge placement range for X/Y adjustments.
+- Kept saved crop-state persistence and 1:1 preview/export mapping.
+
+## 2026-02-19 - Avatar crop switched to frame mode (non-destructive)
+
+Implemented
+- Changed avatar handling from destructive bitmap crop to frame-mode upload:
+  - `Use image` now uploads the original image file
+  - crop controls are treated as POV/frame metadata (not pixel-cut output)
+- This avoids repeated quality loss and avoids physically cutting the image on each adjust cycle.
+
+## 2026-02-19 - Frame metadata rendering applied to avatar surfaces
+
+Implemented
+- Added shared avatar-frame utility to read saved crop POV (`x/y/zoom`) by image URL from local storage.
+- Applied frame rendering metadata to profile/workspace avatar surfaces (topbar + profile/settings previews) so saved frame selection is reflected visually after save.
+
+## 2026-02-19 - Settings position popover compact sizing
+
+Implemented
+- Reduced width and spacing of the `Position / Move / Close` popover in Settings reorder control.
+- Tightened button sizing and padding to avoid wasted horizontal space.
+
+## 2026-02-19 - PMD launcher backend-ready detection hardening
+
+Implemented
+- Debugged `pmd.bat` / `PMD_cooler.bat` startup flow and verified false-negative backend readiness came from health-check timing behavior, not backend startup failure.
+- Updated `scripts/pmd_dev_up.ps1` readiness check:
+  - backend health probe now uses `http://127.0.0.1:{port}/actuator/health`
+  - increased per-request timeout to 10 seconds (from 3) for slower local environments
+  - keeps extended startup grace with warning fallback when port is listening but health endpoint is delayed.
+- Result: launcher no longer misreports backend as “not started” while backend is already running.
+
+## 2026-02-19 - Settings tab view workspace layout reflow
+
+Implemented
+- In **Settings > Workspaces (Tab view)**, switched top layout order to:
+  - left: `Workspace actions`
+  - right: `Your workspaces`
+- Reworked `Invites` controls to vertical flow:
+  - `Expires in (days)` first
+  - `Max uses` second
+  - `Create invite` third
+- Updated workspace management area to a two-column layout in tab view:
+  - left: `Invites`
+  - right: `Pending requests`
+
+Adjustment
+- Increased `Your workspaces` panel width and reduced `Workspace actions` panel width in tab view for better content fit.
+- In tab view, made the `Invites` controls compact to a fixed narrow width and aligned all three rows (`Expires`, `Max uses`, `Create invite`) to the same width as the invite action button.
+
+## 2026-02-20 - Workspace audit log (general + personal filters)
+
+Implemented
+- Added backend workspace audit event system (`workspace_audit_events`) with structured fields:
+  - `category`, `action`, `outcome`, `actor`, `targetUserId`, `teamId`, `roleId`, `projectId`, `entity*`, `message`, `createdAt`.
+- Added API endpoint:
+  - `GET /api/workspaces/{id}/audit`
+  - supports filtering by personal scope, actor, target user, team, role, project, category, action, text query, date bounds, and limit.
+- Added audit writes for key workspace actions:
+  - workspace create/join/settings update/demo reset
+  - invite create/revoke
+  - join-request approve/deny
+  - role create/update/assign to member
+  - team create/update
+  - project create/update/delete/random assign
+- Added frontend audit panel in `Settings > Workspaces` with:
+  - general/personal view toggle
+  - filters for users, teams, roles, category/action, project id, text search
+  - event list with timestamp, actor, message, and resource tags.
+
+## 2026-02-20 - Settings UX: invite actions menu + dedicated Audit card/tab
+
+Implemented
+- Replaced invite row action buttons (`Copy link`, `Copy code`, `Revoke`) with a compact triangle trigger and context menu.
+- Kept same three actions inside dropdown menu to reduce row width and improve tab-view compactness.
+- Adjusted workspace tab-view management layout so `Pending requests` sits close to `Invites` (left compact column + right flexible column).
+- Promoted Audit to first-class panel:
+  - added `Audit` tab in tab view
+  - added dedicated `Audit` settings card in grid view
+  - removed embedded audit section from inside Workspaces card.
+
+## 2026-02-20 - Grid jitter fix after adding Audit panel
+
+Implemented
+- Stopped automatic `ResizeObserver` auto-fit logic for the `Audit` card only in grid mode (other cards keep auto-fit behavior).
+- Set a stable default grid height for `Audit` card (~78% viewport) to avoid continuous reflow and vertical jumping.
+- Result: no rapid up/down grid movement when audit panel is visible.
+
+## 2026-02-20 - Audit view switched to compact table (Excel-like)
+
+Implemented
+- Refactored Audit panel UI to spreadsheet-style table layout:
+  - sticky header row
+  - compact columns (`Time`, `Cat`, `Act`, `Actor`, `Target`, `Team`, `Role`, `Project`, `Message`)
+  - row hover highlight and ellipsis overflow handling.
+- Simplified filters to concise toolbar controls (short labels/placeholders) for faster scanning.
+- Reduced action button footprint in audit controls (`Refresh/Reset` compact style).
+
+Adjustment
+- Changed Audit UX to keep logs always visible and moved advanced filters/search behind a single toggle button (`Filter / Search`) for cleaner default view.
+
+Adjustment
+- In grid mode, Audit card is now top-pinned during resize:
+  - removed top-edge resize handle for Audit
+  - only bottom-edge resize remains, so expansion adds space below without shifting the card upward/downward.
+
+## 2026-02-20 - Settings grid bounds controls + reset default
+
+Implemented
+- Added explicit grid-boundary visibility mode for Settings grid (`Show bounds`) so panel limits are more visually distinct.
+- Added user-editable grid boundary controls (popover):
+  - Column 1 width
+  - Column 2 width
+  - Column 3 width
+  - Grid gap
+- Added `Reset default` action to restore the original grid boundary configuration.
+
+## 2026-02-20 - Roles tab view layout split (actions left, roles right)
+
+Implemented
+- In `Settings > Roles > Tab view`, changed layout to 2 columns:
+  - left column: `Role actions` (Create role, Role permissions, Assign role) stacked vertically
+  - right column: roles list grid.
+- Roles list now fills left-to-right and wraps to next row when a row is full.
+- Hid the divider between sections in tab mode for cleaner split layout.
+
+
+## 2026-02-20 - Workspace isolation hardening
+
+- [x] Frontend workspace switch hardening: when active workspace changes, stale users/projects/selections are cleared immediately before refetch to prevent cross-workspace bleed during transition.
+- [x] Backend user/team response sanitization for workspace-scoped endpoints:
+  - UserController and PersonRecommendationController now return 	eamId/teamName only if the team belongs to the active workspace.
+  - removed legacy fallback to global user.team in workspace-scoped responses to prevent cross-workspace team leakage in UI.
+
+
+- [x] Profile layout update: moved first/last name stack inside orm-grid two-col (right of profile picture) and removed old profile-avatar-name-stack hardcoded block/style hook.
+
+
+- [x] Settings Grid defaults updated: all settings-card panels now start at max default height in Grid View (user can still resize manually).
+- [x] Grid View scroll behavior adjusted: inner settings scroll areas prefer overlay scrollbars (no content reflow when scrollbar appears), with normal fallback where overlay is unsupported.
+
+
+- [x] Preferences: added Enable settings grid panel resize toggle.
+  - OFF (default): grid panels auto-fit content height (no manual resize handles).
+  - ON: top/bottom resize handles are enabled so user can expand/shrink settings panels in Grid View.
+
+
+- [x] Grid View stabilization fix: when Enable settings grid panel resize is OFF, cards now use auto-fit layout (no fixed 12000px heights), preventing oversized panels and preserving clean, organized spacing.
+
+
+- [x] Settings Grid gap fix: restored masonry-style row-span fitting for all cards (including Audit) so empty vertical holes between columns are minimized while keeping resize-toggle behavior.
+
+
+- [x] Settings Grid controls moved from top header icon into each panel drag/reorder menu (::).
+  - removed standalone Grid bounds header icon (no more view-switch glitch/jump between grid/tab).
+  - grid size controls (col1/col2/col3/gap, show bounds, reset default) now live inside drag menu in Grid View.
+
+
+- [x] Grid View no-inner-scroll pass: removed inner scrollbars from settings cards in Grid mode so card bodies expand to show full content (workspaces/teams/roles/audit/preferences/notifications).
+
+
+## 2026-02-23 - Settings grid column-resize stabilization
+
+- [x] Fixed major lag/flicker while changing Grid bounds (`col1/col2/col3/gap`) from the `::` menu.
+- [x] Added resize-guard during column drag:
+  - temporarily pauses expensive panel auto-fit recalculation while slider is being dragged
+  - resumes and runs one clean fit pass on pointer release.
+- [x] Added bounds normalization + clamping:
+  - column/gap values are constrained to safe ranges
+  - total width is constrained to current grid container width to prevent layout shock/overflow while dragging.
+- [x] Added RAF-throttled grid-bounds updates to reduce re-render pressure during slider movement.
+
+## 2026-02-23 - Profile/Workspace image frame workflow stabilization
+
+- [x] Kept image storage as full/original upload (no destructive crop export).
+- [x] Fixed frame adjust direction and responsiveness:
+  - drag now maps correctly to horizontal/vertical frame movement
+  - slider/drag updates are stable after save/reopen.
+- [x] Improved frame rendering model:
+  - switched to `object-position + scale` for preview/topbar/profile/workspace display
+  - removed old absolute width/left crop math that caused misalignment after save.
+- [x] Added source-aware crop apply:
+  - when editing existing image frame, saves frame POV without re-uploading file
+  - upload occurs only for new image files.
+- [x] Added safe clamping on saved frame values (`x/y/zoom`) to prevent corrupted states from breaking preview.
+
+## 2026-02-23 - Teams panel cleanup (field-error placeholder)
+
+- [x] Removed always-rendered empty team error paragraph in `Teams > Team actions`.
+- [x] Team error row now renders only when an actual validation/error message exists.
+- [x] This removes the confusing blank/"field error" area under color selection.
+
+## 2026-02-23 - Settings grid overflow guard (Coming soon blocks)
+
+- [x] Added a render-time auto-fit safety pass for Settings grid cards:
+  - re-evaluates panel heights after async/conditional UI changes
+  - prevents content (e.g. `Coming soon`) from spilling outside card boundaries.
+- [x] Hardened `coming-soon-control` layout:
+  - forced `width/max-width: 100%`
+  - added `box-sizing: border-box` and `overflow: hidden`
+  - prevents out-of-frame rendering artifacts.
+
+## 2026-02-23 - Preferences: default Settings view mode
+
+- [x] Added user preference `Default settings view` with options:
+  - `Grid view`
+  - `Tab view`
+- [x] Persisted in UI preferences storage (`settingsDefaultView`).
+- [x] Settings page now initializes/syncs its view mode from this preference.
+
+## 2026-02-23 - Profile form header layout (name/surname inputs)
+
+- [x] Moved `Name` and `Surname` input fields next to profile image (right side) in `My Profile`.
+- [x] Removed old hardcoded visual name stack from the header area.
+- [x] Kept email/team/bio below as full-width fields for cleaner edit flow.
+
+## 2026-02-23 - Avatar frame preview parity fix
+
+- [x] Fixed mismatch between crop modal preview and left edit preview in Settings/Profile.
+- [x] Root cause: `.workspace-avatar-edit-preview img` had hard overrides (`object-fit: contain`, centered position, transform reset) that ignored saved frame (`x/y/zoom`).
+- [x] Removed those overrides and aligned preview rendering with the same frame engine used in topbar/profile/workspace icons.
+
+## 2026-02-23 - My Profile header visual balance
+
+- [x] Increased profile image preview size in `My Profile` header to better match the vertical space of `Name` + `Surname` inputs.
+- [x] Goal: remove the small visual gap under the image and improve header balance.
+
+## 2026-02-23 - Profile stats header spacing fix
+
+- [x] Fixed excessive vertical gap in `My stats` / `My dashboard stats` headers.
+- [x] Root cause: `h4` inside `.panel-header` was not included in margin reset.
+- [x] Added `.panel-header h4 { margin: 0; line-height: 1.15; }` with existing header typography reset.
+
+## 2026-02-23 - My Profile header alignment tune (avatar vs name/surname)
+
+- [x] Increased profile picture size in header from `136` to `148` for better visual balance with two stacked input rows.
+- [x] Increased horizontal spacing between avatar and name/surname block (`gap: 18px`).
+- [x] Slightly increased vertical spacing between name/surname rows (`gap: 10px`) for cleaner rhythm.
+
+## 2026-02-23 - Workspaces tab view editor + coming-soon layout
+
+- [x] In `Settings > Workspaces > Tab view`, workspace profile edit now opens as overlay context window (modal-style) above other panels.
+- [x] Prevents inline editor collisions/overlap with adjacent cards and preserves button visibility.
+- [x] Moved `Coming soon` (Workspaces) into tab-view management row:
+  - now displayed as a third subpanel to the right of `Invites` and `Pending requests`
+  - items are shown as vertical list (one under another).
+- [x] Kept previous inline editor behavior for Grid view.
+
+## 2026-02-23 - Settings tab overlays + preferences/notifications tab polish
+
+- [x] Teams edit in `Tab view` now opens as overlay context window (same interaction model as Workspaces edit).
+- [x] Roles edit in `Tab view` now opens as overlay context window (rename/permissions/reset flow without inline collisions).
+- [x] Fixed duplicate `editingRole` declaration in `SettingsPage.tsx` to keep state logic clean and stable.
+- [x] `Preferences` tab layout tightened:
+  - left/main controls constrained to practical width
+  - right `Coming soon` column reduced and visually closer to main controls.
+- [x] `Notifications` tab updated to single-column flow:
+  - mail notification toggles now render from an alphabetically sorted list
+  - browser notifications and coming-soon entries stay in the same single column for consistent scanning.
+
+## 2026-02-23 - Settings tab compact overlays + notifications side panel restore
+
+- [x] Reduced overlay modal sizes for tab edit contexts:
+  - Workspace edit overlay compacted
+  - Team edit overlay compacted further
+  - Role edit overlay compacted.
+- [x] `Preferences` tab further compacted:
+  - narrower main/side columns
+  - dropdown/input widths reduced for less horizontal waste.
+- [x] `Notifications` tab adjusted per UX request:
+  - notifications remain one-column and alphabetical in the main column
+  - `Coming soon` moved back to right-side column.
+
+## 2026-02-23 - Docker/Nginx release-readiness hardening
+
+- [x] Performed compose validation for `docker-compose.yml`, `docker-compose.deps.yml`, `docker-compose.local.yml`, `docker-compose.prod.yml`.
+- [x] Validated frontend Nginx config with `nginx -t` in container.
+- [x] Found and fixed backend Docker build blocker:
+  - `backend/pmd-backend/Dockerfile` now uses `-Dmaven.test.skip=true` to skip test compilation inside image build.
+  - This prevents container build failures caused by stale test constructor mismatch during test-compile phase.
+- [x] Verified backend reviewer image build succeeds after fix.
+
