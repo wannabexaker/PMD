@@ -75,7 +75,7 @@ jobs:
         run: ./mvnw -q -DskipTests=false test
 
       - name: Package
-        run: ./mvnw -q -DskipTests package
+        run: ./mvnw -q -Dmaven.test.skip=true package
 
       - name: Upload backend jar
         uses: actions/upload-artifact@v4

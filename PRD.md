@@ -3404,3 +3404,13 @@ Implemented
   - This prevents container build failures caused by stale test constructor mismatch during test-compile phase.
 - [x] Verified backend reviewer image build succeeds after fix.
 
+## 2026-02-24 - CI/CD workflow hardening
+
+- [x] Updated CI backend package step to avoid test-compilation failures during artifact packaging:
+  - `.github/workflows/ci.yml` now uses `-Dmaven.test.skip=true` in `Package` stage.
+- [x] Hardened release image tagging to avoid empty/invalid tag expressions on non-tag pushes:
+  - `.github/workflows/release.yml` now computes frontend/backend tags in dedicated steps and passes concrete tag lists to build/push actions.
+- [x] Keeps behavior:
+  - `latest` + `${sha}` always pushed
+  - semantic tag (e.g. `vX.Y.Z`) pushed only on tag refs.
+
