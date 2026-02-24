@@ -76,6 +76,7 @@ export type User = {
   firstName?: string | null
   lastName?: string | null
   avatarUrl?: string | null
+  mustChangePassword?: boolean | null
   team?: string | null
   teamId?: string | null
   teamName?: string | null

@@ -12,6 +12,9 @@ if (typeof window !== 'undefined') {
 }
 const TOKEN_KEY = 'pmd_token'
 const TOKEN_EXP_KEY = 'pmd_token_exp'
+let memoryToken: string | null = null
+let memoryTokenExp = 0
+let refreshHandler: (() => Promise<string | null>) | null = null
 
 type JsonValue = unknown
 
@@ -40,50 +43,83 @@ function safeParseJson(text: string): JsonValue | null {
 }
 
 export function getAuthToken(): string | null {
-  const now = Date.now()
-  const localToken = localStorage.getItem(TOKEN_KEY)
-  const localExp = localStorage.getItem(TOKEN_EXP_KEY)
-  if (localToken && (!localExp || Number(localExp) > now)) {
-    return localToken
-  }
-  if (localToken && localExp && Number(localExp) <= now) {
-    clearAuthToken()
+  if (!memoryToken) {
     return null
   }
-
-  return sessionStorage.getItem(TOKEN_KEY)
+  if (memoryTokenExp > 0 && Date.now() >= memoryTokenExp) {
+    memoryToken = null
+    memoryTokenExp = 0
+    return null
+  }
+  return memoryToken
 }
 
 export function setAuthToken(token: string, remember: boolean) {
-  if (remember) {
-    localStorage.setItem(TOKEN_KEY, token)
-    localStorage.setItem(TOKEN_EXP_KEY, String(Date.now() + 30 * 24 * 60 * 60 * 1000))
-  } else {
-    sessionStorage.setItem(TOKEN_KEY, token)
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(TOKEN_EXP_KEY)
-  }
-}
-
-export function clearAuthToken() {
+  void remember
+  memoryToken = token
+  memoryTokenExp = decodeJwtExpMs(token)
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(TOKEN_EXP_KEY)
   sessionStorage.removeItem(TOKEN_KEY)
 }
 
+export function clearAuthToken() {
+  memoryToken = null
+  memoryTokenExp = 0
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(TOKEN_EXP_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+}
+
+export function registerAuthRefreshHandler(handler: (() => Promise<string | null>) | null) {
+  refreshHandler = handler
+}
+
+function decodeJwtExpMs(token: string): number {
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return 0
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number }
+    return payload.exp ? payload.exp * 1000 : 0
+  } catch {
+    return 0
+  }
+}
+
+async function doFetch(path: string, options: RequestInit | undefined, token: string | null): Promise<Response> {
+  const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData
+  const method = (options?.method ?? 'GET').toUpperCase()
+  const csrfToken = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' ? readCookie('PMD_CSRF') : null
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { 'X-PMD-CSRF': csrfToken } : {}),
+      ...(options?.headers ?? {}),
+    },
+  })
+}
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const prefix = `${encodeURIComponent(name)}=`
+  const parts = document.cookie.split(';')
+  for (const rawPart of parts) {
+    const part = rawPart.trim()
+    if (part.startsWith(prefix)) {
+      return decodeURIComponent(part.substring(prefix.length))
+    }
+  }
+  return null
+}
+
 export async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getAuthToken()
-  const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData
   let response: Response
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options?.headers ?? {}),
-      },
-    })
+    response = await doFetch(path, options, token)
   } catch {
     if (typeof window !== 'undefined' && lastReachability !== 'offline') {
       lastReachability = 'offline'
@@ -97,12 +133,27 @@ export async function requestJson<T>(path: string, options?: RequestInit): Promi
     window.dispatchEvent(new CustomEvent(ONLINE_EVENT, { detail: { baseUrl: API_BASE_URL } }))
   }
 
+  const isAuthEndpoint = path.startsWith('/api/auth/login') || path.startsWith('/api/auth/register') || path.startsWith('/api/auth/refresh') || path.startsWith('/api/auth/confirm')
+  if (response.status === 401 && refreshHandler && !isAuthEndpoint) {
+    try {
+      const refreshedToken = await refreshHandler()
+      if (refreshedToken) {
+        response = await doFetch(path, options, refreshedToken)
+      }
+    } catch {
+      clearAuthToken()
+      window.dispatchEvent(new Event('pmd:unauthorized'))
+    }
+  }
+
   const text = await response.text()
   const data = text ? safeParseJson(text) : null
 
   if (response.status === 401) {
     clearAuthToken()
-    window.dispatchEvent(new Event('pmd:unauthorized'))
+    if (!isAuthEndpoint) {
+      window.dispatchEvent(new Event('pmd:unauthorized'))
+    }
   }
 
   if (!response.ok) {

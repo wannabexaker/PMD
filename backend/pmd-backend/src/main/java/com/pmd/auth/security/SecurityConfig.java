@@ -22,6 +22,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.http.HttpMethod;
 import com.pmd.security.MaliciousRequestFilter;
 import com.pmd.security.RateLimitingFilter;
+import com.pmd.security.AuthCsrfFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -30,6 +31,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final MaliciousRequestFilter maliciousRequestFilter;
     private final RateLimitingFilter rateLimitingFilter;
+    private final AuthCsrfFilter authCsrfFilter;
     private final String allowedOrigins;
     private final String allowedOriginPatterns;
 
@@ -37,12 +39,14 @@ public class SecurityConfig {
         JwtAuthenticationFilter jwtAuthenticationFilter,
         MaliciousRequestFilter maliciousRequestFilter,
         RateLimitingFilter rateLimitingFilter,
+        AuthCsrfFilter authCsrfFilter,
         @Value("${pmd.security.allowed-origins:http://localhost:5173}") String allowedOrigins,
         @Value("${pmd.security.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}") String allowedOriginPatterns
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.maliciousRequestFilter = maliciousRequestFilter;
         this.rateLimitingFilter = rateLimitingFilter;
+        this.authCsrfFilter = authCsrfFilter;
         this.allowedOrigins = allowedOrigins;
         this.allowedOriginPatterns = allowedOriginPatterns;
     }
@@ -64,7 +68,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/auth/confirm").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/teams").permitAll()
                 .requestMatchers("/actuator/health/**").permitAll()
@@ -74,6 +78,7 @@ public class SecurityConfig {
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
             .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(authCsrfFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(maliciousRequestFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
@@ -96,7 +101,7 @@ public class SecurityConfig {
             List.of(allowedOriginPatterns.split(",")).stream().map(String::trim).filter(pattern -> !pattern.isEmpty()).collect(Collectors.toList())
         );
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "X-PMD-CSRF"));
         configuration.setExposedHeaders(List.of("X-RateLimit-Limit-Minute", "X-RateLimit-Remaining-Minute", "Retry-After"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

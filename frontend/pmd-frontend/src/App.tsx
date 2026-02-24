@@ -4,8 +4,8 @@ import { AuthProvider } from './auth/AuthContext'
 import type { LoginPayload, Project, RegisterPayload, User, UserSummary } from './types'
 import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
-import { fetchMe, login, register } from './api/auth'
-import { API_BASE_URL, clearAuthToken, getAuthToken, isApiError } from './api/http'
+import { fetchMe, login, logoutSession, refreshSession, register } from './api/auth'
+import { API_BASE_URL, getAuthToken, isApiError } from './api/http'
 import { DashboardPage } from './components/DashboardPage'
 import { AssignPage } from './components/AssignPage'
 import { PeoplePage } from './components/PeoplePage'
@@ -248,10 +248,18 @@ function AppView({
   const loadMe = useCallback(async () => {
     setAuthError(null)
     setAuthLoading(true)
-    if (!getAuthToken()) {
-      setCurrentUser(null)
-      setAuthLoading(false)
-      return
+    let token = getAuthToken()
+    if (!token) {
+      const refreshed = await refreshSession()
+      token = refreshed?.token ?? null
+      if (refreshed?.user) {
+        setCurrentUser(refreshed.user)
+      }
+    }
+    if (!token) {
+        setCurrentUser(null)
+        setAuthLoading(false)
+        return
     }
     const user = await fetchMe()
     setCurrentUser(user)
@@ -613,7 +621,7 @@ function AppView({
   }
 
   const handleLogout = () => {
-    clearAuthToken()
+    void logoutSession()
     localStorage.removeItem('pmd.activeWorkspaceId')
     localStorage.removeItem('pmd:lastWorkspaceId')
     localStorage.removeItem('pmd_active_workspace_id')

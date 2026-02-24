@@ -28,6 +28,8 @@ public class UserResponse {
 
     private boolean emailVerified;
 
+    private boolean mustChangePassword;
+
     private com.pmd.user.model.PeoplePageWidgets peoplePageWidgets;
 
     public UserResponse() {
@@ -35,7 +37,7 @@ public class UserResponse {
 
     public UserResponse(String id, String username, String displayName, String email, String firstName,
                         String lastName, String team, String teamId, String teamName, boolean isAdmin, String bio, String avatarUrl, boolean emailVerified,
-                        com.pmd.user.model.PeoplePageWidgets peoplePageWidgets) {
+                        boolean mustChangePassword, com.pmd.user.model.PeoplePageWidgets peoplePageWidgets) {
         this.id = id;
         this.username = username;
         this.displayName = displayName;
@@ -49,6 +51,7 @@ public class UserResponse {
         this.bio = bio;
         this.avatarUrl = avatarUrl;
         this.emailVerified = emailVerified;
+        this.mustChangePassword = mustChangePassword;
         this.peoplePageWidgets = peoplePageWidgets;
     }
 
@@ -154,6 +157,14 @@ public class UserResponse {
 
     public void setEmailVerified(boolean emailVerified) {
         this.emailVerified = emailVerified;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public void setMustChangePassword(boolean mustChangePassword) {
+        this.mustChangePassword = mustChangePassword;
     }
 
     public com.pmd.user.model.PeoplePageWidgets getPeoplePageWidgets() {

@@ -39,6 +39,8 @@ public class User {
 
     private boolean emailVerified;
 
+    private boolean mustChangePassword;
+
     private Instant createdAt;
 
     private List<String> recommendedByUserIds = new ArrayList<>();
@@ -174,6 +176,14 @@ public class User {
 
     public void setEmailVerified(boolean emailVerified) {
         this.emailVerified = emailVerified;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public void setMustChangePassword(boolean mustChangePassword) {
+        this.mustChangePassword = mustChangePassword;
     }
 
     public Instant getCreatedAt() {

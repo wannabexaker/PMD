@@ -10,12 +10,19 @@ import com.pmd.auth.dto.UpdateProfileRequest;
 import com.pmd.auth.dto.UserResponse;
 import com.pmd.auth.security.JwtService;
 import com.pmd.auth.service.EmailVerificationTokenService;
+import com.pmd.auth.service.AuthSessionService;
+import com.pmd.auth.service.LoginRateLimiterService;
+import com.pmd.auth.service.PasswordPolicyService;
+import com.pmd.auth.service.AuthSecurityEventService;
 import com.pmd.notification.WelcomeEmailService;
 import com.pmd.auth.security.UserPrincipal;
+import com.pmd.auth.model.AuthSession;
 import com.pmd.user.model.PeoplePageWidgets;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -40,31 +47,59 @@ public class AuthController {
     private final JwtService jwtService;
     private final WelcomeEmailService welcomeEmailService;
     private final EmailVerificationTokenService emailVerificationTokenService;
+    private final AuthSessionService authSessionService;
+    private final LoginRateLimiterService loginRateLimiterService;
+    private final PasswordPolicyService passwordPolicyService;
+    private final AuthSecurityEventService authSecurityEventService;
 
     public AuthController(UserService userService, PasswordEncoder passwordEncoder, JwtService jwtService,
                           WelcomeEmailService welcomeEmailService,
-                          EmailVerificationTokenService emailVerificationTokenService) {
+                          EmailVerificationTokenService emailVerificationTokenService,
+                          AuthSessionService authSessionService,
+                          LoginRateLimiterService loginRateLimiterService,
+                          PasswordPolicyService passwordPolicyService,
+                          AuthSecurityEventService authSecurityEventService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.welcomeEmailService = welcomeEmailService;
         this.emailVerificationTokenService = emailVerificationTokenService;
+        this.authSessionService = authSessionService;
+        this.loginRateLimiterService = loginRateLimiterService;
+        this.passwordPolicyService = passwordPolicyService;
+        this.authSecurityEventService = authSecurityEventService;
     }
 
     @PostMapping("/login")
     @ResponseStatus(HttpStatus.OK)
-    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+    public LoginResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String clientIp = extractClientIp(httpRequest);
+        String username = request.getUsername() != null ? request.getUsername().trim() : "";
+        loginRateLimiterService.checkAllowed(clientIp, username);
         User user;
         try {
-            user = userService.findByUsername(request.getUsername());
+            user = userService.findByUsername(username);
         } catch (ResponseStatusException ex) {
+            loginRateLimiterService.recordFailure(clientIp, username);
+            authSecurityEventService.log("LOGIN", "DENY", null, username, "Unknown username", httpRequest);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            loginRateLimiterService.recordFailure(clientIp, username);
+            authSecurityEventService.log("LOGIN", "DENY", user.getId(), username, "Invalid password", httpRequest);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
-
+        if (authSessionService.requiresVerifiedEmail() && !user.isEmailVerified()) {
+            authSecurityEventService.log("LOGIN", "DENY", user.getId(), username, "Email not verified", httpRequest);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email verification required");
+        }
+        loginRateLimiterService.recordSuccess(clientIp, username);
         String token = generateToken(user);
+        AuthSessionService.IssuedSession issuedSession = authSessionService.createSession(user, request.isRemember(), httpRequest);
+        String csrfToken = authSessionService.generateCsrfToken();
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildRefreshCookie(issuedSession, httpRequest.isSecure()));
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildCsrfCookie(csrfToken, httpRequest.isSecure()));
+        authSecurityEventService.log("LOGIN", "ALLOW", user.getId(), username, "Login success", httpRequest);
 
         return new LoginResponse(token, toUserResponse(user));
     }
@@ -79,6 +114,7 @@ public class AuthController {
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Passwords do not match");
         }
+        passwordPolicyService.validateForRegister(request.getPassword());
 
         User user = new User();
         user.setUsername(username);
@@ -96,6 +132,49 @@ public class AuthController {
         welcomeEmailService.sendWelcomeEmail(saved, confirmationToken);
         String jwtToken = generateToken(saved);
         return new LoginResponse(jwtToken, toUserResponse(saved));
+    }
+
+    @PostMapping("/refresh")
+    @ResponseStatus(HttpStatus.OK)
+    public LoginResponse refresh(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String rawToken = authSessionService.extractRawRefreshToken(httpRequest);
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No session");
+        }
+        AuthSession session = authSessionService.findActiveSessionByRawToken(rawToken)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session expired"));
+        User user = userService.findById(session.getUserId());
+        AuthSessionService.IssuedSession issuedSession = authSessionService.rotateSession(session, httpRequest);
+        String csrfToken = authSessionService.generateCsrfToken();
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildRefreshCookie(issuedSession, httpRequest.isSecure()));
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildCsrfCookie(csrfToken, httpRequest.isSecure()));
+        String token = generateToken(user);
+        authSecurityEventService.log("REFRESH", "ALLOW", user.getId(), user.getUsername(), "Token refreshed", httpRequest);
+        return new LoginResponse(token, toUserResponse(user));
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String rawToken = authSessionService.extractRawRefreshToken(httpRequest);
+        if (rawToken != null && !rawToken.isBlank()) {
+            authSessionService.revokeByRawToken(rawToken);
+        }
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildClearRefreshCookie(httpRequest.isSecure()));
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildClearCsrfCookie(httpRequest.isSecure()));
+        authSecurityEventService.log("LOGOUT", "ALLOW", null, null, "Session logout", httpRequest);
+    }
+
+    @PostMapping("/logout-all")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logoutAll(Authentication authentication, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        authSessionService.revokeAllByUserId(principal.getId());
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildClearRefreshCookie(httpRequest.isSecure()));
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildClearCsrfCookie(httpRequest.isSecure()));
+        authSecurityEventService.log("LOGOUT_ALL", "ALLOW", principal.getId(), principal.getUsername(), "All sessions revoked", httpRequest);
     }
 
     @GetMapping("/me")
@@ -177,8 +256,17 @@ public class AuthController {
             user.getBio(),
             user.getAvatarUrl(),
             user.isEmailVerified(),
+            user.isMustChangePassword(),
             widgets
         );
+    }
+
+    private String extractClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     private String buildDisplayName(User user) {

@@ -3427,3 +3427,91 @@ Implemented
 - [x] Backend test compilation fix for CI:
   - `ProjectServiceTest` updated to pass new `ProjectService` constructor dependencies (`MentionNotificationService`, `MentionPolicyService`).
 
+## 2026-02-24 - Workspace team seeding scope fix
+
+- [x] Normal workspace creation no longer auto-creates a fallback team (`General`) when initial teams are empty.
+- [x] `TeamSeeder` now seeds default teams only for demo workspaces (`workspace.isDemo()`).
+- [x] Result: seed teams/users behavior remains demo-only, and new non-demo workspaces start without prefilled teams unless explicitly provided.
+
+## 2026-02-24 - Corporate auth/session security foundation (phased-safe)
+
+- [x] Reworked authentication session model to support secure corporate login flow without breaking existing UX:
+  - added Mongo-backed auth sessions (`auth_sessions`) with token hash, expiry, remember flag, device metadata, revoke timestamp.
+  - added refresh-token rotation service (`AuthSessionService`) with:
+    - session-cookie vs persistent-cookie behavior based on `Stay signed in`
+    - max sessions per user
+    - revoke current/all session support.
+- [x] New auth endpoints:
+  - `POST /api/auth/refresh` (rotates refresh session, returns new short-lived access token)
+  - `POST /api/auth/logout` (revokes current refresh session + clears cookie)
+  - `POST /api/auth/logout-all` (revokes all user sessions + clears cookie)
+- [x] Login hardening:
+  - login request now includes `remember`
+  - on successful login backend issues refresh cookie + short-lived JWT access token.
+- [x] Added auth login rate limiter (`LoginRateLimiterService`):
+  - IP and username windows with lock period and 429 on abuse.
+- [x] Added password policy enforcement for registration (`PasswordPolicyService`):
+  - minimum length + mixed character classes.
+- [x] Introduced migration-safe user security flag:
+  - `mustChangePassword` added to user model/response for phased password-hardening rollouts (does not hard-break existing users).
+- [x] Frontend auth flow updated for safer token handling:
+  - access token now memory-first (no persistent auth token storage in local/session storage)
+  - global fetch uses `credentials: include` for secure cookie session support
+  - centralized refresh-handler registration with automatic one-shot retry on 401 for non-auth endpoints
+  - app bootstrap tries refresh first, then resolves `/me`, so reload keeps session when refresh cookie is valid.
+- [x] Configuration surface added for enterprise tuning:
+  - refresh session cookie name/path/samesite/secure
+  - refresh TTLs for remember vs non-remember
+  - max sessions per user
+  - auth-specific login rate limit thresholds and lock duration.
+
+## 2026-02-24 - Authentication Phase 2 hardening
+
+- [x] Added CSRF defense for cookie-auth endpoints (`/api/auth/refresh`, `/api/auth/logout`, `/api/auth/logout-all`) using double-submit token (`PMD_CSRF` cookie + `X-PMD-CSRF` header).
+- [x] Frontend API client now automatically sends CSRF header for unsafe requests when CSRF cookie exists.
+- [x] Added refresh session inactivity timeout support (`pmd.auth.session.inactivityTtlSeconds`) in active-session validation.
+- [x] Strengthened password policy with common-password deny list (in addition to length/complexity checks).
+- [x] Added configurable email-verification gate for login (`PMD_AUTH_REQUIRE_VERIFIED_EMAIL`).
+- [x] Added dedicated auth security event stream:
+  - `auth_security_events` collection
+  - logs login allow/deny, refresh, logout, logout-all with ip/user-agent context.
+- [x] Set secure-cookie default to `true` in base config; local profile explicitly overrides to `false` for localhost dev.
+
+## 2026-02-24 - DB Foundation (start)
+
+- [x] Introduced migration framework:
+  - `migration_state` collection with idempotent migration runner (`DatabaseMigrationRunner`).
+- [x] Added schemaVersion backfill migration (`schemaVersion=1`) for core collections.
+- [x] Added index foundation migration:
+  - project/workspace query indexes
+  - workspace membership/role uniqueness indexes
+  - workspace audit query index
+  - auth session TTL/indexes
+  - auth security event TTL/indexes.
+- [x] Added workspace-guard reporting migration that warns for workspace-scoped docs missing `workspaceId`.
+
+## 2026-02-24 - Reliability (start)
+
+- [x] Added backup/restore operational scripts:
+  - `scripts/db_backup.ps1`
+  - `scripts/db_restore.ps1`
+- [x] Added DB runbook for ops and retention expectations:
+  - `docs/db-runbook.md`
+- [x] Existing CI backend job already runs tests against Mongo service (`mongo:7`), preserving migration/index startup coverage in CI.
+
+## 2026-02-24 - Reliability (completed)
+
+- [x] Added scheduled auth data retention cleanup:
+  - expired sessions purge
+  - revoked session retention purge (`pmd.auth.session.revokedRetentionSeconds`)
+  - auth security event retention purge.
+- [x] Added backup-restore verification helper script:
+  - `scripts/db_verify_restore.ps1` restores backup into temporary DB and drops it after verification.
+
+## 2026-02-24 - Scale/LTS (initial rollout)
+
+- [x] Added CI DB gate for critical indexes:
+  - new backend integration test `DatabaseIndexGateTest` verifies required index presence.
+  - CI backend workflow now includes explicit `DB schema/index gate` step.
+- [x] Added initial migration-driven index set for high-traffic collections and auth/audit retention lifecycle.
+

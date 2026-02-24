@@ -95,6 +95,35 @@ Before running production compose, create a `.env` file (or export env vars) and
 PMD_JWT_SECRET=your-long-random-secret-at-least-32-characters
 ```
 
+### Auth/session security model (current)
+
+- Access tokens are short-lived JWTs (`pmd.jwt.expirationSeconds`, default 900 seconds).
+- Refresh sessions are cookie-based and rotated on refresh:
+  - `POST /api/auth/login` issues JWT + refresh cookie.
+  - `POST /api/auth/refresh` rotates refresh session and returns a new JWT.
+  - `POST /api/auth/logout` revokes current refresh session.
+  - `POST /api/auth/logout-all` revokes all user sessions.
+- `Stay signed in` controls refresh-cookie lifetime:
+  - disabled: session cookie
+  - enabled: persistent cookie (default 30 days)
+- Core refresh/session env knobs:
+  - `PMD_AUTH_SESSION_COOKIE_NAME`
+  - `PMD_AUTH_SESSION_COOKIE_PATH`
+  - `PMD_AUTH_SESSION_COOKIE_SAME_SITE`
+  - `PMD_AUTH_SESSION_COOKIE_SECURE`
+  - `PMD_AUTH_SESSION_REMEMBER_TTL_SECONDS`
+  - `PMD_AUTH_SESSION_TTL_SECONDS`
+  - `PMD_AUTH_MAX_SESSIONS_PER_USER`
+  - `PMD_AUTH_RATE_LIMIT_IP_PER_10_MIN`
+  - `PMD_AUTH_RATE_LIMIT_USER_PER_10_MIN`
+  - `PMD_AUTH_RATE_LIMIT_LOCK_MINUTES`
+- CSRF protection for cookie-auth endpoints:
+  - backend enforces double-submit for refresh/logout endpoints
+  - frontend sends `X-PMD-CSRF` from `PMD_CSRF` cookie automatically
+- Additional auth env knobs:
+  - `PMD_AUTH_REQUIRE_VERIFIED_EMAIL` (deny login for unverified users when true)
+  - `PMD_AUTH_SESSION_INACTIVITY_TTL_SECONDS`
+
 ## Ports & runtime facts
 
 | Service | Local access | Notes |
@@ -130,6 +159,7 @@ Always confirm the port file exists (the script waits up to 90 seconds for it) a
 | `scripts\pmd_dev_up.bat` | Starts deps, backend (dynamic port), and frontend (Vite). Logs readiness and writes `.runtime/backend-port.txt`. |
 | `scripts\pmd_dev_down.bat` | Stops the Maven/Node processes listed in `.pmd-dev-pids.json` and optionally the Docker deps. |
 | `scripts\pmd_up_backend_dev.bat` / `scripts\pmd_up_frontend_dev.bat` | Individually start backend or frontend windows (used by the menu). |
+| `scripts\db_backup.ps1` / `scripts\db_restore.ps1` / `scripts\db_verify_restore.ps1` | Mongo backup/restore/verify helpers for LTS ops. See `docs/db-runbook.md`. |
 | `docker compose -f docker-compose.deps.yml up -d` | Starts Mongo + MailHog alone when you only need the dependencies. |
 | `docker compose -f docker-compose.local.yml --profile reviewer up -d --build` | Builds/runs the full reviewer stack (backend/frontend/Mongo/MailHog) inside Docker for parity checks. |
 | `pmd.bat docker-up` / `pmd.bat docker-down` | Starts/stops the full Docker stack; `docker-up` rebuilds images and recreates containers. |

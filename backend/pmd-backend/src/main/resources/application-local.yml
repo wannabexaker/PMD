@@ -8,6 +8,10 @@ spring:
 pmd:
   jwt:
     secret: "pmd-local-dev-secret-32-chars-minimum-stable-2026-01-28"
+  auth:
+    session:
+      secure-cookie: false
+      require-verified-email: false
   security:
     rate-limit:
       per-minute: ${PMD_RATE_LIMIT_PER_MINUTE:600}

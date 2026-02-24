@@ -1,4 +1,4 @@
-import { requestJson, setAuthToken, clearAuthToken } from './http'
+import { requestJson, setAuthToken, clearAuthToken, registerAuthRefreshHandler } from './http'
 import type {
   AuthResponse,
   ConfirmEmailResponse,
@@ -12,12 +12,35 @@ import type {
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
   const response = await requestJson<AuthResponse>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username: payload.username, password: payload.password }),
+    body: JSON.stringify({ username: payload.username, password: payload.password, remember: Boolean(payload.remember) }),
   })
   if (response?.token) {
     setAuthToken(response.token, Boolean(payload.remember))
   }
   return response
+}
+
+export async function refreshSession(): Promise<AuthResponse | null> {
+  try {
+    const response = await requestJson<AuthResponse>('/api/auth/refresh', { method: 'POST' })
+    if (response?.token) {
+      setAuthToken(response.token, true)
+    }
+    return response
+  } catch {
+    clearAuthToken()
+    return null
+  }
+}
+
+export async function logoutSession() {
+  try {
+    await requestJson<void>('/api/auth/logout', { method: 'POST' })
+  } catch {
+    // Best effort logout.
+  } finally {
+    clearAuthToken()
+  }
 }
 
 export async function fetchMe(): Promise<User | null> {
@@ -61,3 +84,8 @@ export async function updatePeoplePageWidgets(payload: PeoplePageWidgets): Promi
     body: JSON.stringify(payload),
   })
 }
+
+registerAuthRefreshHandler(async () => {
+  const response = await refreshSession()
+  return response?.token ?? null
+})

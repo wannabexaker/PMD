@@ -18,9 +18,25 @@ pmd:
   mail:
     from: no-reply@pmd.local
   jwt:
-    expirationSeconds: ${PMD_JWT_EXPIRATIONSECONDS:86400}
+    expirationSeconds: ${PMD_JWT_EXPIRATIONSECONDS:900}
+  auth:
+    session:
+      cookie-name: ${PMD_AUTH_SESSION_COOKIE_NAME:PMD_RT}
+      cookie-path: ${PMD_AUTH_SESSION_COOKIE_PATH:/api/auth}
+      same-site: ${PMD_AUTH_SESSION_COOKIE_SAME_SITE:Lax}
+      secure-cookie: ${PMD_AUTH_SESSION_COOKIE_SECURE:true}
+      remember-ttl-seconds: ${PMD_AUTH_SESSION_REMEMBER_TTL_SECONDS:2592000}
+      session-ttl-seconds: ${PMD_AUTH_SESSION_TTL_SECONDS:86400}
+      inactivity-ttl-seconds: ${PMD_AUTH_SESSION_INACTIVITY_TTL_SECONDS:604800}
+      revoked-retention-seconds: ${PMD_AUTH_SESSION_REVOKED_RETENTION_SECONDS:2592000}
+      max-sessions-per-user: ${PMD_AUTH_MAX_SESSIONS_PER_USER:10}
+      require-verified-email: ${PMD_AUTH_REQUIRE_VERIFIED_EMAIL:false}
   security:
     allowed-origins: ${PMD_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+    auth-rate-limit:
+      ip-per-10-min: ${PMD_AUTH_RATE_LIMIT_IP_PER_10_MIN:40}
+      user-per-10-min: ${PMD_AUTH_RATE_LIMIT_USER_PER_10_MIN:12}
+      lock-minutes: ${PMD_AUTH_RATE_LIMIT_LOCK_MINUTES:15}
     rate-limit:
       per-minute: ${PMD_RATE_LIMIT_PER_MINUTE:180}
       per-hour: ${PMD_RATE_LIMIT_PER_HOUR:3000}

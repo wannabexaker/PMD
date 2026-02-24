@@ -10,12 +10,15 @@ public class LoginRequest {
     @NotBlank
     private String password;
 
+    private boolean remember;
+
     public LoginRequest() {
     }
 
-    public LoginRequest(String username, String password) {
+    public LoginRequest(String username, String password, boolean remember) {
         this.username = username;
         this.password = password;
+        this.remember = remember;
     }
 
     public String getUsername() {
@@ -32,5 +35,13 @@ public class LoginRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public boolean isRemember() {
+        return remember;
+    }
+
+    public void setRemember(boolean remember) {
+        this.remember = remember;
     }
 }
