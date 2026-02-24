@@ -643,8 +643,7 @@ public class WorkspaceService {
             .values()
             .stream()
             .toList();
-        List<String> finalNames = names.isEmpty() ? List.of("General") : names;
-        for (String name : finalNames) {
+        for (String name : names) {
             try {
                 teamService.createTeam(new TeamRequest(name), creator, workspaceId);
             } catch (ResponseStatusException ex) {

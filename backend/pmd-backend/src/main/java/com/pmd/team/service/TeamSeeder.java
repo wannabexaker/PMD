@@ -62,6 +62,9 @@ public class TeamSeeder implements ApplicationRunner {
             Instant now = Instant.now();
             List<Workspace> workspaces = workspaceRepository.findAll();
             for (Workspace workspace : workspaces) {
+                if (!workspace.isDemo()) {
+                    continue;
+                }
                 List<Team> existingTeams = teamRepository.findByWorkspaceIdAndIsActiveTrue(
                     workspace.getId(),
                     org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "name")
