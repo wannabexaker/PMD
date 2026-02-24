@@ -33,6 +33,7 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         apply("2026-02-24-schema-version-backfill-v1", this::applySchemaVersionBackfill);
         apply("2026-02-24-index-foundation-v1", this::applyFoundationIndexes);
         apply("2026-02-24-index-foundation-v2", this::applyFoundationIndexesV2);
+        apply("2026-02-24-audit-hardening-v1", this::applyAuditHardeningV1);
         apply("2026-02-24-workspace-guard-report-v1", this::applyWorkspaceGuardReport);
     }
 
@@ -92,6 +93,11 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         ensureIndex("workspace_join_requests", new Index().on("workspaceId", Sort.Direction.ASC).on("status", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_workspace_join_requests_workspace_status_created"));
         ensureIndex("workspace_audit_events", new Index().on("workspaceId", Sort.Direction.ASC).on("actorUserId", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_workspace_audit_workspace_actor_created"));
         ensureIndex("workspace_audit_events", new Index().on("workspaceId", Sort.Direction.ASC).on("action", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_workspace_audit_workspace_action_created"));
+    }
+
+    private void applyAuditHardeningV1() {
+        ensureIndex("workspace_audit_events", new Index().on("workspaceId", Sort.Direction.ASC).on("eventHash", Sort.Direction.ASC).named("idx_workspace_audit_workspace_event_hash"));
+        ensureIndex("workspace_audit_events", new Index().on("workspaceId", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).on("_id", Sort.Direction.DESC).named("idx_workspace_audit_workspace_created_id"));
     }
 
     private void applyWorkspaceGuardReport() {

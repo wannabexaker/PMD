@@ -28,6 +28,8 @@ class DatabaseIndexGateTest {
         assertIndexPresent("workspace_invites", "idx_workspace_invites_workspace_revoked_expires");
         assertIndexPresent("workspace_join_requests", "idx_workspace_join_requests_workspace_status_created");
         assertIndexPresent("workspace_audit_events", "idx_workspace_audit_workspace_action_created");
+        assertIndexPresent("workspace_audit_events", "idx_workspace_audit_workspace_event_hash");
+        assertIndexPresent("workspace_audit_events", "idx_workspace_audit_workspace_created_id");
         assertIndexPresent("auth_sessions", "ttl_auth_sessions_expires");
         assertIndexPresent("auth_security_events", "ttl_auth_security_events_created");
     }

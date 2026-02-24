@@ -15,6 +15,9 @@ spring:
             enable: false
 
 pmd:
+  audit:
+    retention:
+      days: ${PMD_AUDIT_RETENTION_DAYS:365}
   mail:
     from: no-reply@pmd.local
   jwt:

@@ -175,6 +175,13 @@ Note: `scripts/.pmd-dev-pids.json` is a local runtime state file (ephemeral PIDs
     - `workspaceId` exists on workspace-scoped entities.
 - New DB index/schema changes should be introduced only through `DatabaseMigrationRunner` migrations.
 
+## Audit retention & integrity
+
+- Workspace audit log now uses append-only inserts plus hash-chain fields (`prevEventHash`, `eventHash`) for tamper-evidence.
+- Retention is managed by scheduled cleanup:
+  - env: `PMD_AUDIT_RETENTION_DAYS`
+  - default: `365` days.
+
 ## Runtime guardrails
 
 - PMD now enforces a single active runtime mode: `dev`, `deps`, or `reviewer`.

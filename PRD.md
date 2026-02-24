@@ -28,6 +28,23 @@ This file is the single source of truth for PMD requirements, roadmap, TODOs, an
   - frontend lint/build pass
   - backend tests pass on local Mongo with migrations applied.
 
+## 2026-02-24 - Audit hardening (append-only + retention)
+
+- [x] Workspace audit events hardened for append-only flow:
+  - write path uses `insert` (no upsert/save mutation path)
+  - event chain fields added:
+    - `prevEventHash`
+    - `eventHash`
+  - deterministic SHA-256 hash per event to support tamper-evidence checks.
+- [x] Added workspace audit retention service:
+  - scheduled cleanup job
+  - configurable retention (`PMD_AUDIT_RETENTION_DAYS`, default `365`)
+  - safety floor set to 30 days.
+- [x] Added audit hardening migration:
+  - `2026-02-24-audit-hardening-v1`
+  - indexes for hash-chain lookup and append-order retrieval.
+- [x] DB gate expanded with new audit indexes.
+
 - [x] Unified scrollbar styling across the whole frontend with higher overlay feel:
   - thumb transparency set to ~50% for idle state
   - transparent track everywhere

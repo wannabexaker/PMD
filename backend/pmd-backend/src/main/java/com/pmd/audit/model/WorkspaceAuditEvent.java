@@ -46,6 +46,9 @@ public class WorkspaceAuditEvent {
     private String entityId;
     private String entityName;
     private String message;
+    private String prevEventHash;
+    private String eventHash;
+    private int schemaVersion = 1;
 
     public String getId() {
         return id;
@@ -174,5 +177,28 @@ public class WorkspaceAuditEvent {
     public void setMessage(String message) {
         this.message = message;
     }
-}
 
+    public String getPrevEventHash() {
+        return prevEventHash;
+    }
+
+    public void setPrevEventHash(String prevEventHash) {
+        this.prevEventHash = prevEventHash;
+    }
+
+    public String getEventHash() {
+        return eventHash;
+    }
+
+    public void setEventHash(String eventHash) {
+        this.eventHash = eventHash;
+    }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public void setSchemaVersion(int schemaVersion) {
+        this.schemaVersion = schemaVersion;
+    }
+}
