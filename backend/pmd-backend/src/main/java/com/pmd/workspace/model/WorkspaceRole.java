@@ -24,6 +24,8 @@ public class WorkspaceRole {
 
     private String createdByUserId;
 
+    private int schemaVersion = 1;
+
     public WorkspaceRole() {
     }
 
@@ -81,5 +83,13 @@ public class WorkspaceRole {
 
     public void setCreatedByUserId(String createdByUserId) {
         this.createdByUserId = createdByUserId;
+    }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public void setSchemaVersion(int schemaVersion) {
+        this.schemaVersion = schemaVersion;
     }
 }

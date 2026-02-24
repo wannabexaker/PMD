@@ -20,8 +20,14 @@ class DatabaseIndexGateTest {
     void shouldHaveCriticalIndexes() {
         assertIndexPresent("projects", "idx_projects_workspace_status");
         assertIndexPresent("projects", "idx_projects_workspace_team");
+        assertIndexPresent("projects", "idx_projects_workspace_created");
         assertIndexPresent("teams", "uniq_teams_workspace_slug");
+        assertIndexPresent("teams", "idx_teams_workspace_active_name");
+        assertIndexPresent("workspace_roles", "idx_workspace_roles_workspace_system_name");
         assertIndexPresent("workspace_members", "uniq_workspace_members_workspace_user");
+        assertIndexPresent("workspace_invites", "idx_workspace_invites_workspace_revoked_expires");
+        assertIndexPresent("workspace_join_requests", "idx_workspace_join_requests_workspace_status_created");
+        assertIndexPresent("workspace_audit_events", "idx_workspace_audit_workspace_action_created");
         assertIndexPresent("auth_sessions", "ttl_auth_sessions_expires");
         assertIndexPresent("auth_security_events", "ttl_auth_security_events_created");
     }

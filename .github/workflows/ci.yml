@@ -77,6 +77,9 @@ jobs:
       - name: DB schema/index gate
         run: ./mvnw -q -Dtest=DatabaseIndexGateTest test
 
+      - name: DB contract gate
+        run: ./mvnw -q -Dtest=DatabaseContractGateTest test
+
       - name: Package
         run: ./mvnw -q -Dmaven.test.skip=true package
 

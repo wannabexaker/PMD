@@ -32,6 +32,7 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         apply("2026-02-24-schema-version-backfill-v1", this::applySchemaVersionBackfill);
         apply("2026-02-24-index-foundation-v1", this::applyFoundationIndexes);
+        apply("2026-02-24-index-foundation-v2", this::applyFoundationIndexesV2);
         apply("2026-02-24-workspace-guard-report-v1", this::applyWorkspaceGuardReport);
     }
 
@@ -80,6 +81,17 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         ensureIndex("auth_sessions", new Index().on("userId", Sort.Direction.ASC).on("revokedAt", Sort.Direction.ASC).named("idx_auth_sessions_user_revoked"));
         ensureIndex("auth_security_events", new Index().on("createdAt", Sort.Direction.ASC).expire(180L * 24 * 60 * 60).named("ttl_auth_security_events_created"));
         ensureIndex("auth_security_events", new Index().on("eventType", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_auth_security_event_type_created"));
+    }
+
+    private void applyFoundationIndexesV2() {
+        ensureIndex("projects", new Index().on("workspaceId", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_projects_workspace_created"));
+        ensureIndex("teams", new Index().on("workspaceId", Sort.Direction.ASC).on("isActive", Sort.Direction.ASC).on("name", Sort.Direction.ASC).named("idx_teams_workspace_active_name"));
+        ensureIndex("workspace_roles", new Index().on("workspaceId", Sort.Direction.ASC).on("isSystem", Sort.Direction.ASC).on("name", Sort.Direction.ASC).named("idx_workspace_roles_workspace_system_name"));
+        ensureIndex("workspace_invites", new Index().on("workspaceId", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_workspace_invites_workspace_created"));
+        ensureIndex("workspace_invites", new Index().on("workspaceId", Sort.Direction.ASC).on("revoked", Sort.Direction.ASC).on("expiresAt", Sort.Direction.ASC).named("idx_workspace_invites_workspace_revoked_expires"));
+        ensureIndex("workspace_join_requests", new Index().on("workspaceId", Sort.Direction.ASC).on("status", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_workspace_join_requests_workspace_status_created"));
+        ensureIndex("workspace_audit_events", new Index().on("workspaceId", Sort.Direction.ASC).on("actorUserId", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_workspace_audit_workspace_actor_created"));
+        ensureIndex("workspace_audit_events", new Index().on("workspaceId", Sort.Direction.ASC).on("action", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_workspace_audit_workspace_action_created"));
     }
 
     private void applyWorkspaceGuardReport() {

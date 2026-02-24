@@ -7,6 +7,27 @@ This file is the single source of truth for PMD requirements, roadmap, TODOs, an
 
 ## 2026-02-20 - Global scrollbar visual unification
 
+## 2026-02-24 - LTS DB contract + CI gates (phase continuation)
+
+- [x] Added explicit `schemaVersion` field (default `1`) to core entities:
+  - `users`
+  - `workspaces`
+  - `projects`
+  - `teams`
+  - `workspace_roles`
+- [x] Extended migration runner with `2026-02-24-index-foundation-v2`:
+  - additional compound indexes for workspace-scoped scale queries
+  - stronger indexes for invites/join-requests/audit filtering patterns.
+- [x] Added `DatabaseContractGateTest` in backend tests:
+  - enforces `schemaVersion` presence on core entities
+  - enforces `workspaceId` presence on workspace-scoped entities.
+- [x] CI now runs a dedicated contract gate step:
+  - `.github/workflows/ci.yml` includes `DB contract gate`
+  - keeps existing `DB schema/index gate`.
+- [x] Validation:
+  - frontend lint/build pass
+  - backend tests pass on local Mongo with migrations applied.
+
 - [x] Unified scrollbar styling across the whole frontend with higher overlay feel:
   - thumb transparency set to ~50% for idle state
   - transparent track everywhere

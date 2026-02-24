@@ -34,6 +34,7 @@ public class Workspace {
     private Integer maxMembers;
     private Integer maxTeams;
     private Integer maxStorageMb;
+    private int schemaVersion = 1;
 
     public Workspace() {
     }
@@ -167,5 +168,13 @@ public class Workspace {
 
     public void setMaxStorageMb(Integer maxStorageMb) {
         this.maxStorageMb = maxStorageMb;
+    }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public void setSchemaVersion(int schemaVersion) {
+        this.schemaVersion = schemaVersion;
     }
 }

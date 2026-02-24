@@ -41,6 +41,8 @@ public class User {
 
     private boolean mustChangePassword;
 
+    private int schemaVersion = 1;
+
     private Instant createdAt;
 
     private List<String> recommendedByUserIds = new ArrayList<>();
@@ -192,6 +194,14 @@ public class User {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public void setSchemaVersion(int schemaVersion) {
+        this.schemaVersion = schemaVersion;
     }
 
     public List<String> getRecommendedByUserIds() {

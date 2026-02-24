@@ -166,6 +166,15 @@ Always confirm the port file exists (the script waits up to 90 seconds for it) a
 
 Note: `scripts/.pmd-dev-pids.json` is a local runtime state file (ephemeral PIDs for start/stop scripts). It is ignored by git and should not be committed.
 
+## DB quality gates (CI)
+
+- Backend CI runs DB safety checks in addition to normal tests:
+  - `DatabaseIndexGateTest` verifies critical indexes are present.
+  - `DatabaseContractGateTest` verifies core schema contract:
+    - `schemaVersion` exists on core entities.
+    - `workspaceId` exists on workspace-scoped entities.
+- New DB index/schema changes should be introduced only through `DatabaseMigrationRunner` migrations.
+
 ## Runtime guardrails
 
 - PMD now enforces a single active runtime mode: `dev`, `deps`, or `reviewer`.

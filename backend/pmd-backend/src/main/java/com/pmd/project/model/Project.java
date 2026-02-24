@@ -35,6 +35,8 @@ public class Project {
     @Indexed
     private String workspaceId;
 
+    private int schemaVersion = 1;
+
     public Project() {
     }
 
@@ -149,5 +151,13 @@ public class Project {
 
     public void setWorkspaceId(String workspaceId) {
         this.workspaceId = workspaceId;
+    }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public void setSchemaVersion(int schemaVersion) {
+        this.schemaVersion = schemaVersion;
     }
 }

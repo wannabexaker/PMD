@@ -32,6 +32,8 @@ public class Team {
 
     private String createdBy;
 
+    private int schemaVersion = 1;
+
     public Team() {
     }
 
@@ -108,5 +110,13 @@ public class Team {
 
     public void setCreatedBy(String createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public void setSchemaVersion(int schemaVersion) {
+        this.schemaVersion = schemaVersion;
     }
 }
