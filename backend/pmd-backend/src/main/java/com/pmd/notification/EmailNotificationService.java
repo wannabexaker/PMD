@@ -106,30 +106,52 @@ public class EmailNotificationService {
         sendEmail(recipient.getEmail(), content, "membership change");
     }
 
-    public void sendMentionUser(User recipient, Project project, String commentSnippet, User mentionedBy) {
+    public void sendMentionUser(User recipient, Project project, String commentSnippet, User mentionedBy, String source) {
         if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
             return;
         }
-        if (!preferencesService.resolvePreferences(recipient.getId()).isEmailOnMentionUser()) {
+        var prefs = preferencesService.resolvePreferences(recipient.getId());
+        boolean mentionEnabled = prefs.isEmailOnMentionUser() || prefs.isEmailOnMentionTeam();
+        boolean sourceEnabled = isSourceEnabled(source, prefs);
+        if (!mentionEnabled) {
+            logger.debug(
+                "Skipping user mention email to {} (mentionEnabled={}, sourceEnabled={}, source={})",
+                recipient.getEmail(),
+                mentionEnabled,
+                sourceEnabled,
+                source
+            );
             return;
         }
-        String subject = "You were mentioned in " + safe(project.getName());
-        String text = "You were mentioned in a comment on project: " + safe(project.getName())
+        String sourceLabel = safe(source).isBlank() ? "comment" : source;
+        String subject = "You were mentioned in " + safe(project.getName()) + " (" + sourceLabel + ")";
+        String text = "You were mentioned in " + sourceLabel + " on project: " + safe(project.getName())
             + (commentSnippet != null ? "\n\"" + commentSnippet + "\"" : "")
             + (mentionedBy != null ? "\nBy: " + safe(mentionedBy.getDisplayName()) : "");
         EmailContent content = templateBuilder.buildSimpleEmail(subject, text);
         sendEmail(recipient.getEmail(), content, "user mention");
     }
 
-    public void sendMentionTeam(User recipient, Project project, String commentSnippet, User mentionedBy) {
+    public void sendMentionTeam(User recipient, Project project, String commentSnippet, User mentionedBy, String source) {
         if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
             return;
         }
-        if (!preferencesService.resolvePreferences(recipient.getId()).isEmailOnMentionTeam()) {
+        var prefs = preferencesService.resolvePreferences(recipient.getId());
+        boolean mentionEnabled = prefs.isEmailOnMentionTeam() || prefs.isEmailOnMentionUser();
+        boolean sourceEnabled = isSourceEnabled(source, prefs);
+        if (!mentionEnabled) {
+            logger.debug(
+                "Skipping team mention email to {} (mentionEnabled={}, sourceEnabled={}, source={})",
+                recipient.getEmail(),
+                mentionEnabled,
+                sourceEnabled,
+                source
+            );
             return;
         }
-        String subject = "Your team was mentioned in " + safe(project.getName());
-        String text = "Your team was mentioned in a comment on project: " + safe(project.getName())
+        String sourceLabel = safe(source).isBlank() ? "comment" : source;
+        String subject = "Team mention in " + safe(project.getName()) + " (" + sourceLabel + ")";
+        String text = "Your team/role was mentioned in " + sourceLabel + " on project: " + safe(project.getName())
             + (commentSnippet != null ? "\n\"" + commentSnippet + "\"" : "")
             + (mentionedBy != null ? "\nBy: " + safe(mentionedBy.getDisplayName()) : "");
         EmailContent content = templateBuilder.buildSimpleEmail(subject, text);
@@ -168,5 +190,22 @@ public class EmailNotificationService {
 
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private boolean isSourceEnabled(String source, com.pmd.notification.model.UserNotificationPreferences prefs) {
+        // Legacy fallback: older preference records may not contain source-specific flags
+        // and therefore deserialize as false. In that case, do not block mention emails.
+        boolean hasAnySourcePreferenceEnabled =
+            prefs.isEmailOnMentionComment() || prefs.isEmailOnMentionDescription() || prefs.isEmailOnMentionProjectTitle();
+        if (!hasAnySourcePreferenceEnabled) {
+            return true;
+        }
+        String normalized = source == null ? "" : source.trim().toLowerCase();
+        return switch (normalized) {
+            case "project description" -> prefs.isEmailOnMentionDescription();
+            case "project title" -> prefs.isEmailOnMentionProjectTitle();
+            case "comment" -> prefs.isEmailOnMentionComment();
+            default -> true;
+        };
     }
 }

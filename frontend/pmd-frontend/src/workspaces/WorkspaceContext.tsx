@@ -67,7 +67,7 @@ function persistWorkspaceId(id: string | null) {
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(() => loadStoredWorkspaceId())
 
@@ -90,7 +90,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setWorkspaces([])
       setError(null)
       setLoading(false)
-      setActiveWorkspaceId(null)
+      setActiveWorkspaceIdState(null)
       return
     }
     setLoading(true)
@@ -102,11 +102,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const storedWorkspace = stored ? data.find((workspace) => workspace.id === stored) : null
       if (storedWorkspace && storedWorkspace.status === 'ACTIVE') {
         setActiveWorkspaceIdState(storedWorkspace.id ?? null)
+        persistWorkspaceId(storedWorkspace.id ?? null)
       } else {
         const activeWorkspaces = data.filter((workspace) => workspace.status === 'ACTIVE')
-        if (activeWorkspaces.length === 1) {
-          setActiveWorkspaceIdState(activeWorkspaces[0]?.id ?? null)
-          persistWorkspaceId(activeWorkspaces[0]?.id ?? null)
+        const currentWorkspace = activeWorkspaceId ? data.find((workspace) => workspace.id === activeWorkspaceId) : null
+        if (currentWorkspace && currentWorkspace.status === 'ACTIVE') {
+          setActiveWorkspaceIdState(currentWorkspace.id ?? null)
+          persistWorkspaceId(currentWorkspace.id ?? null)
+        } else if (activeWorkspaces.length >= 1) {
+          const fallbackWorkspace = activeWorkspaces[0] ?? null
+          setActiveWorkspaceIdState(fallbackWorkspace?.id ?? null)
+          persistWorkspaceId(fallbackWorkspace?.id ?? null)
         } else {
           setActiveWorkspaceIdState(null)
           persistWorkspaceId(null)
@@ -117,7 +123,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [user, setActiveWorkspaceId])
+  }, [user, activeWorkspaceId])
 
   const createWorkspace = useCallback(async (name: string, initialTeams?: string[]) => {
     const trimmed = name.trim()
@@ -200,12 +206,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setWorkspaces([])
       setError(null)
       setLoading(false)
-      setActiveWorkspaceId(null)
-      persistWorkspaceId(null)
+      setActiveWorkspaceIdState(null)
       return
     }
     refresh()
-  }, [user, refresh, setActiveWorkspaceId])
+  }, [user, refresh])
 
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null,

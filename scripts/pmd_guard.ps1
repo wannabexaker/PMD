@@ -166,7 +166,7 @@ function Stop-PmdDevProcesses {
   }
 }
 
-function Ensure-PmdMode {
+function Set-PmdMode {
   param([Parameter(Mandatory = $true)][ValidateSet('dev', 'deps', 'reviewer')][string]$TargetMode)
 
   Remove-PmdStoppedNamedContainers

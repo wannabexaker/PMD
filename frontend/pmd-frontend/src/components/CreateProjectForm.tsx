@@ -3,19 +3,23 @@ import { createProject } from '../api/projects'
 import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary } from '../types'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
+import { MentionTextarea } from './common/MentionTextarea'
+import { useMentionOptions } from '../mentions/useMentionOptions'
 
 type CreateProjectFormProps = {
   users: UserSummary[]
   currentUser: User | null
+  requireTeamOnCreate?: boolean
   onCreated: (project?: Project) => void
 }
 
 const MAX_PROJECT_TITLE_LENGTH = 32
 const STATUSES: ProjectStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED']
 
-export function CreateProjectForm({ users, currentUser, onCreated }: CreateProjectFormProps) {
+export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = false, onCreated }: CreateProjectFormProps) {
   const { teams, teamById, createTeam, loading: teamsLoading } = useTeams()
   const { activeWorkspaceId, activeWorkspace } = useWorkspace()
+  const mentionOptions = useMentionOptions(users)
   const isAdmin = Boolean(currentUser?.isAdmin)
   const canManageTeams = Boolean(activeWorkspace?.permissions?.manageTeams) || isAdmin
   const [form, setForm] = useState<CreateProjectPayload>({
@@ -96,7 +100,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
       setError('Name is required.')
       return
     }
-    if (!form.teamId) {
+    if (requireTeamOnCreate && !form.teamId) {
       setError('Team is required.')
       return
     }
@@ -107,7 +111,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
         name: form.name.trim().slice(0, MAX_PROJECT_TITLE_LENGTH),
         description: form.description?.trim() || undefined,
         status: form.status,
-        teamId: form.teamId,
+        teamId: form.teamId || undefined,
         memberIds: (form.memberIds ?? []).filter((id) => Boolean(id)),
       })
       setForm({ name: '', description: '', status: 'NOT_STARTED', teamId: form.teamId, memberIds: [] })
@@ -155,12 +159,11 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
             <select
               id="teamId"
               name="teamId"
-              value={form.teamId}
+              value={form.teamId ?? ''}
               onChange={handleChange}
-              required
               disabled={teamsLoading && teams.length === 0}
             >
-              <option value="">{teamsLoading ? 'Loading teams...' : 'Select team'}</option>
+              <option value="">{teamsLoading ? 'Loading teams...' : requireTeamOnCreate ? 'Select team' : 'No team'}</option>
               {teams.map((team) => (
                 <option key={team.id ?? team.name} value={team.id ?? ''}>
                   {team.name}
@@ -213,12 +216,13 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
         </div>
         <div className="form-field form-span-2">
           <label htmlFor="description">Description</label>
-          <textarea
+          <MentionTextarea
             id="description"
             name="description"
-            value={form.description}
-            onChange={handleChange}
+            value={form.description ?? ''}
+            onChange={(nextValue) => setForm((prev) => ({ ...prev, description: nextValue }))}
             rows={4}
+            options={mentionOptions}
           />
         </div>
         <div className="form-field form-span-2">
@@ -265,7 +269,7 @@ export function CreateProjectForm({ users, currentUser, onCreated }: CreateProje
                         {displayName}
                       </strong>
                       <span className="muted truncate" title={teamById.get(user.teamId ?? '')?.name ?? ''}>
-                        {teamById.get(user.teamId ?? '')?.name ?? 'Team'}
+                        {teamById.get(user.teamId ?? '')?.name ?? 'No team'}
                       </span>
                     </div>
                     <span className="muted truncate" title={user.email ?? ''}>

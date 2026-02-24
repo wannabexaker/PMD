@@ -44,6 +44,10 @@ if /I "%action%"=="docker-down" (
   call "%ROOT%scripts\pmd_reviewer_down.bat"
   exit /b 0
 )
+if /I "%action%"=="ops" (
+  start "PMD Ops" powershell -NoExit -ExecutionPolicy Bypass -Command "python \"%ROOT%scripts\pmdops.py\""
+  exit /b 0
+)
 
 echo Usage:
 
@@ -55,6 +59,7 @@ echo Usage:
  echo pmd.bat status    ^(status^)
  echo pmd.bat docker-up   ^(start full docker stack^)
  echo pmd.bat docker-down ^(stop full docker stack^)
+ echo pmd.bat ops       ^(open PMD Ops cockpit^)
  exit /b 1
 
 :menu
@@ -69,6 +74,7 @@ echo [5] Start frontend
 echo [6] Status
 echo [7] Start full docker stack
 echo [8] Stop full docker stack
+echo [9] Open PMD Ops cockpit
 echo.
 set /p choice=Select: 
 
@@ -80,5 +86,6 @@ if "%choice%"=="5" call "%ROOT%pmd.bat" frontend & pause & goto menu
 if "%choice%"=="6" call "%ROOT%pmd.bat" status & pause & goto menu
 if "%choice%"=="7" call "%ROOT%pmd.bat" docker-up & pause & goto menu
 if "%choice%"=="8" call "%ROOT%pmd.bat" docker-down & pause & goto menu
+if "%choice%"=="9" call "%ROOT%pmd.bat" ops & pause & goto menu
 
 goto menu

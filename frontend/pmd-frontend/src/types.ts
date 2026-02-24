@@ -29,6 +29,7 @@ export type Team = {
   id?: string | null
   name?: string | null
   slug?: string | null
+  color?: string | null
   workspaceId?: string | null
   isActive?: boolean | null
   createdAt?: string | null
@@ -74,6 +75,7 @@ export type User = {
   email?: string | null
   firstName?: string | null
   lastName?: string | null
+  avatarUrl?: string | null
   team?: string | null
   teamId?: string | null
   teamName?: string | null
@@ -86,7 +88,7 @@ export type CreateProjectPayload = {
   name: string
   description?: string
   status: ProjectStatus
-  teamId: string
+  teamId?: string | null
   memberIds?: string[]
 }
 
@@ -111,6 +113,7 @@ export type UpdateProfilePayload = {
   lastName: string
   teamId?: string
   bio?: string
+  avatarUrl?: string
 }
 
 export type WorkspacePermissions = {
@@ -133,6 +136,10 @@ export type Workspace = {
   description?: string | null
   language?: string | null
   avatarUrl?: string | null
+  maxProjects?: number | null
+  maxMembers?: number | null
+  maxTeams?: number | null
+  maxStorageMb?: number | null
   role?: 'OWNER' | 'ADMIN' | 'MEMBER' | (string & {})
   roleId?: string | null
   roleName?: string | null
@@ -157,6 +164,7 @@ export type WorkspaceInvite = {
   workspaceId?: string | null
   token?: string | null
   code?: string | null
+  defaultRoleId?: string | null
   expiresAt?: string | null
   maxUses?: number | null
   usesCount?: number | null
@@ -169,6 +177,7 @@ export type WorkspaceInviteResolve = {
   workspaceName?: string | null
   token?: string | null
   code?: string | null
+  defaultRoleId?: string | null
   expiresAt?: string | null
   maxUses?: number | null
   usesCount?: number | null
@@ -183,6 +192,25 @@ export type WorkspaceJoinRequest = {
   userEmail?: string | null
   status?: 'PENDING' | 'APPROVED' | 'DENIED' | (string & {})
   createdAt?: string | null
+}
+
+export type WorkspaceAuditEvent = {
+  id?: string | null
+  workspaceId?: string | null
+  createdAt?: string | null
+  category?: string | null
+  action?: string | null
+  outcome?: string | null
+  actorUserId?: string | null
+  actorName?: string | null
+  targetUserId?: string | null
+  teamId?: string | null
+  roleId?: string | null
+  projectId?: string | null
+  entityType?: string | null
+  entityId?: string | null
+  entityName?: string | null
+  message?: string | null
 }
 
 export type AuthResponse = {
@@ -324,6 +352,9 @@ export type NotificationPreferences = {
   emailOnAssign: boolean
   emailOnMentionUser: boolean
   emailOnMentionTeam: boolean
+  emailOnMentionComment: boolean
+  emailOnMentionDescription: boolean
+  emailOnMentionProjectTitle: boolean
   emailOnProjectStatusChange: boolean
   emailOnProjectMembershipChange: boolean
   emailOnOverdueReminder: boolean

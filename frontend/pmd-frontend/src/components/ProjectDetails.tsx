@@ -6,6 +6,10 @@ import { ProjectComments } from './ProjectComments'
 import { PmdLoader } from './common/PmdLoader'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
+import { formatMentionText } from '../mentions/formatMentionText'
+import { MentionText } from '../mentions/MentionText'
+import { useNavigate } from 'react-router-dom'
+import { navigateFromMention } from '../mentions/mentionNavigation'
 
 function formatDate(value?: string | null) {
   if (!value) {
@@ -33,6 +37,7 @@ function formatProjectTitle(value?: string | null) {
 }
 
 export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
+  const navigate = useNavigate()
   const { activeWorkspaceId } = useWorkspace()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(false)
@@ -247,8 +252,8 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
             <h3 className="truncate" title={project.name ?? ''}>
               {formatProjectTitle(project.name)}
             </h3>
-            <p className="muted truncate" title={project.description ?? ''}>
-              {project.description ?? ''}
+            <p className="muted truncate" title={formatMentionText(project.description ?? '')}>
+              <MentionText text={project.description ?? ''} onMentionClick={(payload) => navigateFromMention(payload, navigate)} />
             </p>
             <div className="meta">
               <span>Status: {(project.status ?? 'NOT_STARTED').toString().replace('_', ' ')}</span>
@@ -398,7 +403,7 @@ export function ProjectDetails({ projectId, users }: ProjectDetailsProps) {
               </div>
             </div>
           </div>
-          {project.id && user ? <ProjectComments projectId={project.id} currentUser={user} /> : null}
+          {project.id && user ? <ProjectComments projectId={project.id} currentUser={user} mentionUsers={users} /> : null}
         </>
       ) : null}
     </section>

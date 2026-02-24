@@ -3,6 +3,7 @@ import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary } 
 import { deleteProject, fetchProjects, randomAssign, updateProject } from '../api/projects'
 import { fetchRecommendationDetails, toggleRecommendation } from '../api/users'
 import { ControlsBar } from './common/ControlsBar'
+import { CreateProjectForm } from './CreateProjectForm'
 import { isApiError } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
@@ -22,6 +23,7 @@ type AssignPageProps = {
   onSelectProject: (id: string) => void
   onClearSelection?: () => void
   onRefresh?: () => void
+  requireTeamOnProjectCreate?: boolean
 }
 
 const MAX_PROJECT_TITLE_LENGTH = 32
@@ -41,6 +43,7 @@ export function AssignPage({
   onSelectProject,
   onClearSelection,
   onRefresh,
+  requireTeamOnProjectCreate = false,
 }: AssignPageProps) {
   const { teams, teamById } = useTeams()
   const { activeWorkspaceId } = useWorkspace()
@@ -65,6 +68,7 @@ export function AssignPage({
   const [tooltipUserId, setTooltipUserId] = useState<string | null>(null)
   const [recommendersById, setRecommendersById] = useState<Record<string, UserSummary[]>>({})
   const [recommendersLoadingId, setRecommendersLoadingId] = useState<string | null>(null)
+  const [showCreateProject, setShowCreateProject] = useState(false)
   const currentUserId = currentUser?.id ?? ''
 
   const usersById = useMemo(() => {
@@ -599,16 +603,28 @@ export function AssignPage({
                 searchPlaceholder="Search projects"
                 filters={[]}
                 actions={
-                  <button
-                    type="button"
-                    className="btn btn-icon btn-ghost icon-toggle"
-                    onClick={handlePickRandomProject}
-                    disabled={eligibleProjects.length === 0}
-                    title="Pick random project"
-                    data-tooltip="Pick random project"
-                  >
-                    <DiceIcon />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-icon"
+                      onClick={() => setShowCreateProject((prev) => !prev)}
+                      title="Add project"
+                      data-tooltip="Add project"
+                      aria-label="Add project"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-icon btn-ghost icon-toggle"
+                      onClick={handlePickRandomProject}
+                      disabled={eligibleProjects.length === 0}
+                      title="Pick random project"
+                      data-tooltip="Pick random project"
+                    >
+                      <DiceIcon />
+                    </button>
+                  </>
                 }
                 filterExtra={
                   <div className="filter-extra-row">
@@ -661,6 +677,28 @@ export function AssignPage({
               <span className="muted">No project selected</span>
             )}
           </div>
+          {showCreateProject ? (
+            <div className="card assign-create-project">
+              <div className="panel-header">
+                <h3>Add new project</h3>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCreateProject(false)}>
+                  Close
+                </button>
+              </div>
+              <CreateProjectForm
+                users={users}
+                currentUser={currentUser}
+                requireTeamOnCreate={requireTeamOnProjectCreate}
+                onCreated={(created) => {
+                  setShowCreateProject(false)
+                  if (created?.id) {
+                    onSelectProject(created.id)
+                  }
+                  onRefresh?.()
+                }}
+              />
+            </div>
+          ) : null}
           <div className="assign-panel-body assign-folders">
             {foldersToShow.map((folder) => {
               const filteredProjects = scopedProjects
@@ -764,9 +802,9 @@ export function AssignPage({
                         </span>
                         <span
                           className="muted truncate"
-                          title={teamById.get(user.teamId ?? '')?.name ?? 'Team'}
+                          title={teamById.get(user.teamId ?? '')?.name ?? 'No team'}
                         >
-                          {teamById.get(user.teamId ?? '')?.name ?? 'Team'}
+                          {teamById.get(user.teamId ?? '')?.name ?? 'No team'}
                         </span>
                       </div>
                       <div className="people-card-actions">

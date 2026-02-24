@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import type { CreateProjectPayload, Project, ProjectStatus, UserSummary } from '../types'
 import { useTeams } from '../teams/TeamsContext'
+import { MentionTextarea } from './common/MentionTextarea'
+import { useMentionOptions } from '../mentions/useMentionOptions'
 
 const STATUSES: ProjectStatus[] = [
   'NOT_STARTED',
@@ -21,6 +23,7 @@ type ProjectEditorProps = {
 
 export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }: ProjectEditorProps) {
   const { teams } = useTeams()
+  const mentionOptions = useMentionOptions(users)
   const [form, setForm] = useState<CreateProjectPayload>({
     name: (initial?.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
     description: initial?.description ?? '',
@@ -67,18 +70,13 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
       setError('Name is required.')
       return
     }
-    if (!form.teamId) {
-      setError('Team is required.')
-      return
-    }
-
     try {
       setSubmitting(true)
       await onSave({
         name: form.name.trim().slice(0, MAX_PROJECT_TITLE_LENGTH),
         description: form.description?.trim() || undefined,
         status: form.status,
-        teamId: form.teamId,
+        teamId: form.teamId || undefined,
         memberIds: (form.memberIds ?? []).filter((id) => id),
       })
     } catch (err) {
@@ -118,11 +116,10 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
           <select
             id="teamId"
             name="teamId"
-            value={form.teamId}
+            value={form.teamId ?? ''}
             onChange={(event) => setForm((prev) => ({ ...prev, teamId: event.target.value }))}
-            required
           >
-            <option value="">Select team</option>
+            <option value="">No team</option>
             {teams.map((team) => (
               <option key={team.id ?? team.name} value={team.id ?? ''}>
                 {team.name}
@@ -132,12 +129,13 @@ export function ProjectEditor({ users, initial, onSave, onCancel, submitLabel }:
         </div>
         <div className="form-field form-span-2">
           <label htmlFor="description">Description</label>
-          <textarea
+          <MentionTextarea
             id="description"
             name="description"
             value={form.description ?? ''}
-            onChange={handleChange}
+            onChange={(nextValue) => setForm((prev) => ({ ...prev, description: nextValue }))}
             rows={3}
+            options={mentionOptions}
           />
         </div>
         <div className="form-field form-span-2">

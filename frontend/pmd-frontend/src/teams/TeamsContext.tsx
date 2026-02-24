@@ -11,8 +11,8 @@ type TeamsContextValue = {
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
-  createTeam: (name: string) => Promise<Team | null>
-  updateTeam: (id: string, payload: { name?: string; isActive?: boolean }) => Promise<Team | null>
+  createTeam: (name: string, color?: string) => Promise<Team | null>
+  updateTeam: (id: string, payload: { name?: string; isActive?: boolean; color?: string }) => Promise<Team | null>
   teamById: Map<string, Team>
 }
 
@@ -46,7 +46,7 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
   }, [activeWorkspaceId, user])
 
   const createTeam = useCallback(
-    async (name: string) => {
+    async (name: string, color?: string) => {
       if (!activeWorkspaceId) {
         setError('Select a workspace first.')
         return null
@@ -56,12 +56,16 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
         return null
       }
       try {
-        const created = await createTeamApi(activeWorkspaceId, name.trim())
+        const created = await createTeamApi(activeWorkspaceId, name.trim(), color)
+        const normalizedCreated: Team = {
+          ...created,
+          color: created.color ?? color ?? '#3B82F6',
+        }
         setTeams((prev) => {
-          const next = [created, ...prev.filter((team) => team.id !== created.id)]
+          const next = [normalizedCreated, ...prev.filter((team) => team.id !== normalizedCreated.id)]
           return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
         })
-        return created
+        return normalizedCreated
       } catch (err) {
         if (isApiError(err) && err.status === 409) {
           setError('Team already exists.')
@@ -75,7 +79,7 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
     [activeWorkspaceId]
   )
 
-  const updateTeam = useCallback(async (id: string, payload: { name?: string; isActive?: boolean }) => {
+  const updateTeam = useCallback(async (id: string, payload: { name?: string; isActive?: boolean; color?: string }) => {
     if (!activeWorkspaceId) {
       setError('Select a workspace first.')
       return null
@@ -83,7 +87,16 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
     try {
       const updated = await updateTeamApi(activeWorkspaceId, id, payload)
       setTeams((prev) => {
-        const next = prev.map((team) => (team.id === updated.id ? updated : team))
+        const next = prev.map((team) => {
+          if (team.id !== updated.id) {
+            return team
+          }
+          return {
+            ...team,
+            ...updated,
+            color: updated.color ?? payload.color ?? team.color ?? '#3B82F6',
+          }
+        })
         return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       })
       return updated

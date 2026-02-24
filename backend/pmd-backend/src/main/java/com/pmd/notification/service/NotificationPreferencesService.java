@@ -45,6 +45,9 @@ public class NotificationPreferencesService {
         prefs.setEmailOnAssign(resolve(request.getEmailOnAssign()));
         prefs.setEmailOnMentionUser(resolve(request.getEmailOnMentionUser()));
         prefs.setEmailOnMentionTeam(resolve(request.getEmailOnMentionTeam()));
+        prefs.setEmailOnMentionComment(resolve(request.getEmailOnMentionComment()));
+        prefs.setEmailOnMentionDescription(resolve(request.getEmailOnMentionDescription()));
+        prefs.setEmailOnMentionProjectTitle(resolve(request.getEmailOnMentionProjectTitle()));
         prefs.setEmailOnProjectStatusChange(resolve(request.getEmailOnProjectStatusChange()));
         prefs.setEmailOnProjectMembershipChange(resolve(request.getEmailOnProjectMembershipChange()));
         prefs.setEmailOnOverdueReminder(resolve(request.getEmailOnOverdueReminder()));

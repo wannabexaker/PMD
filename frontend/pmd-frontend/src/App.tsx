@@ -31,6 +31,7 @@ import {
   setAssignSelectedProjectId,
   setDashboardSelectedProjectId,
 } from './ui/uiSelectionStore'
+import { getAvatarFrameStyle } from './shared/avatarFrame'
 import './App.css'
 
 function toLandingPath(preferences: ReturnType<typeof loadUiPreferences>) {
@@ -41,9 +42,33 @@ function toLandingPath(preferences: ReturnType<typeof loadUiPreferences>) {
       return '/people'
     case 'settings':
       return '/settings'
+    case 'lastVisited':
+      return '/dashboard'
     default:
       return '/dashboard'
   }
+}
+
+const LAST_APP_ROUTE_KEY = 'pmd.lastAppRoute'
+const ROUTE_MEMORY_ALLOWLIST = new Set(['/dashboard', '/assign', '/people', '/settings', '/profile', '/admin'])
+const THEME_KEY = 'pmd.theme'
+
+function readLastAppRoute() {
+  if (typeof window === 'undefined') return null
+  const stored = window.localStorage.getItem(LAST_APP_ROUTE_KEY)
+  return stored && ROUTE_MEMORY_ALLOWLIST.has(stored) ? stored : null
+}
+
+function writeLastAppRoute(pathname: string) {
+  if (typeof window === 'undefined') return
+  if (!ROUTE_MEMORY_ALLOWLIST.has(pathname)) return
+  window.localStorage.setItem(LAST_APP_ROUTE_KEY, pathname)
+}
+
+function readStoredTheme(): 'dark' | 'light' {
+  if (typeof window === 'undefined') return 'dark'
+  const stored = window.localStorage.getItem(THEME_KEY)
+  return stored === 'light' ? 'light' : 'dark'
 }
 
 function App() {
@@ -54,7 +79,7 @@ function AppStateful() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authError, setAuthError] = useState<string | null>(null)
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => readStoredTheme())
   const [menuOpen, setMenuOpen] = useState(false)
   const [users, setUsers] = useState<UserSummary[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -187,10 +212,18 @@ function AppView({
   backendMessage,
   setBackendMessage,
 }: AppViewProps) {
-  const { activeWorkspaceId, activeWorkspace, workspaces, loading: workspaceLoading, setActiveWorkspaceId } = useWorkspace()
+  const {
+    activeWorkspaceId,
+    activeWorkspace,
+    workspaces,
+    loading: workspaceLoading,
+    error: workspaceError,
+    setActiveWorkspaceId,
+  } = useWorkspace()
   const location = useLocation()
   const navigate = useNavigate()
   const previousPathRef = useRef<string>(location.pathname)
+  const previousWorkspaceIdRef = useRef<string | null>(activeWorkspaceId ?? null)
   const isAuthed = Boolean(currentUser)
   const isAdmin = Boolean(currentUser?.isAdmin)
   const isAssignRoute = location.pathname === '/assign'
@@ -199,8 +232,18 @@ function AppView({
   const isDashboardRoute = location.pathname === '/dashboard'
   const backendOffline = backendStatus === 'offline'
   const hasWorkspace = Boolean(activeWorkspaceId)
-  const workspaceRequired = isAuthed && !hasWorkspace && !workspaceLoading
+  const workspaceRequired = isAuthed && !hasWorkspace && !workspaceLoading && !workspaceError
   const landingPath = toLandingPath(uiPreferences)
+  const preferredAuthedRoute =
+    uiPreferences.defaultLandingPage === 'lastVisited' ? (readLastAppRoute() ?? '/dashboard') : landingPath
+  const resolveAssetUrl = useCallback((url?: string | null) => {
+    if (!url) return ''
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url
+    }
+    const prefix = url.startsWith('/') ? '' : '/'
+    return `${API_BASE_URL}${prefix}${url}`
+  }, [])
 
   const loadMe = useCallback(async () => {
     setAuthError(null)
@@ -334,6 +377,9 @@ function AppView({
 
   useEffect(() => {
     document.body.dataset.theme = theme
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(THEME_KEY, theme)
+    }
   }, [theme])
 
   useEffect(() => {
@@ -438,6 +484,13 @@ function AppView({
   }, [location.pathname, uiPreferences, setAssignSelectedProjectIdState, setDashboardSelectedProjectIdState])
 
   useEffect(() => {
+    if (!isAuthed) {
+      return
+    }
+    writeLastAppRoute(location.pathname)
+  }, [isAuthed, location.pathname])
+
+  useEffect(() => {
     if (!menuOpen) {
       document.body.style.overflow = ''
       return
@@ -454,6 +507,35 @@ function AppView({
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [menuOpen, setMenuOpen])
+
+  useEffect(() => {
+    const previousWorkspaceId = previousWorkspaceIdRef.current
+    if (previousWorkspaceId === activeWorkspaceId) {
+      return
+    }
+    previousWorkspaceIdRef.current = activeWorkspaceId ?? null
+    setUsers([])
+    setProjects([])
+    setUsersError(null)
+    setProjectError(null)
+    setDashboardSelectedProjectIdState(null)
+    setAssignSelectedProjectIdState(null)
+    clearUiSelections()
+    const shouldLoad = Boolean(currentUser && activeWorkspaceId)
+    setUsersLoading(shouldLoad)
+    setProjectLoading(shouldLoad)
+  }, [
+    activeWorkspaceId,
+    currentUser,
+    setAssignSelectedProjectIdState,
+    setDashboardSelectedProjectIdState,
+    setProjectError,
+    setProjectLoading,
+    setProjects,
+    setUsers,
+    setUsersError,
+    setUsersLoading,
+  ])
 
   useEffect(() => {
     if (!currentUser || !activeWorkspaceId) {
@@ -562,6 +644,18 @@ function AppView({
     }
   }
 
+  const noWorkspaceState = (
+    <section className="panel">
+      <h2>No workspace selected</h2>
+      <p className="muted">Select or join a workspace from Settings to continue.</p>
+      <div className="row">
+        <button type="button" className="btn btn-primary" onClick={() => navigate('/settings')}>
+          Open Settings
+        </button>
+      </div>
+    </section>
+  )
+
   if (authLoading) {
     return (
       <div className="container">
@@ -574,37 +668,115 @@ function AppView({
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <div className="brand">
+          <button
+            type="button"
+            className="brand brand-link"
+            onClick={() => {
+              if (!isAuthed) {
+                navigate('/login')
+                return
+              }
+              if (workspaceRequired) {
+                navigate('/settings')
+                return
+              }
+              navigate('/dashboard')
+            }}
+            aria-label="Go to dashboard"
+          >
             <Logo size={26} />
-          </div>
+          </button>
           <div className="topbar-actions">
             {isAuthed ? (
-              <div className="workspace-switcher">
-                <select
-                  aria-label="Active workspace"
-                  value={activeWorkspaceId ?? ''}
-                  onChange={(event) => setActiveWorkspaceId(event.target.value || null)}
-                >
-                  <option value="" disabled>
-                    Select workspace
-                  </option>
-                  {workspaces.map((workspace) => {
-                    const name = workspace.name ?? 'Workspace'
-                    const pending = workspace.status === 'PENDING'
-                    return (
-                      <option
-                        key={workspace.id ?? workspace.name}
-                        value={workspace.id ?? ''}
-                        disabled={pending}
+              <div className="topbar-identities">
+                <div className="identity-pill workspace-identity">
+                  {activeWorkspaceId ? (
+                    <div className="avatar-menu">
+                      <button
+                        type="button"
+                        className="workspace-avatar avatar-button"
+                        title={activeWorkspace?.name ?? 'Workspace settings'}
+                        onClick={() => navigate('/settings')}
                       >
-                        {pending ? `${name} (Pending)` : name}
+                        {activeWorkspace?.avatarUrl ? (
+                          <img
+                            src={resolveAssetUrl(activeWorkspace.avatarUrl)}
+                            alt=""
+                            className="framed-avatar-image"
+                            style={getAvatarFrameStyle(activeWorkspace.avatarUrl)}
+                            draggable={false}
+                            onContextMenu={(event) => event.preventDefault()}
+                          />
+                        ) : (
+                          <span>{(activeWorkspace?.name ?? 'W').slice(0, 1).toUpperCase()}</span>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="workspace-avatar" aria-hidden="true">
+                      W
+                    </span>
+                  )}
+                  <div className="workspace-switcher">
+                    <select
+                      aria-label="Active workspace"
+                      value={activeWorkspaceId ?? ''}
+                      onChange={(event) => setActiveWorkspaceId(event.target.value || null)}
+                    >
+                      <option value="" disabled>
+                        Select workspace
                       </option>
-                    )
-                  })}
-                </select>
-                {activeWorkspace?.demo ? <span className="pill">Demo</span> : null}
+                      {workspaces.map((workspace) => {
+                        const name = workspace.name ?? 'Workspace'
+                        const pending = workspace.status === 'PENDING'
+                        return (
+                          <option
+                            key={workspace.id ?? workspace.name}
+                            value={workspace.id ?? ''}
+                            disabled={pending}
+                          >
+                            {pending ? `${name} (Pending)` : name}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  </div>
+                  {activeWorkspace?.demo ? <span className="pill">Demo</span> : null}
+                </div>
+                <div className="identity-pill user-identity">
+                  <div className="avatar-menu">
+                    <button
+                      type="button"
+                      className="workspace-avatar avatar-button"
+                      title="My profile"
+                      onClick={() => navigate('/profile')}
+                    >
+                      {currentUser?.avatarUrl ? (
+                        <img
+                          src={resolveAssetUrl(currentUser.avatarUrl)}
+                          alt=""
+                          className="framed-avatar-image"
+                          style={getAvatarFrameStyle(currentUser.avatarUrl)}
+                          draggable={false}
+                          onContextMenu={(event) => event.preventDefault()}
+                        />
+                      ) : (
+                        <span>{(currentUser?.displayName ?? currentUser?.username ?? 'U').slice(0, 1).toUpperCase()}</span>
+                      )}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="link-button identity-name truncate"
+                    onClick={() => navigate('/profile')}
+                    title={currentUser?.displayName ?? currentUser?.username ?? 'User'}
+                  >
+                    {currentUser?.displayName ?? currentUser?.username ?? 'User'}
+                  </button>
+                </div>
               </div>
             ) : null}
+            <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
             <button
               type="button"
               className={`burger${menuOpen ? ' is-open' : ''}`}
@@ -615,17 +787,6 @@ function AppView({
               <span />
               <span />
             </button>
-            {isAuthed ? (
-              <button
-                type="button"
-                className="link-button profile-pill truncate"
-                onClick={() => navigate('/profile')}
-                title={currentUser?.displayName ?? currentUser?.username ?? 'User'}
-              >
-                {currentUser?.displayName ?? currentUser?.username ?? 'User'}
-              </button>
-            ) : null}
-            <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
           </div>
         </div>
       </header>
@@ -756,6 +917,11 @@ function AppView({
             {backendMessage ?? `Backend unreachable (${API_BASE_URL}).`}
           </div>
         ) : null}
+        {isAuthed && workspaceError ? (
+          <div className="banner warning" role="status">
+            {workspaceError}
+          </div>
+        ) : null}
         {isAuthed && hasWorkspace && !currentUser?.teamId ? (
           <div className="banner info" role="status">
             <strong>You are not in a team yet.</strong>
@@ -773,7 +939,7 @@ function AppView({
           </div>
         ) : null}
         <Routes>
-          <Route path="/" element={<Navigate to={isAuthed ? landingPath : '/login'} replace />} />
+          <Route path="/" element={<Navigate to={isAuthed ? preferredAuthedRoute : '/login'} replace />} />
           <Route
             path="/dashboard"
             element={
@@ -797,13 +963,14 @@ function AppView({
                       onClearSelection={() => setDashboardSelectedProjectIdState(null)}
                       onCreated={handleProjectCreated}
                       onRefresh={refreshProjectsBackground}
+                      requireTeamOnProjectCreate={uiPreferences.requireTeamOnProjectCreate}
                     />
                   )}
                 </>
-                ) : workspaceLoading ? (
+                ) : workspaceLoading || workspaceError ? (
                   <PmdLoader size="md" variant="panel" />
                 ) : (
-                  <Navigate to="/settings" replace />
+                  noWorkspaceState
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -837,13 +1004,14 @@ function AppView({
                       }
                       onClearSelection={() => setAssignSelectedProjectIdState(null)}
                       onRefresh={refreshProjectsBackground}
+                      requireTeamOnProjectCreate={uiPreferences.requireTeamOnProjectCreate}
                     />
                   )}
                 </>
-                ) : workspaceLoading ? (
+                ) : workspaceLoading || workspaceError ? (
                   <PmdLoader size="md" variant="panel" />
                 ) : (
-                  <Navigate to="/settings" replace />
+                  noWorkspaceState
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -870,10 +1038,10 @@ function AppView({
                     />
                   ) : null}
                 </>
-                ) : workspaceLoading ? (
+                ) : workspaceLoading || workspaceError ? (
                   <PmdLoader size="md" variant="panel" />
                 ) : (
-                  <Navigate to="/settings" replace />
+                  noWorkspaceState
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -886,12 +1054,12 @@ function AppView({
               isAuthed ? (
                 hasWorkspace && isAdmin ? (
                   <AdminPanel users={users} projects={projects} />
-                ) : workspaceLoading ? (
+                ) : workspaceLoading || workspaceError ? (
                   <PmdLoader size="md" variant="panel" />
                 ) : hasWorkspace ? (
                   <Navigate to="/dashboard" replace />
                 ) : (
-                  <Navigate to="/settings" replace />
+                  noWorkspaceState
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -903,11 +1071,11 @@ function AppView({
             element={
               isAuthed ? (
                 hasWorkspace && currentUser ? (
-                  <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate(landingPath)} />
-                ) : workspaceLoading ? (
+                  <ProfilePanel user={currentUser} onSaved={handleProfileSaved} onClose={() => navigate(preferredAuthedRoute)} />
+                ) : workspaceLoading || workspaceError ? (
                   <PmdLoader size="md" variant="panel" />
                 ) : (
-                  <Navigate to="/settings" replace />
+                  noWorkspaceState
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -928,7 +1096,7 @@ function AppView({
             path="/login"
             element={
               isAuthed ? (
-                <Navigate to={landingPath} replace />
+                <Navigate to={preferredAuthedRoute} replace />
               ) : (
                 <LoginForm
                   onLogin={handleLogin}
@@ -943,7 +1111,7 @@ function AppView({
             path="/register"
             element={
               isAuthed ? (
-                <Navigate to={landingPath} replace />
+                <Navigate to={preferredAuthedRoute} replace />
               ) : (
                 <RegisterForm
                   onRegister={handleRegister}
@@ -955,7 +1123,7 @@ function AppView({
             }
           />
           <Route path="/confirm-email" element={<ConfirmEmailPage />} />
-          <Route path="*" element={<Navigate to={isAuthed ? landingPath : '/login'} replace />} />
+          <Route path="*" element={<Navigate to={isAuthed ? preferredAuthedRoute : '/login'} replace />} />
         </Routes>
       </main>
     </>

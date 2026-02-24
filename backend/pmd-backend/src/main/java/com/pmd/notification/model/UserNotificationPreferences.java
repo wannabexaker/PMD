@@ -17,6 +17,9 @@ public class UserNotificationPreferences {
     private boolean emailOnAssign = true;
     private boolean emailOnMentionUser = true;
     private boolean emailOnMentionTeam = true;
+    private boolean emailOnMentionComment = true;
+    private boolean emailOnMentionDescription = true;
+    private boolean emailOnMentionProjectTitle = true;
     private boolean emailOnProjectStatusChange = true;
     private boolean emailOnProjectMembershipChange = true;
     private boolean emailOnOverdueReminder = true;
@@ -61,6 +64,30 @@ public class UserNotificationPreferences {
 
     public void setEmailOnMentionTeam(boolean emailOnMentionTeam) {
         this.emailOnMentionTeam = emailOnMentionTeam;
+    }
+
+    public boolean isEmailOnMentionComment() {
+        return emailOnMentionComment;
+    }
+
+    public void setEmailOnMentionComment(boolean emailOnMentionComment) {
+        this.emailOnMentionComment = emailOnMentionComment;
+    }
+
+    public boolean isEmailOnMentionDescription() {
+        return emailOnMentionDescription;
+    }
+
+    public void setEmailOnMentionDescription(boolean emailOnMentionDescription) {
+        this.emailOnMentionDescription = emailOnMentionDescription;
+    }
+
+    public boolean isEmailOnMentionProjectTitle() {
+        return emailOnMentionProjectTitle;
+    }
+
+    public void setEmailOnMentionProjectTitle(boolean emailOnMentionProjectTitle) {
+        this.emailOnMentionProjectTitle = emailOnMentionProjectTitle;
     }
 
     public boolean isEmailOnProjectStatusChange() {

@@ -21,6 +21,10 @@ public class WorkspaceResponse {
     private String description;
     private String language;
     private String avatarUrl;
+    private Integer maxProjects;
+    private Integer maxMembers;
+    private Integer maxTeams;
+    private Integer maxStorageMb;
 
     public WorkspaceResponse() {
     }
@@ -28,7 +32,8 @@ public class WorkspaceResponse {
     public WorkspaceResponse(String id, String name, String slug, WorkspaceMemberRole role,
                              String roleId, String roleName, WorkspaceRolePermissions permissions,
                              WorkspaceMemberStatus status, Instant createdAt, boolean demo,
-                             boolean requireApproval, String description, String language, String avatarUrl) {
+                             boolean requireApproval, String description, String language, String avatarUrl,
+                             Integer maxProjects, Integer maxMembers, Integer maxTeams, Integer maxStorageMb) {
         this.id = id;
         this.name = name;
         this.slug = slug;
@@ -43,6 +48,10 @@ public class WorkspaceResponse {
         this.description = description;
         this.language = language;
         this.avatarUrl = avatarUrl;
+        this.maxProjects = maxProjects;
+        this.maxMembers = maxMembers;
+        this.maxTeams = maxTeams;
+        this.maxStorageMb = maxStorageMb;
     }
 
     public String getId() {
@@ -155,5 +164,37 @@ public class WorkspaceResponse {
 
     public void setAvatarUrl(String avatarUrl) {
         this.avatarUrl = avatarUrl;
+    }
+
+    public Integer getMaxProjects() {
+        return maxProjects;
+    }
+
+    public void setMaxProjects(Integer maxProjects) {
+        this.maxProjects = maxProjects;
+    }
+
+    public Integer getMaxMembers() {
+        return maxMembers;
+    }
+
+    public void setMaxMembers(Integer maxMembers) {
+        this.maxMembers = maxMembers;
+    }
+
+    public Integer getMaxTeams() {
+        return maxTeams;
+    }
+
+    public void setMaxTeams(Integer maxTeams) {
+        this.maxTeams = maxTeams;
+    }
+
+    public Integer getMaxStorageMb() {
+        return maxStorageMb;
+    }
+
+    public void setMaxStorageMb(Integer maxStorageMb) {
+        this.maxStorageMb = maxStorageMb;
     }
 }

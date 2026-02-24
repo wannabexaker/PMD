@@ -21,16 +21,20 @@ public class UpdateProfileRequest {
     @Size(max = 128)
     private String bio;
 
+    @Size(max = 1024)
+    private String avatarUrl;
+
     public UpdateProfileRequest() {
     }
 
-    public UpdateProfileRequest(String firstName, String lastName, String email, String team, String teamId, String bio) {
+    public UpdateProfileRequest(String firstName, String lastName, String email, String team, String teamId, String bio, String avatarUrl) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.team = team;
         this.teamId = teamId;
         this.bio = bio;
+        this.avatarUrl = avatarUrl;
     }
 
     public String getFirstName() {
@@ -79,5 +83,13 @@ public class UpdateProfileRequest {
 
     public void setBio(String bio) {
         this.bio = bio;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 }

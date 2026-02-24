@@ -5,6 +5,7 @@ import type {
   CreateProjectCommentPayload,
   ProjectComment,
   User,
+  UserSummary,
 } from '../types'
 import { createProjectComment, deleteComment, fetchProjectComments, toggleCommentReaction } from '../api/comments'
 import { uploadImage } from '../api/uploads'
@@ -12,6 +13,11 @@ import { API_BASE_URL } from '../api/http'
 import { PmdLoader } from './common/PmdLoader'
 import { ImageModal } from './common/ImageModal'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
+import { MentionTextarea } from './common/MentionTextarea'
+import { useMentionOptions } from '../mentions/useMentionOptions'
+import { MentionText } from '../mentions/MentionText'
+import { useNavigate } from 'react-router-dom'
+import { navigateFromMention } from '../mentions/mentionNavigation'
 
 const REACTIONS: { type: CommentReactionType; label: string }[] = [
   { type: 'LIKE', label: 'Like' },
@@ -20,6 +26,9 @@ const REACTIONS: { type: CommentReactionType; label: string }[] = [
   { type: 'WOW', label: 'Wow' },
   { type: 'SAD', label: 'Sad' },
 ]
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+const MAX_IMAGE_SIZE_MB = 2
+const MAX_IMAGE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 
 function formatTimestamp(value?: string | null) {
   if (!value) return ''
@@ -40,9 +49,11 @@ function reactionCount(reactions: ProjectComment['reactions'], type: CommentReac
 type ProjectCommentsProps = {
   projectId: string
   currentUser: User
+  mentionUsers?: UserSummary[]
 }
 
-export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps) {
+export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: ProjectCommentsProps) {
+  const navigate = useNavigate()
   const { activeWorkspaceId } = useWorkspace()
   const [comments, setComments] = useState<ProjectComment[]>([])
   const [loading, setLoading] = useState(false)
@@ -53,8 +64,10 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
   const [timeSpentMinutes, setTimeSpentMinutes] = useState(15)
   const [attachment, setAttachment] = useState<CommentAttachment | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
+  const mentionOptions = useMentionOptions(mentionUsers)
 
   const canDelete = useMemo(() => {
     const currentUserId = currentUser.id ?? ''
@@ -156,8 +169,19 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
   const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setError('Unsupported file type. Use PNG, JPG, or WEBP.')
+      event.target.value = ''
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError(`File is too large. Max size is ${MAX_IMAGE_SIZE_MB}MB.`)
+      event.target.value = ''
+      return
+    }
     try {
       setUploading(true)
+      setUploadingFileName(file.name)
       setError(null)
       if (localPreviewUrl) {
         URL.revokeObjectURL(localPreviewUrl)
@@ -170,6 +194,7 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
       setError(err instanceof Error ? err.message : 'Failed to upload image')
     } finally {
       setUploading(false)
+      setUploadingFileName(null)
       event.target.value = ''
     }
   }
@@ -193,11 +218,12 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
       </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="comment-composer">
-        <textarea
+        <MentionTextarea
           rows={3}
           placeholder="Write a comment..."
           value={message}
-          onChange={(event) => setMessage(event.target.value)}
+          onChange={setMessage}
+          options={mentionOptions}
         />
         {attachment || localPreviewUrl ? (
           <div className="comment-attachment-preview">
@@ -236,6 +262,7 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
               {uploading ? 'Uploading...' : 'Attach image'}
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} />
             </label>
+            <span className="comment-attach-hint">PNG/JPG/WEBP - up to {MAX_IMAGE_SIZE_MB}MB</span>
             <button
               type="button"
               className={`btn btn-ghost${timeSpentEnabled ? ' is-active' : ''}`}
@@ -258,6 +285,12 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
             {posting ? 'Posting...' : 'Post'}
           </button>
         </div>
+        {uploading ? (
+          <div className="comment-upload-status" role="status" aria-live="polite">
+            <PmdLoader size="sm" variant="inline" />
+            <span>Uploading {uploadingFileName ? `"${uploadingFileName}"` : 'image'}...</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="comment-list">
@@ -276,7 +309,9 @@ export function ProjectComments({ projectId, currentUser }: ProjectCommentsProps
                 </button>
               ) : null}
             </div>
-            <p className="comment-text">{item.message}</p>
+            <p className="comment-text">
+              <MentionText text={item.message} onMentionClick={(payload) => navigateFromMention(payload, navigate)} />
+            </p>
             {item.timeSpentMinutes ? (
               <span className="comment-time">Time spent: {item.timeSpentMinutes} min</span>
             ) : null}

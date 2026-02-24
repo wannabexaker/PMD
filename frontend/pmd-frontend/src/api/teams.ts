@@ -10,17 +10,17 @@ export async function fetchTeams(workspaceId: string): Promise<Team[]> {
   return asArray<Team>(data)
 }
 
-export async function createTeam(workspaceId: string, name: string): Promise<Team> {
+export async function createTeam(workspaceId: string, name: string, color?: string): Promise<Team> {
   return requestJson<Team>(`/api/workspaces/${workspaceId}/teams`, {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, color }),
   })
 }
 
 export async function updateTeam(
   workspaceId: string,
   id: string,
-  payload: { name?: string; isActive?: boolean }
+  payload: { name?: string; isActive?: boolean; color?: string }
 ): Promise<Team> {
   return requestJson<Team>(`/api/workspaces/${workspaceId}/teams/${id}`, {
     method: 'PATCH',

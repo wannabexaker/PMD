@@ -31,17 +31,20 @@ public class SecurityConfig {
     private final MaliciousRequestFilter maliciousRequestFilter;
     private final RateLimitingFilter rateLimitingFilter;
     private final String allowedOrigins;
+    private final String allowedOriginPatterns;
 
     public SecurityConfig(
         JwtAuthenticationFilter jwtAuthenticationFilter,
         MaliciousRequestFilter maliciousRequestFilter,
         RateLimitingFilter rateLimitingFilter,
-        @Value("${pmd.security.allowed-origins:http://localhost:5173}") String allowedOrigins
+        @Value("${pmd.security.allowed-origins:http://localhost:5173}") String allowedOrigins,
+        @Value("${pmd.security.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}") String allowedOriginPatterns
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.maliciousRequestFilter = maliciousRequestFilter;
         this.rateLimitingFilter = rateLimitingFilter;
         this.allowedOrigins = allowedOrigins;
+        this.allowedOriginPatterns = allowedOriginPatterns;
     }
 
     @Bean
@@ -89,7 +92,10 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(
             List.of(allowedOrigins.split(",")).stream().map(String::trim).filter(origin -> !origin.isEmpty()).collect(Collectors.toList())
         );
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedOriginPatterns(
+            List.of(allowedOriginPatterns.split(",")).stream().map(String::trim).filter(pattern -> !pattern.isEmpty()).collect(Collectors.toList())
+        );
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
         configuration.setExposedHeaders(List.of("X-RateLimit-Limit-Minute", "X-RateLimit-Remaining-Minute", "Retry-After"));
         configuration.setAllowCredentials(true);

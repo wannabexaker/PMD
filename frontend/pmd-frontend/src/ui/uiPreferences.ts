@@ -2,7 +2,7 @@ export type UiPreferences = {
   rememberDashboardProject: boolean
   rememberAssignProject: boolean
   rememberPeopleSelection: boolean
-  defaultLandingPage: 'dashboard' | 'assign' | 'people' | 'settings'
+  defaultLandingPage: 'dashboard' | 'assign' | 'people' | 'settings' | 'lastVisited'
   confirmDestructiveActions: boolean
   keyboardShortcutsEnabled: boolean
   dateTimeFormat: '24h' | '12h'
@@ -10,6 +10,9 @@ export type UiPreferences = {
   rememberOpenPanels: boolean
   defaultFiltersPreset: boolean
   autoRefreshIntervalSeconds: 0 | 30 | 60
+  requireTeamOnProjectCreate: boolean
+  settingsGridResizeEnabled: boolean
+  settingsDefaultView: 'grid' | 'tabs'
 }
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -24,13 +27,16 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   rememberOpenPanels: false,
   defaultFiltersPreset: false,
   autoRefreshIntervalSeconds: 0,
+  requireTeamOnProjectCreate: false,
+  settingsGridResizeEnabled: false,
+  settingsDefaultView: 'grid',
 }
 
 const STORAGE_KEY = 'pmd_ui_preferences_v2'
 const LEGACY_STORAGE_KEY = 'pmd_ui_preferences_v1'
 
 function normalizeLandingPage(value: unknown): UiPreferences['defaultLandingPage'] {
-  return value === 'assign' || value === 'people' || value === 'settings' ? value : 'dashboard'
+  return value === 'assign' || value === 'people' || value === 'settings' || value === 'lastVisited' ? value : 'dashboard'
 }
 
 function normalizeDateTimeFormat(value: unknown): UiPreferences['dateTimeFormat'] {
@@ -39,6 +45,10 @@ function normalizeDateTimeFormat(value: unknown): UiPreferences['dateTimeFormat'
 
 function normalizeAutoRefresh(value: unknown): UiPreferences['autoRefreshIntervalSeconds'] {
   return value === 30 || value === 60 ? value : 0
+}
+
+function normalizeSettingsDefaultView(value: unknown): UiPreferences['settingsDefaultView'] {
+  return value === 'tabs' ? 'tabs' : 'grid'
 }
 
 export function loadUiPreferences(): UiPreferences {
@@ -65,6 +75,9 @@ export function loadUiPreferences(): UiPreferences {
       rememberOpenPanels: Boolean(parsed.rememberOpenPanels),
       defaultFiltersPreset: Boolean(parsed.defaultFiltersPreset),
       autoRefreshIntervalSeconds: normalizeAutoRefresh(parsed.autoRefreshIntervalSeconds),
+      requireTeamOnProjectCreate: Boolean(parsed.requireTeamOnProjectCreate),
+      settingsGridResizeEnabled: Boolean(parsed.settingsGridResizeEnabled),
+      settingsDefaultView: normalizeSettingsDefaultView(parsed.settingsDefaultView),
     }
   } catch {
     return { ...DEFAULT_UI_PREFERENCES }

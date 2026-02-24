@@ -24,6 +24,8 @@ public class UserResponse {
 
     private String bio;
 
+    private String avatarUrl;
+
     private boolean emailVerified;
 
     private com.pmd.user.model.PeoplePageWidgets peoplePageWidgets;
@@ -32,7 +34,7 @@ public class UserResponse {
     }
 
     public UserResponse(String id, String username, String displayName, String email, String firstName,
-                        String lastName, String team, String teamId, String teamName, boolean isAdmin, String bio, boolean emailVerified,
+                        String lastName, String team, String teamId, String teamName, boolean isAdmin, String bio, String avatarUrl, boolean emailVerified,
                         com.pmd.user.model.PeoplePageWidgets peoplePageWidgets) {
         this.id = id;
         this.username = username;
@@ -45,6 +47,7 @@ public class UserResponse {
         this.teamName = teamName;
         this.isAdmin = isAdmin;
         this.bio = bio;
+        this.avatarUrl = avatarUrl;
         this.emailVerified = emailVerified;
         this.peoplePageWidgets = peoplePageWidgets;
     }
@@ -135,6 +138,14 @@ public class UserResponse {
 
     public void setBio(String bio) {
         this.bio = bio;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     public boolean isEmailVerified() {

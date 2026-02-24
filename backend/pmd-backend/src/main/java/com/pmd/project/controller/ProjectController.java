@@ -1,5 +1,6 @@
 package com.pmd.project.controller;
 
+import com.pmd.audit.service.WorkspaceAuditService;
 import com.pmd.project.dto.ProjectRequest;
 import com.pmd.project.dto.ProjectResponse;
 import com.pmd.project.service.ProjectService;
@@ -35,12 +36,15 @@ public class ProjectController {
     private final ProjectService projectService;
     private final UserService userService;
     private final WorkspaceService workspaceService;
+    private final WorkspaceAuditService workspaceAuditService;
 
     public ProjectController(ProjectService projectService, UserService userService,
-                             WorkspaceService workspaceService) {
+                             WorkspaceService workspaceService,
+                             WorkspaceAuditService workspaceAuditService) {
         this.projectService = projectService;
         this.userService = userService;
         this.workspaceService = workspaceService;
+        this.workspaceAuditService = workspaceAuditService;
     }
 
     @PostMapping
@@ -53,7 +57,24 @@ public class ProjectController {
         if (request.getMemberIds() != null && !request.getMemberIds().isEmpty()) {
             workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.ASSIGN_PEOPLE);
         }
-        return projectService.create(workspaceId, request, requester);
+        workspaceService.enforceProjectCreationLimit(workspaceId);
+        ProjectResponse created = projectService.create(workspaceId, request, requester);
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            workspaceId,
+            "PROJECT",
+            "CREATE",
+            "SUCCESS",
+            requester,
+            null,
+            created.getTeamId(),
+            null,
+            created.getId(),
+            "PROJECT",
+            created.getId(),
+            created.getName(),
+            "Created project"
+        ));
+        return created;
     }
 
     @GetMapping
@@ -105,7 +126,23 @@ public class ProjectController {
             workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.ASSIGN_PEOPLE);
         }
         String assignedByUserId = requester.getId();
-        return projectService.update(workspaceId, id, request, assignedByUserId, requester);
+        ProjectResponse updated = projectService.update(workspaceId, id, request, assignedByUserId, requester);
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            workspaceId,
+            "PROJECT",
+            "UPDATE",
+            "SUCCESS",
+            requester,
+            null,
+            updated.getTeamId(),
+            null,
+            updated.getId(),
+            "PROJECT",
+            updated.getId(),
+            updated.getName(),
+            "Updated project"
+        ));
+        return updated;
     }
 
     @PostMapping("/{id}/random-assign")
@@ -118,7 +155,23 @@ public class ProjectController {
         User requester = getRequester(authentication);
         workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.ASSIGN_PEOPLE);
         String teamId = request != null ? request.getTeamId() : null;
-        return projectService.randomAssign(workspaceId, id, requester, teamId);
+        RandomAssignResponse response = projectService.randomAssign(workspaceId, id, requester, teamId);
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            workspaceId,
+            "PROJECT",
+            "RANDOM_ASSIGN",
+            "SUCCESS",
+            requester,
+            response.getAssignedPerson() != null ? response.getAssignedPerson().getId() : null,
+            response.getProject() != null ? response.getProject().getTeamId() : null,
+            null,
+            response.getProject() != null ? response.getProject().getId() : id,
+            "PROJECT",
+            response.getProject() != null ? response.getProject().getId() : id,
+            response.getProject() != null ? response.getProject().getName() : null,
+            "Random assignment completed"
+        ));
+        return response;
     }
 
     @DeleteMapping("/{id}")
@@ -126,7 +179,23 @@ public class ProjectController {
     public void delete(@PathVariable String workspaceId, @PathVariable String id, Authentication authentication) {
         User requester = getRequester(authentication);
         workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.DELETE_PROJECT);
+        ProjectResponse project = projectService.findById(workspaceId, id, requester);
         projectService.delete(workspaceId, id, requester);
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            workspaceId,
+            "PROJECT",
+            "DELETE",
+            "SUCCESS",
+            requester,
+            null,
+            project.getTeamId(),
+            null,
+            project.getId(),
+            "PROJECT",
+            project.getId(),
+            project.getName(),
+            "Deleted project"
+        ));
     }
 
     private User getRequester(Authentication authentication) {

@@ -144,13 +144,14 @@ public class PersonRecommendationController {
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
-        String teamName = resolveTeamName(user, teamNames);
+        String teamId = resolveWorkspaceTeamId(user, teamNames);
+        String teamName = teamId != null ? teamNames.get(teamId) : null;
         return new UserSummaryResponse(
             user.getId(),
             user.getDisplayName(),
             user.getEmail(),
             teamName,
-            user.getTeamId(),
+            teamId,
             teamName,
             roleName,
             userService.isAdminTeam(user),
@@ -167,14 +168,14 @@ public class PersonRecommendationController {
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
     }
 
-    private String resolveTeamName(User user, java.util.Map<String, String> teamNames) {
+    private String resolveWorkspaceTeamId(User user, java.util.Map<String, String> teamNames) {
         if (user == null) {
             return null;
         }
         if (user.getTeamId() != null && teamNames.containsKey(user.getTeamId())) {
-            return teamNames.get(user.getTeamId());
+            return user.getTeamId();
         }
-        return user.getTeam();
+        return null;
     }
 
     private User requireWorkspaceUser(String workspaceId, String userId, boolean includeAdmins) {

@@ -1,5 +1,6 @@
 package com.pmd.team.controller;
 
+import com.pmd.audit.service.WorkspaceAuditService;
 import com.pmd.auth.security.UserPrincipal;
 import com.pmd.team.dto.TeamRequest;
 import com.pmd.team.dto.TeamResponse;
@@ -31,11 +32,14 @@ public class TeamController {
     private final TeamService teamService;
     private final UserService userService;
     private final WorkspaceService workspaceService;
+    private final WorkspaceAuditService workspaceAuditService;
 
-    public TeamController(TeamService teamService, UserService userService, WorkspaceService workspaceService) {
+    public TeamController(TeamService teamService, UserService userService, WorkspaceService workspaceService,
+                          WorkspaceAuditService workspaceAuditService) {
         this.teamService = teamService;
         this.userService = userService;
         this.workspaceService = workspaceService;
+        this.workspaceAuditService = workspaceAuditService;
     }
 
     @GetMapping
@@ -54,7 +58,23 @@ public class TeamController {
                                    Authentication authentication) {
         User requester = getRequester(authentication);
         workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_TEAMS);
+        workspaceService.enforceTeamCreationLimit(workspaceId);
         Team team = teamService.createTeam(request, requester, workspaceId);
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            workspaceId,
+            "TEAM",
+            "CREATE",
+            "SUCCESS",
+            requester,
+            null,
+            team.getId(),
+            null,
+            null,
+            "TEAM",
+            team.getId(),
+            team.getName(),
+            "Created workspace team"
+        ));
         return toResponse(team);
     }
 
@@ -65,7 +85,22 @@ public class TeamController {
                                    Authentication authentication) {
         User requester = getRequester(authentication);
         workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_TEAMS);
-        Team team = teamService.updateTeam(workspaceId, id, request.getName(), request.getIsActive());
+        Team team = teamService.updateTeam(workspaceId, id, request.getName(), request.getIsActive(), request.getColor());
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            workspaceId,
+            "TEAM",
+            "UPDATE",
+            "SUCCESS",
+            requester,
+            null,
+            team.getId(),
+            null,
+            null,
+            "TEAM",
+            team.getId(),
+            team.getName(),
+            "Updated workspace team"
+        ));
         return toResponse(team);
     }
 
@@ -74,6 +109,7 @@ public class TeamController {
             team.getId(),
             team.getName(),
             team.getSlug(),
+            team.getColor(),
             team.getWorkspaceId(),
             team.isActive(),
             team.getCreatedAt(),

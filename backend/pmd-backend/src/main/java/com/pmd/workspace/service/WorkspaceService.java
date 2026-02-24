@@ -16,6 +16,8 @@ import com.pmd.workspace.repository.WorkspaceJoinRequestRepository;
 import com.pmd.workspace.repository.WorkspaceMemberRepository;
 import com.pmd.workspace.repository.WorkspaceRepository;
 import com.pmd.workspace.repository.WorkspaceRoleRepository;
+import com.pmd.team.repository.TeamRepository;
+import com.pmd.project.repository.ProjectRepository;
 import com.pmd.team.dto.TeamRequest;
 import com.pmd.team.service.TeamService;
 import com.pmd.workspace.dto.WorkspaceCreateRequest;
@@ -48,6 +50,8 @@ public class WorkspaceService {
     private final WorkspaceInviteRepository workspaceInviteRepository;
     private final WorkspaceJoinRequestRepository workspaceJoinRequestRepository;
     private final WorkspaceRoleRepository workspaceRoleRepository;
+    private final TeamRepository teamRepository;
+    private final ProjectRepository projectRepository;
     private final TeamService teamService;
     private final DemoWorkspaceSeeder demoWorkspaceSeeder;
 
@@ -56,6 +60,8 @@ public class WorkspaceService {
                             WorkspaceInviteRepository workspaceInviteRepository,
                             WorkspaceJoinRequestRepository workspaceJoinRequestRepository,
                             WorkspaceRoleRepository workspaceRoleRepository,
+                            TeamRepository teamRepository,
+                            ProjectRepository projectRepository,
                             TeamService teamService,
                             DemoWorkspaceSeeder demoWorkspaceSeeder) {
         this.workspaceRepository = workspaceRepository;
@@ -63,6 +69,8 @@ public class WorkspaceService {
         this.workspaceInviteRepository = workspaceInviteRepository;
         this.workspaceJoinRequestRepository = workspaceJoinRequestRepository;
         this.workspaceRoleRepository = workspaceRoleRepository;
+        this.teamRepository = teamRepository;
+        this.projectRepository = projectRepository;
         this.teamService = teamService;
         this.demoWorkspaceSeeder = demoWorkspaceSeeder;
     }
@@ -92,6 +100,10 @@ public class WorkspaceService {
         workspace.setCreatedByUserId(creator != null ? creator.getId() : null);
         workspace.setDemo(false);
         workspace.setRequireApproval(false);
+        workspace.setMaxProjects(null);
+        workspace.setMaxMembers(null);
+        workspace.setMaxTeams(null);
+        workspace.setMaxStorageMb(null);
         Workspace saved = workspaceRepository.save(workspace);
 
         Map<String, WorkspaceRole> roles = ensureDefaultRoles(saved.getId(), creator);
@@ -154,8 +166,9 @@ public class WorkspaceService {
             return new WorkspaceMembership(workspace, existing.get());
         }
 
+        WorkspaceRole roleFromInvite = resolveInviteRole(workspace.getId(), invite.getDefaultRoleId());
         Map<String, WorkspaceRole> roles = ensureDefaultRoles(workspace.getId(), user);
-        WorkspaceRole memberRole = roles.get("member");
+        WorkspaceRole memberRole = roleFromInvite != null ? roleFromInvite : roles.get("member");
 
         WorkspaceMember member = existing.orElseGet(WorkspaceMember::new);
         member.setWorkspaceId(workspace.getId());
@@ -176,6 +189,7 @@ public class WorkspaceService {
             return new WorkspaceMembership(workspace, savedMember);
         }
 
+        enforceMemberActivationLimit(workspace.getId());
         member.setStatus(WorkspaceMemberStatus.ACTIVE);
         member.setCreatedAt(member.getCreatedAt() != null ? member.getCreatedAt() : now);
         if (member.getJoinedAt() == null) {
@@ -186,15 +200,17 @@ public class WorkspaceService {
         return new WorkspaceMembership(workspace, savedMember);
     }
 
-    public WorkspaceInvite createInvite(String workspaceId, User requester, Instant expiresAt, Integer maxUses) {
+    public WorkspaceInvite createInvite(String workspaceId, User requester, Instant expiresAt, Integer maxUses, String defaultRoleId) {
         requireWorkspacePermission(requester, workspaceId, WorkspacePermission.INVITE_MEMBERS);
         if (maxUses != null && maxUses < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Max uses must be at least 1");
         }
+        WorkspaceRole roleFromInvite = resolveInviteRole(workspaceId, defaultRoleId);
         WorkspaceInvite invite = new WorkspaceInvite();
         invite.setWorkspaceId(workspaceId);
         invite.setToken(generateToken());
         invite.setCode(generateInviteCode());
+        invite.setDefaultRoleId(roleFromInvite != null ? roleFromInvite.getId() : null);
         invite.setExpiresAt(expiresAt != null ? expiresAt : Instant.now().plus(7, ChronoUnit.DAYS));
         invite.setMaxUses(maxUses != null ? maxUses : 10);
         invite.setUsesCount(0);
@@ -330,14 +346,17 @@ public class WorkspaceService {
             .orElseGet(WorkspaceMember::new);
         joiner.setWorkspaceId(workspaceId);
         joiner.setUserId(request.getUserId());
-        joiner.setRole(WorkspaceMemberRole.MEMBER);
-        WorkspaceRole memberRole = ensureDefaultRoles(workspaceId, requester).get("member");
-        if (memberRole != null) {
-            joiner.setRoleId(memberRole.getId());
-            joiner.setDisplayRoleName(memberRole.getName());
-        } else {
-            joiner.setDisplayRoleName("Member");
+        if (joiner.getRoleId() == null) {
+            joiner.setRole(WorkspaceMemberRole.MEMBER);
+            WorkspaceRole memberRole = ensureDefaultRoles(workspaceId, requester).get("member");
+            if (memberRole != null) {
+                joiner.setRoleId(memberRole.getId());
+                joiner.setDisplayRoleName(memberRole.getName());
+            } else {
+                joiner.setDisplayRoleName("Member");
+            }
         }
+        enforceMemberActivationLimit(workspaceId);
         joiner.setStatus(WorkspaceMemberStatus.ACTIVE);
         if (joiner.getCreatedAt() == null) {
             joiner.setCreatedAt(request.getCreatedAt());
@@ -373,6 +392,10 @@ public class WorkspaceService {
         String description,
         String language,
         String avatarUrl,
+        Integer maxProjects,
+        Integer maxMembers,
+        Integer maxTeams,
+        Integer maxStorageMb,
         User requester
     ) {
         WorkspaceMember member = requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_WORKSPACE_SETTINGS);
@@ -412,8 +435,42 @@ public class WorkspaceService {
         if (avatarUrl != null) {
             workspace.setAvatarUrl(avatarUrl.trim());
         }
+        if (maxProjects != null) {
+            workspace.setMaxProjects(normalizeLimit(maxProjects, "Max projects"));
+        }
+        if (maxMembers != null) {
+            workspace.setMaxMembers(normalizeLimit(maxMembers, "Max members"));
+        }
+        if (maxTeams != null) {
+            workspace.setMaxTeams(normalizeLimit(maxTeams, "Max teams"));
+        }
+        if (maxStorageMb != null) {
+            workspace.setMaxStorageMb(normalizeLimit(maxStorageMb, "Max storage"));
+        }
         Workspace saved = workspaceRepository.save(workspace);
         return new WorkspaceMembership(saved, member);
+    }
+
+    public void enforceProjectCreationLimit(String workspaceId) {
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
+        Integer limit = workspace.getMaxProjects();
+        if (limit == null || limit <= 0) return;
+        long count = projectRepository.findByWorkspaceId(workspaceId, org.springframework.data.domain.Sort.unsorted()).size();
+        if (count >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Workspace project limit reached");
+        }
+    }
+
+    public void enforceTeamCreationLimit(String workspaceId) {
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
+        Integer limit = workspace.getMaxTeams();
+        if (limit == null || limit <= 0) return;
+        long count = teamRepository.findByWorkspaceId(workspaceId).size();
+        if (count >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Workspace team limit reached");
+        }
     }
 
     public WorkspaceMembership getOrCreateDemoWorkspace(User user) {
@@ -630,6 +687,42 @@ public class WorkspaceService {
             case "admin" -> WorkspaceMemberRole.ADMIN;
             default -> WorkspaceMemberRole.MEMBER;
         };
+    }
+
+    private WorkspaceRole resolveInviteRole(String workspaceId, String roleId) {
+        if (roleId == null || roleId.isBlank()) {
+            return null;
+        }
+        WorkspaceRole role = workspaceRoleRepository.findById(roleId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default role not found"));
+        if (!workspaceId.equals(role.getWorkspaceId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default role must belong to workspace");
+        }
+        if ("owner".equalsIgnoreCase(role.getName())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Owner cannot be default invite role");
+        }
+        return role;
+    }
+
+    private void enforceMemberActivationLimit(String workspaceId) {
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
+        Integer limit = workspace.getMaxMembers();
+        if (limit == null || limit <= 0) return;
+        long activeMembers = workspaceMemberRepository.findByWorkspaceId(workspaceId).stream()
+            .filter(member -> member.getStatus() == WorkspaceMemberStatus.ACTIVE)
+            .count();
+        if (activeMembers >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Workspace member limit reached");
+        }
+    }
+
+    private Integer normalizeLimit(Integer value, String fieldName) {
+        if (value == null) return null;
+        if (value < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " must be >= 0");
+        }
+        return value == 0 ? null : value;
     }
 
     private void createJoinRequest(String workspaceId, User user, Instant now) {

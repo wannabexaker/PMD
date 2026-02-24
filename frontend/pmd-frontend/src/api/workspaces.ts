@@ -4,6 +4,7 @@ import type {
   WorkspaceInvite,
   WorkspaceInviteResolve,
   WorkspaceJoinRequest,
+  WorkspaceAuditEvent,
   WorkspaceRole,
   WorkspacePermissions,
 } from '../types'
@@ -34,7 +35,10 @@ export async function joinWorkspace(token: string): Promise<Workspace> {
   })
 }
 
-export async function createInvite(workspaceId: string, payload?: { expiresAt?: string; maxUses?: number }) {
+export async function createInvite(
+  workspaceId: string,
+  payload?: { expiresAt?: string; maxUses?: number; defaultRoleId?: string }
+) {
   return requestJson<WorkspaceInvite>(`/api/workspaces/${workspaceId}/invites`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {}),
@@ -85,6 +89,10 @@ export async function updateWorkspaceSettings(
     description?: string
     language?: string
     avatarUrl?: string
+    maxProjects?: number | null
+    maxMembers?: number | null
+    maxTeams?: number | null
+    maxStorageMb?: number | null
   }
 ): Promise<Workspace> {
   return requestJson<Workspace>(`/api/workspaces/${workspaceId}/settings`, {
@@ -136,4 +144,41 @@ export async function assignMemberRole(workspaceId: string, userId: string, role
     method: 'POST',
     body: JSON.stringify({ roleId }),
   })
+}
+
+export async function listWorkspaceAudit(
+  workspaceId: string,
+  params?: {
+    personalOnly?: boolean
+    actorUserId?: string
+    targetUserId?: string
+    teamId?: string
+    roleId?: string
+    projectId?: string
+    category?: string
+    action?: string
+    from?: string
+    to?: string
+    q?: string
+    limit?: number
+  }
+): Promise<WorkspaceAuditEvent[]> {
+  const query = new URLSearchParams()
+  if (params) {
+    if (params.personalOnly) query.set('personalOnly', 'true')
+    if (params.actorUserId) query.set('actorUserId', params.actorUserId)
+    if (params.targetUserId) query.set('targetUserId', params.targetUserId)
+    if (params.teamId) query.set('teamId', params.teamId)
+    if (params.roleId) query.set('roleId', params.roleId)
+    if (params.projectId) query.set('projectId', params.projectId)
+    if (params.category) query.set('category', params.category)
+    if (params.action) query.set('action', params.action)
+    if (params.from) query.set('from', params.from)
+    if (params.to) query.set('to', params.to)
+    if (params.q) query.set('q', params.q)
+    if (typeof params.limit === 'number') query.set('limit', String(params.limit))
+  }
+  const suffix = query.toString()
+  const data = await requestJson<unknown>(`/api/workspaces/${workspaceId}/audit${suffix ? `?${suffix}` : ''}`)
+  return asArray<WorkspaceAuditEvent>(data)
 }

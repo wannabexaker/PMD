@@ -8,6 +8,10 @@ public class WorkspaceSettingsRequest {
     private String description;
     private String language;
     private String avatarUrl;
+    private Integer maxProjects;
+    private Integer maxMembers;
+    private Integer maxTeams;
+    private Integer maxStorageMb;
 
     public WorkspaceSettingsRequest() {
     }
@@ -58,5 +62,37 @@ public class WorkspaceSettingsRequest {
 
     public void setAvatarUrl(String avatarUrl) {
         this.avatarUrl = avatarUrl;
+    }
+
+    public Integer getMaxProjects() {
+        return maxProjects;
+    }
+
+    public void setMaxProjects(Integer maxProjects) {
+        this.maxProjects = maxProjects;
+    }
+
+    public Integer getMaxMembers() {
+        return maxMembers;
+    }
+
+    public void setMaxMembers(Integer maxMembers) {
+        this.maxMembers = maxMembers;
+    }
+
+    public Integer getMaxTeams() {
+        return maxTeams;
+    }
+
+    public void setMaxTeams(Integer maxTeams) {
+        this.maxTeams = maxTeams;
+    }
+
+    public Integer getMaxStorageMb() {
+        return maxStorageMb;
+    }
+
+    public void setMaxStorageMb(Integer maxStorageMb) {
+        this.maxStorageMb = maxStorageMb;
     }
 }

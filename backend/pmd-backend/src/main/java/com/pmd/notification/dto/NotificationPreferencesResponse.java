@@ -7,6 +7,9 @@ public class NotificationPreferencesResponse {
     private boolean emailOnAssign;
     private boolean emailOnMentionUser;
     private boolean emailOnMentionTeam;
+    private boolean emailOnMentionComment;
+    private boolean emailOnMentionDescription;
+    private boolean emailOnMentionProjectTitle;
     private boolean emailOnProjectStatusChange;
     private boolean emailOnProjectMembershipChange;
     private boolean emailOnOverdueReminder;
@@ -18,6 +21,9 @@ public class NotificationPreferencesResponse {
         this.emailOnAssign = preferences.isEmailOnAssign();
         this.emailOnMentionUser = preferences.isEmailOnMentionUser();
         this.emailOnMentionTeam = preferences.isEmailOnMentionTeam();
+        this.emailOnMentionComment = preferences.isEmailOnMentionComment();
+        this.emailOnMentionDescription = preferences.isEmailOnMentionDescription();
+        this.emailOnMentionProjectTitle = preferences.isEmailOnMentionProjectTitle();
         this.emailOnProjectStatusChange = preferences.isEmailOnProjectStatusChange();
         this.emailOnProjectMembershipChange = preferences.isEmailOnProjectMembershipChange();
         this.emailOnOverdueReminder = preferences.isEmailOnOverdueReminder();
@@ -28,6 +34,9 @@ public class NotificationPreferencesResponse {
         response.emailOnAssign = true;
         response.emailOnMentionUser = true;
         response.emailOnMentionTeam = true;
+        response.emailOnMentionComment = true;
+        response.emailOnMentionDescription = true;
+        response.emailOnMentionProjectTitle = true;
         response.emailOnProjectStatusChange = true;
         response.emailOnProjectMembershipChange = true;
         response.emailOnOverdueReminder = true;
@@ -56,6 +65,30 @@ public class NotificationPreferencesResponse {
 
     public void setEmailOnMentionTeam(boolean emailOnMentionTeam) {
         this.emailOnMentionTeam = emailOnMentionTeam;
+    }
+
+    public boolean isEmailOnMentionComment() {
+        return emailOnMentionComment;
+    }
+
+    public void setEmailOnMentionComment(boolean emailOnMentionComment) {
+        this.emailOnMentionComment = emailOnMentionComment;
+    }
+
+    public boolean isEmailOnMentionDescription() {
+        return emailOnMentionDescription;
+    }
+
+    public void setEmailOnMentionDescription(boolean emailOnMentionDescription) {
+        this.emailOnMentionDescription = emailOnMentionDescription;
+    }
+
+    public boolean isEmailOnMentionProjectTitle() {
+        return emailOnMentionProjectTitle;
+    }
+
+    public void setEmailOnMentionProjectTitle(boolean emailOnMentionProjectTitle) {
+        this.emailOnMentionProjectTitle = emailOnMentionProjectTitle;
     }
 
     public boolean isEmailOnProjectStatusChange() {

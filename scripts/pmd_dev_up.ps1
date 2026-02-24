@@ -37,10 +37,11 @@ function Get-HttpStatusCodeFromException {
 
 function Wait-Http {
   param([string]$Url, [int]$TimeoutSeconds)
+  $checkUrl = $Url -replace '^http://localhost:', 'http://127.0.0.1:'
   $start = Get-Date
   while ((Get-Date) -lt $start.AddSeconds($TimeoutSeconds)) {
     try {
-      $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
+      $resp = Invoke-WebRequest -Uri $checkUrl -UseBasicParsing -TimeoutSec 5
       if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500) { return $true }
     } catch {
       Start-Sleep -Seconds 2
@@ -94,12 +95,12 @@ function Read-BackendPort {
 
 function Wait-BackendReady {
   param([int]$Port, [int]$TimeoutSeconds)
-  $healthUrl = ("http://localhost:{0}/actuator/health" -f $Port)
+  $healthUrl = ("http://127.0.0.1:{0}/actuator/health" -f $Port)
   $start = Get-Date
   while ((Get-Date) -lt $start.AddSeconds($TimeoutSeconds)) {
     $reason = $null
     try {
-      $resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 3
+      $resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 10
       $code = [int]$resp.StatusCode
       if ($code -eq 200 -or $code -eq 401 -or $code -eq 403) {
         if ($code -eq 200) {
@@ -178,7 +179,7 @@ $portFile = Join-Path $Root '.runtime\backend-port.txt'
 $pidFile = Join-Path $PSScriptRoot ".pmd-dev-pids.json"
 
 Write-Step "Starting PMD dev (deps + backend + frontend)..."
-Ensure-PmdMode -TargetMode 'dev'
+Set-PmdMode -TargetMode 'dev'
 
 Write-Step "Checking Docker..."
 try { docker info | Out-Null } catch { Fail "Docker is not running. Start Docker Desktop and retry." }
@@ -263,9 +264,9 @@ Set-Location '$Root\\backend\\pmd-backend';
   if (-not $backendPort) {
     Fail "Backend port file not found at $portFile within 90 seconds."
   }
-  Write-Step ("Waiting for backend readiness on port {0}..." -f $backendPort)
-  if (-not (Wait-BackendReady -Port $backendPort -TimeoutSeconds 60)) {
-    Fail ("Backend did not become ready on http://localhost:{0} (health check or TCP)." -f $backendPort)
+  Write-Step ("Waiting for backend readiness on port {0} (max 15s)..." -f $backendPort)
+  if (-not (Wait-BackendReady -Port $backendPort -TimeoutSeconds 15)) {
+    Fail ("Backend did not become ready within 15 seconds on http://127.0.0.1:{0}/actuator/health. Something likely failed." -f $backendPort)
   }
 } else {
   if (Test-Path $portFile) {

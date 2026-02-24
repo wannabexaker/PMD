@@ -3,6 +3,7 @@ package com.pmd.project.service;
 import com.pmd.auth.policy.AccessPolicy;
 import com.pmd.notification.EmailNotificationService;
 import com.pmd.notification.event.ProjectAssignmentCreated;
+import com.pmd.mention.service.MentionPolicyService;
 import com.pmd.project.dto.ProjectCommentResponse;
 import com.pmd.project.dto.DashboardStatsResponse;
 import com.pmd.project.dto.ProjectRequest;
@@ -48,11 +49,15 @@ public class ProjectService {
     private final MongoTemplate mongoTemplate;
     private final TeamService teamService;
     private final EmailNotificationService emailNotificationService;
+    private final MentionNotificationService mentionNotificationService;
+    private final MentionPolicyService mentionPolicyService;
 
     public ProjectService(ProjectRepository projectRepository, UserRepository userRepository,
                           UserService userService, ApplicationEventPublisher eventPublisher,
                           AccessPolicy accessPolicy, MongoTemplate mongoTemplate, TeamService teamService,
-                          EmailNotificationService emailNotificationService) {
+                          EmailNotificationService emailNotificationService,
+                          MentionNotificationService mentionNotificationService,
+                          MentionPolicyService mentionPolicyService) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.userService = userService;
@@ -61,6 +66,8 @@ public class ProjectService {
         this.mongoTemplate = mongoTemplate;
         this.teamService = teamService;
         this.emailNotificationService = emailNotificationService;
+        this.mentionNotificationService = mentionNotificationService;
+        this.mentionPolicyService = mentionPolicyService;
     }
 
     public ProjectResponse create(String workspaceId, ProjectRequest request, User requester) {
@@ -86,9 +93,39 @@ public class ProjectService {
         project.setWorkspaceId(workspaceId);
 
         validateAssignees(requester, project, request.getMemberIds());
+        mentionPolicyService.enforcePolicy(
+            workspaceId,
+            null,
+            team.getId(),
+            requester,
+            request.getName(),
+            MentionNotificationService.MentionSource.PROJECT_TITLE.label()
+        );
+        mentionPolicyService.enforcePolicy(
+            workspaceId,
+            null,
+            team.getId(),
+            requester,
+            request.getDescription(),
+            MentionNotificationService.MentionSource.PROJECT_DESCRIPTION.label()
+        );
 
         Project saved = projectRepository.save(project);
         notifyProjectMembershipChange(requester, saved, List.of());
+        mentionNotificationService.notifyMentions(
+            workspaceId,
+            saved,
+            requester,
+            saved.getName(),
+            MentionNotificationService.MentionSource.PROJECT_TITLE
+        );
+        mentionNotificationService.notifyMentions(
+            workspaceId,
+            saved,
+            requester,
+            saved.getDescription(),
+            MentionNotificationService.MentionSource.PROJECT_DESCRIPTION
+        );
         ProjectResponse response = toResponse(saved);
         log.debug(
             "Project created id={}, createdByUserId={}, createdByTeam={}, memberIds={}",
@@ -239,6 +276,22 @@ public class ProjectService {
             : List.of();
 
         validateAssignees(requester, project, request.getMemberIds());
+        mentionPolicyService.enforcePolicy(
+            workspaceId,
+            project.getId(),
+            team.getId(),
+            requester,
+            request.getName(),
+            MentionNotificationService.MentionSource.PROJECT_TITLE.label()
+        );
+        mentionPolicyService.enforcePolicy(
+            workspaceId,
+            project.getId(),
+            team.getId(),
+            requester,
+            request.getDescription(),
+            MentionNotificationService.MentionSource.PROJECT_DESCRIPTION.label()
+        );
 
         project.setName(request.getName());
         project.setDescription(request.getDescription());
@@ -251,6 +304,20 @@ public class ProjectService {
         publishAssignmentEvents(saved, previousMemberIds, assignedByUserId);
         notifyProjectStatusChange(requester, saved, previousStatus);
         notifyProjectMembershipChange(requester, saved, previousMemberIds);
+        mentionNotificationService.notifyMentions(
+            workspaceId,
+            saved,
+            requester,
+            saved.getName(),
+            MentionNotificationService.MentionSource.PROJECT_TITLE
+        );
+        mentionNotificationService.notifyMentions(
+            workspaceId,
+            saved,
+            requester,
+            saved.getDescription(),
+            MentionNotificationService.MentionSource.PROJECT_DESCRIPTION
+        );
         return toResponse(saved);
     }
 

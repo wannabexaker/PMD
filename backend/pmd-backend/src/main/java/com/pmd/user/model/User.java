@@ -35,6 +35,8 @@ public class User {
 
     private String bio;
 
+    private String avatarUrl;
+
     private boolean emailVerified;
 
     private Instant createdAt;
@@ -49,7 +51,7 @@ public class User {
     }
 
     public User(String id, String username, String passwordHash, String displayName, String email, String firstName,
-                String lastName, String team, String teamId, boolean isAdmin, String bio, boolean emailVerified, Instant createdAt,
+                String lastName, String team, String teamId, boolean isAdmin, String bio, String avatarUrl, boolean emailVerified, Instant createdAt,
                 List<String> recommendedByUserIds, int recommendedCount, PeoplePageWidgets peoplePageWidgets) {
         this.id = id;
         this.username = username;
@@ -62,6 +64,7 @@ public class User {
         this.teamId = teamId;
         this.isAdmin = isAdmin;
         this.bio = bio;
+        this.avatarUrl = avatarUrl;
         this.emailVerified = emailVerified;
         this.createdAt = createdAt;
         this.recommendedByUserIds = recommendedByUserIds != null ? recommendedByUserIds : new ArrayList<>();
@@ -155,6 +158,14 @@ public class User {
 
     public void setBio(String bio) {
         this.bio = bio;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     public boolean isEmailVerified() {

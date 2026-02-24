@@ -6,6 +6,7 @@ public class WorkspaceInviteCreateRequest {
 
     private Instant expiresAt;
     private Integer maxUses;
+    private String defaultRoleId;
 
     public WorkspaceInviteCreateRequest() {
     }
@@ -24,5 +25,13 @@ public class WorkspaceInviteCreateRequest {
 
     public void setMaxUses(Integer maxUses) {
         this.maxUses = maxUses;
+    }
+
+    public String getDefaultRoleId() {
+        return defaultRoleId;
+    }
+
+    public void setDefaultRoleId(String defaultRoleId) {
+        this.defaultRoleId = defaultRoleId;
     }
 }

@@ -21,6 +21,8 @@ public class Team {
 
     private String name;
 
+    private String color;
+
     @Indexed
     private String workspaceId;
 
@@ -33,10 +35,11 @@ public class Team {
     public Team() {
     }
 
-    public Team(String id, String name, String slug, String workspaceId, boolean isActive, Instant createdAt, String createdBy) {
+    public Team(String id, String name, String slug, String color, String workspaceId, boolean isActive, Instant createdAt, String createdBy) {
         this.id = id;
         this.name = name;
         this.slug = slug;
+        this.color = color;
         this.workspaceId = workspaceId;
         this.isActive = isActive;
         this.createdAt = createdAt;
@@ -65,6 +68,14 @@ public class Team {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getColor() {
+        return color;
+    }
+
+    public void setColor(String color) {
+        this.color = color;
     }
 
     public String getWorkspaceId() {

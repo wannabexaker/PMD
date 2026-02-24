@@ -125,14 +125,14 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
           </div>
         </div>
         <div className="form-meta">
-          <label className="checkbox">
+          <label className="checkbox remember-checkbox">
             <input
               type="checkbox"
               name="remember"
               checked={Boolean(form.remember)}
               onChange={handleCheckbox}
             />
-            Remember me
+            Stay signed in
           </label>
         </div>
         <button type="submit" className="btn btn-primary full-width" disabled={loading}>

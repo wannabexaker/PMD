@@ -8,6 +8,7 @@ public class WorkspaceInviteResponse {
     private String workspaceId;
     private String token;
     private String code;
+    private String defaultRoleId;
     private Instant expiresAt;
     private Integer maxUses;
     private int usesCount;
@@ -17,13 +18,14 @@ public class WorkspaceInviteResponse {
     public WorkspaceInviteResponse() {
     }
 
-    public WorkspaceInviteResponse(String id, String workspaceId, String token, String code,
+    public WorkspaceInviteResponse(String id, String workspaceId, String token, String code, String defaultRoleId,
                                    Instant expiresAt, Integer maxUses, int usesCount,
                                    boolean revoked, Instant createdAt) {
         this.id = id;
         this.workspaceId = workspaceId;
         this.token = token;
         this.code = code;
+        this.defaultRoleId = defaultRoleId;
         this.expiresAt = expiresAt;
         this.maxUses = maxUses;
         this.usesCount = usesCount;
@@ -61,6 +63,14 @@ public class WorkspaceInviteResponse {
 
     public void setCode(String code) {
         this.code = code;
+    }
+
+    public String getDefaultRoleId() {
+        return defaultRoleId;
+    }
+
+    public void setDefaultRoleId(String defaultRoleId) {
+        this.defaultRoleId = defaultRoleId;
     }
 
     public Instant getExpiresAt() {

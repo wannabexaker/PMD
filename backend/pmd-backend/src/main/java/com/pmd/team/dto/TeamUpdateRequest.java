@@ -4,13 +4,15 @@ public class TeamUpdateRequest {
 
     private String name;
     private Boolean isActive;
+    private String color;
 
     public TeamUpdateRequest() {
     }
 
-    public TeamUpdateRequest(String name, Boolean isActive) {
+    public TeamUpdateRequest(String name, Boolean isActive, String color) {
         this.name = name;
         this.isActive = isActive;
+        this.color = color;
     }
 
     public String getName() {
@@ -27,5 +29,13 @@ public class TeamUpdateRequest {
 
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+
+    public String getColor() {
+        return color;
+    }
+
+    public void setColor(String color) {
+        this.color = color;
     }
 }

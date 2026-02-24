@@ -364,7 +364,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
       const name = user.displayName?.toLowerCase() ?? ''
       const email = user.email?.toLowerCase() ?? ''
       const teamId = user.teamId ?? ''
-      const teamLabel = teamById.get(teamId)?.name ?? 'Team'
+      const teamLabel = teamById.get(teamId)?.name ?? 'No team'
       if (user.isAdmin) {
         return false
       }
@@ -420,7 +420,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
         return next
       })
     } catch (err) {
-      setStatsError(err instanceof Error ? err.message : 'Failed to update recommendation')
+      setPeopleError(err instanceof Error ? err.message : 'Failed to update recommendation')
     }
   }
 
@@ -784,9 +784,9 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     </div>
                     <span
                       className="muted truncate"
-                      title={teamById.get(user.teamId ?? '')?.name ?? 'Team'}
+                      title={teamById.get(user.teamId ?? '')?.name ?? 'No team'}
                     >
-                      {teamById.get(user.teamId ?? '')?.name ?? 'Team'}
+                      {teamById.get(user.teamId ?? '')?.name ?? 'No team'}
                     </span>
                   </div>
                   <div className="people-card-actions">
@@ -853,9 +853,9 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     {selectedUser.roleName ? <span className="pill">{selectedUser.roleName}</span> : null}
                     <div
                       className="muted truncate"
-                      title={teamById.get(selectedUser.teamId ?? '')?.name ?? 'Team'}
+                      title={teamById.get(selectedUser.teamId ?? '')?.name ?? 'No team'}
                     >
-                      {teamById.get(selectedUser.teamId ?? '')?.name ?? 'Team'}
+                      {teamById.get(selectedUser.teamId ?? '')?.name ?? 'No team'}
                     </div>
                   </div>
                   <div className="people-widgets-toolbar">

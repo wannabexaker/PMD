@@ -5,6 +5,9 @@ public class NotificationPreferencesRequest {
     private Boolean emailOnAssign;
     private Boolean emailOnMentionUser;
     private Boolean emailOnMentionTeam;
+    private Boolean emailOnMentionComment;
+    private Boolean emailOnMentionDescription;
+    private Boolean emailOnMentionProjectTitle;
     private Boolean emailOnProjectStatusChange;
     private Boolean emailOnProjectMembershipChange;
     private Boolean emailOnOverdueReminder;
@@ -31,6 +34,30 @@ public class NotificationPreferencesRequest {
 
     public void setEmailOnMentionTeam(Boolean emailOnMentionTeam) {
         this.emailOnMentionTeam = emailOnMentionTeam;
+    }
+
+    public Boolean getEmailOnMentionComment() {
+        return emailOnMentionComment;
+    }
+
+    public void setEmailOnMentionComment(Boolean emailOnMentionComment) {
+        this.emailOnMentionComment = emailOnMentionComment;
+    }
+
+    public Boolean getEmailOnMentionDescription() {
+        return emailOnMentionDescription;
+    }
+
+    public void setEmailOnMentionDescription(Boolean emailOnMentionDescription) {
+        this.emailOnMentionDescription = emailOnMentionDescription;
+    }
+
+    public Boolean getEmailOnMentionProjectTitle() {
+        return emailOnMentionProjectTitle;
+    }
+
+    public void setEmailOnMentionProjectTitle(Boolean emailOnMentionProjectTitle) {
+        this.emailOnMentionProjectTitle = emailOnMentionProjectTitle;
     }
 
     public Boolean getEmailOnProjectStatusChange() {

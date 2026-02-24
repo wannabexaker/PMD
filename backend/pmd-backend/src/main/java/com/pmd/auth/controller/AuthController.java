@@ -123,6 +123,9 @@ public class AuthController {
             user.setTeam(request.getTeam());
         }
         user.setBio(request.getBio());
+        if (request.getAvatarUrl() != null) {
+            user.setAvatarUrl(request.getAvatarUrl().trim());
+        }
         user.setDisplayName(buildDisplayName(user));
 
         User saved = userService.save(user);
@@ -172,6 +175,7 @@ public class AuthController {
             user.getTeam(),
             user.isAdmin(),
             user.getBio(),
+            user.getAvatarUrl(),
             user.isEmailVerified(),
             widgets
         );

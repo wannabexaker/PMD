@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\pmd_guard.ps1"
 
-Ensure-PmdMode -TargetMode 'reviewer'
+Set-PmdMode -TargetMode 'reviewer'
 
 Write-Host '[PMD] Building reviewer stack (pull latest base images)...'
 docker compose -f docker-compose.local.yml --profile reviewer build --pull

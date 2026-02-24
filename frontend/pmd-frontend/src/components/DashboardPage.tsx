@@ -12,11 +12,17 @@ import { CreateProjectForm } from './CreateProjectForm'
 import { deleteProject, updateProject } from '../api/projects'
 import { ControlsBar } from './common/ControlsBar'
 import { FilterMenu } from './FilterMenu'
+import { MentionTextarea } from './common/MentionTextarea'
 import { PieChart } from './common/PieChart'
 import { ProjectComments } from './ProjectComments'
 import { isApiError } from '../api/http'
+import { useNavigate } from 'react-router-dom'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
+import { useMentionOptions } from '../mentions/useMentionOptions'
+import { formatMentionText } from '../mentions/formatMentionText'
+import { MentionText } from '../mentions/MentionText'
+import { navigateFromMention } from '../mentions/mentionNavigation'
 import { fetchDashboardStats } from '../api/stats'
 import { fetchWorkspacePanelPreferences, saveWorkspacePanelPreferences } from '../api/preferences'
 import {
@@ -38,6 +44,7 @@ type DashboardPageProps = {
   onClearSelection: () => void
   onCreated: (project?: Project) => void
   onRefresh: () => void
+  requireTeamOnProjectCreate?: boolean
 }
 
 const MAX_PROJECT_TITLE_LENGTH = 32
@@ -89,8 +96,10 @@ const SUMMARY_RANGE_OPTIONS: Array<{ id: SummaryRange; label: string }> = [
   { id: '5y', label: '5y' },
 ]
 const SUMMARY_HISTORY_KEY_PREFIX = 'pmd.workspaceSummaryHistory.'
-const SUMMARY_HISTORY_MAX = 1200
+const SUMMARY_HISTORY_MAX = 8000
 const SUMMARY_RANGE_KEY_PREFIX = 'pmd.workspaceSummaryRange.'
+const SUMMARY_SNAPSHOT_INTERVAL_MS = 10 * 1000
+const SUMMARY_DUPLICATE_GUARD_MS = 5 * 1000
 
 const DEFAULT_PANEL_VISIBILITY: Record<WorkspaceSummaryPanelKey, boolean> = WORKSPACE_SUMMARY_PANEL_KEYS.reduce(
   (acc, key) => {
@@ -147,6 +156,7 @@ function readSummaryHistory(workspaceId: string): WorkspaceSummarySnapshot[] {
     if (!Array.isArray(parsed)) return []
     return parsed
       .filter((item) => item && typeof item.ts === 'number' && item.counters)
+      .sort((a, b) => a.ts - b.ts)
       .slice(-SUMMARY_HISTORY_MAX)
   } catch {
     return []
@@ -162,10 +172,41 @@ function writeSummaryHistory(workspaceId: string, data: WorkspaceSummarySnapshot
   }
 }
 
+function compactSummaryHistory(data: WorkspaceSummarySnapshot[]): WorkspaceSummarySnapshot[] {
+  if (data.length <= 1) {
+    return data
+  }
+  const latestTs = data[data.length - 1]?.ts ?? Date.now()
+  const kept: WorkspaceSummarySnapshot[] = []
+  const seen = new Set<string>()
+  for (let index = data.length - 1; index >= 0; index -= 1) {
+    const item = data[index]
+    const age = latestTs - item.ts
+    if (age <= 24 * 60 * 60 * 1000) {
+      kept.push(item)
+      continue
+    }
+    let bucketMs = 60 * 60 * 1000
+    if (age > 365 * 24 * 60 * 60 * 1000) {
+      bucketMs = 30 * 24 * 60 * 60 * 1000
+    } else if (age > 30 * 24 * 60 * 60 * 1000) {
+      bucketMs = 6 * 60 * 60 * 1000
+    }
+    const bucket = Math.floor(item.ts / bucketMs)
+    const key = `${bucketMs}:${bucket}`
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    kept.push(item)
+  }
+  return kept.reverse().slice(-SUMMARY_HISTORY_MAX)
+}
+
 function readSummaryRange(workspaceId: string): SummaryRange {
   if (typeof window === 'undefined') return '24h'
   const value = localStorage.getItem(`${SUMMARY_RANGE_KEY_PREFIX}${workspaceId}`)
-  return value === '1m' || value === '10m' || value === '30m' || value === '1h' || value === '8h' || value === '12h' || value === '7d' || value === '30d' || value === '1y' || value === '2y' || value === '5y' ? value : '24h'
+  return value === '1m' || value === '10m' || value === '30m' || value === '1h' || value === '8h' || value === '12h' || value === '24h' || value === '7d' || value === '30d' || value === '1y' || value === '2y' || value === '5y' ? value : '24h'
 }
 
 function writeSummaryRange(workspaceId: string, range: SummaryRange) {
@@ -173,19 +214,54 @@ function writeSummaryRange(workspaceId: string, range: SummaryRange) {
   localStorage.setItem(`${SUMMARY_RANGE_KEY_PREFIX}${workspaceId}`, range)
 }
 
-function rangeLookbackMs(range: SummaryRange): number {
-  if (range === '1m') return 60 * 1000
-  if (range === '10m') return 10 * 60 * 1000
-  if (range === '30m') return 30 * 60 * 1000
-  if (range === '1h') return 60 * 60 * 1000
-  if (range === '8h') return 8 * 60 * 60 * 1000
-  if (range === '12h') return 12 * 60 * 60 * 1000
-  if (range === '24h') return 24 * 60 * 60 * 1000
-  if (range === '7d') return 7 * 24 * 60 * 60 * 1000
-  if (range === '30d') return 30 * 24 * 60 * 60 * 1000
-  if (range === '2y') return 2 * 365 * 24 * 60 * 60 * 1000
-  if (range === '5y') return 5 * 365 * 24 * 60 * 60 * 1000
-  return 365 * 24 * 60 * 60 * 1000
+function getSummaryRangeConfig(range: SummaryRange): { lookbackMs: number; bucketMs: number } {
+  if (range === '1m') return { lookbackMs: 60 * 1000, bucketMs: 10 * 1000 }
+  if (range === '10m') return { lookbackMs: 10 * 60 * 1000, bucketMs: 60 * 1000 }
+  if (range === '30m') return { lookbackMs: 30 * 60 * 1000, bucketMs: 3 * 60 * 1000 }
+  if (range === '1h') return { lookbackMs: 60 * 60 * 1000, bucketMs: 10 * 60 * 1000 }
+  if (range === '8h') return { lookbackMs: 8 * 60 * 60 * 1000, bucketMs: 60 * 60 * 1000 }
+  if (range === '12h') return { lookbackMs: 12 * 60 * 60 * 1000, bucketMs: 60 * 60 * 1000 }
+  if (range === '24h') return { lookbackMs: 24 * 60 * 60 * 1000, bucketMs: 2 * 60 * 60 * 1000 }
+  if (range === '7d') return { lookbackMs: 7 * 24 * 60 * 60 * 1000, bucketMs: 12 * 60 * 60 * 1000 }
+  if (range === '30d') return { lookbackMs: 30 * 24 * 60 * 60 * 1000, bucketMs: 24 * 60 * 60 * 1000 }
+  if (range === '1y') return { lookbackMs: 365 * 24 * 60 * 60 * 1000, bucketMs: 30 * 24 * 60 * 60 * 1000 }
+  if (range === '2y') return { lookbackMs: 2 * 365 * 24 * 60 * 60 * 1000, bucketMs: 30 * 24 * 60 * 60 * 1000 }
+  return { lookbackMs: 5 * 365 * 24 * 60 * 60 * 1000, bucketMs: 30 * 24 * 60 * 60 * 1000 }
+}
+
+function buildSummaryBuckets(
+  history: WorkspaceSummarySnapshot[],
+  now: number,
+  lookbackMs: number,
+  bucketMs: number
+): WorkspaceSummarySnapshot[] {
+  const start = now - lookbackMs
+  const bucketCount = Math.max(2, Math.ceil(lookbackMs / Math.max(1, bucketMs)))
+  let startIndex = 0
+  while (startIndex < history.length && history[startIndex].ts < start) {
+    startIndex += 1
+  }
+  const baseline = startIndex > 0 ? history[startIndex - 1] : history[0] ?? null
+  const next: WorkspaceSummarySnapshot[] = []
+  let cursor = startIndex
+  let lastCounters = baseline?.counters ?? null
+  for (let index = 0; index < bucketCount; index += 1) {
+    const bucketStart = start + index * bucketMs
+    const bucketEnd = index === bucketCount - 1 ? now : bucketStart + bucketMs
+    while (cursor < history.length && history[cursor].ts <= bucketEnd) {
+      lastCounters = history[cursor].counters
+      cursor += 1
+    }
+    const counters = WORKSPACE_SUMMARY_PANEL_KEYS.reduce((acc, key) => {
+      acc[key] = lastCounters?.[key] ?? 0
+      return acc
+    }, {} as Record<WorkspaceSummaryPanelKey, number>)
+    next.push({
+      ts: bucketEnd,
+      counters,
+    })
+  }
+  return next
 }
 
 function buildTrendPath(values: number[], width: number, height: number): string {
@@ -230,9 +306,12 @@ export function DashboardPage({
   onClearSelection,
   onCreated,
   onRefresh,
+  requireTeamOnProjectCreate = false,
 }: DashboardPageProps) {
+  const navigate = useNavigate()
   const { teams } = useTeams()
   const { activeWorkspaceId } = useWorkspace()
+  const mentionOptions = useMentionOptions(users)
   const [showCreate, setShowCreate] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -349,7 +428,27 @@ export function DashboardPage({
     () => SUMMARY_PANELS.filter((panel) => panelVisibility[panel.key]),
     [panelVisibility]
   )
-  const panelCounts = workspaceStats?.counters
+  const computedWorkspaceCounters = useMemo(() => {
+    const counters = WORKSPACE_SUMMARY_PANEL_KEYS.reduce((acc, key) => {
+      acc[key] = 0
+      return acc
+    }, {} as Record<WorkspaceSummaryPanelKey, number>)
+    for (const project of projects) {
+      const memberCount = (project.memberIds ?? []).length
+      if (memberCount > 0) {
+        counters.assigned += 1
+      } else {
+        counters.unassigned += 1
+      }
+      const status = project.status ?? 'NOT_STARTED'
+      if (status === 'IN_PROGRESS') counters.inProgress += 1
+      if (status === 'COMPLETED') counters.completed += 1
+      if (status === 'CANCELED') counters.canceled += 1
+      if (status === 'ARCHIVED') counters.archived += 1
+    }
+    return counters
+  }, [projects])
+  const panelCounts = workspaceStats?.counters ?? computedWorkspaceCounters
   const getPanelValue = useCallback(
     (panelKey: WorkspaceSummaryPanelKey) => {
       if (!panelCounts) {
@@ -364,12 +463,42 @@ export function DashboardPage({
     () => WORKSPACE_SUMMARY_PANEL_KEYS.filter((key) => Boolean(panelVisibility[key])),
     [panelVisibility]
   )
-  const summaryRangeLookback = useMemo(() => rangeLookbackMs(summaryRange), [summaryRange])
+  const summaryRangeConfig = useMemo(() => getSummaryRangeConfig(summaryRange), [summaryRange])
+  const appendSummarySnapshot = useCallback(() => {
+    if (!activeWorkspaceId || !panelCounts) {
+      return
+    }
+    const snapshot: WorkspaceSummarySnapshot = {
+      ts: Date.now(),
+      counters: WORKSPACE_SUMMARY_PANEL_KEYS.reduce((acc, key) => {
+        acc[key] = panelCounts[key] ?? 0
+        return acc
+      }, {} as Record<WorkspaceSummaryPanelKey, number>),
+    }
+    setSummaryHistory((prev) => {
+      const last = prev[prev.length - 1]
+      if (last) {
+        const sameCounters = WORKSPACE_SUMMARY_PANEL_KEYS.every((key) => (last.counters[key] ?? 0) === snapshot.counters[key])
+        if (sameCounters && snapshot.ts - last.ts < SUMMARY_DUPLICATE_GUARD_MS) {
+          return prev
+        }
+      }
+      const appended = [...prev, snapshot]
+      const next = appended.length > SUMMARY_HISTORY_MAX ? compactSummaryHistory(appended) : appended
+      writeSummaryHistory(activeWorkspaceId, next)
+      return next
+    })
+  }, [activeWorkspaceId, panelCounts])
   const summaryTrendData = useMemo(() => {
-    const cutoff = Date.now() - summaryRangeLookback
-    const scopedHistory = summaryHistory.filter((item) => item.ts >= cutoff)
+    const now = Date.now()
+    const bucketedHistory = buildSummaryBuckets(
+      summaryHistory,
+      now,
+      summaryRangeConfig.lookbackMs,
+      summaryRangeConfig.bucketMs
+    )
     return WORKSPACE_SUMMARY_PANEL_KEYS.reduce((acc, key) => {
-      const points = scopedHistory.map((item) => item.counters[key] ?? 0)
+      const points = bucketedHistory.map((item) => item.counters[key] ?? 0)
       const min = points.length > 0 ? Math.min(...points) : 0
       const max = points.length > 0 ? Math.max(...points) : 0
       const sum = points.reduce((total, point) => total + point, 0)
@@ -386,7 +515,7 @@ export function DashboardPage({
       }
       return acc
     }, {} as Record<WorkspaceSummaryPanelKey, { points: number[]; min: number; max: number; avg: number; last: number; path: string; areaPath: string }>)
-  }, [summaryHistory, summaryRangeLookback])
+  }, [summaryHistory, summaryRangeConfig])
 
   const persistPanelVisibility = useCallback(
     async (nextVisibility: Record<WorkspaceSummaryPanelKey, boolean>) => {
@@ -624,33 +753,24 @@ export function DashboardPage({
       return
     }
     setSummaryRange(readSummaryRange(activeWorkspaceId))
-    setSummaryHistory(readSummaryHistory(activeWorkspaceId))
+    setSummaryHistory(compactSummaryHistory(readSummaryHistory(activeWorkspaceId)))
   }, [activeWorkspaceId])
 
   useEffect(() => {
-    if (!activeWorkspaceId || !workspaceStats?.counters) {
+    appendSummarySnapshot()
+  }, [appendSummarySnapshot])
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
       return
     }
-    const snapshot: WorkspaceSummarySnapshot = {
-      ts: Date.now(),
-      counters: WORKSPACE_SUMMARY_PANEL_KEYS.reduce((acc, key) => {
-        acc[key] = workspaceStats.counters[key] ?? 0
-        return acc
-      }, {} as Record<WorkspaceSummaryPanelKey, number>),
+    const timer = window.setInterval(() => {
+      appendSummarySnapshot()
+    }, SUMMARY_SNAPSHOT_INTERVAL_MS)
+    return () => {
+      window.clearInterval(timer)
     }
-    setSummaryHistory((prev) => {
-      const last = prev[prev.length - 1]
-      if (last) {
-        const sameCounters = WORKSPACE_SUMMARY_PANEL_KEYS.every((key) => (last.counters[key] ?? 0) === snapshot.counters[key])
-        if (sameCounters && snapshot.ts - last.ts < 60_000) {
-          return prev
-        }
-      }
-      const next = [...prev, snapshot].slice(-SUMMARY_HISTORY_MAX)
-      writeSummaryHistory(activeWorkspaceId, next)
-      return next
-    })
-  }, [activeWorkspaceId, workspaceStats])
+  }, [activeWorkspaceId, appendSummarySnapshot])
 
   useEffect(() => {
     if (!activeChartResize) return
@@ -1168,6 +1288,7 @@ export function DashboardPage({
           <CreateProjectForm
             users={users}
             currentUser={currentUser}
+            requireTeamOnCreate={requireTeamOnProjectCreate}
             onCreated={(created) => {
               setShowCreate(false)
               onCreated(created)
@@ -1302,9 +1423,11 @@ export function DashboardPage({
                             <div className="project-row-sub">
                               <div
                                 className="project-row-description muted truncate"
-                                title={project.description ?? 'No description'}
+                                title={formatMentionText(project.description ?? '') || 'No description'}
                               >
-                                {project.description?.trim() ? project.description : 'No description'}
+                                {project.description?.trim()
+                                  ? <MentionText text={project.description} onMentionClick={(payload) => navigateFromMention(payload, navigate)} />
+                                  : 'No description'}
                               </div>
                               {isArchived ? (
                                 <span className="muted status-label-archived">Archived</span>
@@ -1357,15 +1480,14 @@ export function DashboardPage({
                       maxLength={MAX_PROJECT_TITLE_LENGTH}
                       disabled={selectedIsArchived}
                     />
-                    <textarea
+                    <MentionTextarea
                       className="details-description"
                       value={draftProject?.description ?? ''}
-                      onChange={(event) =>
-                        draftProject && setDraftProject({ ...draftProject, description: event.target.value })
-                      }
+                      onChange={(nextValue) => draftProject && setDraftProject({ ...draftProject, description: nextValue })}
                       rows={2}
                       placeholder="Add a description"
                       disabled={selectedIsArchived}
+                      options={mentionOptions}
                     />
                   </div>
                   <div className="details-header-side">
@@ -1487,7 +1609,7 @@ export function DashboardPage({
                       </div>
                     </div>
                     {selectedProject?.id && currentUser ? (
-                      <ProjectComments projectId={selectedProject.id} currentUser={currentUser} />
+                      <ProjectComments projectId={selectedProject.id} currentUser={currentUser} mentionUsers={users} />
                     ) : null}
                     <div className="details-footer">
                       <button
@@ -1550,47 +1672,43 @@ export function DashboardPage({
                     />
                   </div>
                   {workspaceStatsError ? <p className="error">{workspaceStatsError}</p> : null}
-                  {!workspaceStats ? (
-                    <p className="muted">Loading workspace stats...</p>
-                  ) : (
-                    <div className="workspace-summary-panels">
-                      {visiblePanels.length === 0 ? (
-                        <p className="muted">
-                          All panels are hidden. Use the toggles above to show at least one summary panel.
-                        </p>
-                      ) : (
-                        visiblePanels.map((panel) => (
-                          <div key={panel.key} className="workspace-summary-panel">
-                            <div className="workspace-summary-chart-bg" aria-hidden="true">
-                              <svg viewBox="0 0 100 40" preserveAspectRatio="none">
-                                {summaryTrendData[panel.key]?.areaPath ? (
-                                  <path className="workspace-summary-chart-area" d={summaryTrendData[panel.key].areaPath} />
-                                ) : null}
-                                {summaryTrendData[panel.key]?.path ? (
-                                  <path className="workspace-summary-chart-line" d={summaryTrendData[panel.key].path} />
-                                ) : null}
-                              </svg>
-                              <span className="workspace-summary-axis workspace-summary-axis-top">
-                                {summaryTrendData[panel.key]?.max ?? 0}
-                              </span>
-                              <span className="workspace-summary-axis workspace-summary-axis-bottom">
-                                {summaryTrendData[panel.key]?.min ?? 0}
-                              </span>
-                              <span className="workspace-summary-axis workspace-summary-axis-range">{summaryRange}</span>
-                            </div>
-                            <span className="muted">{panel.label}</span>
-                            <strong>{getPanelValue(panel.key)}</strong>
-                            <span className="workspace-summary-description">{panel.description}</span>
-                            <div className="workspace-summary-metrics">
-                              <span>{SUMMARY_PANEL_MEASURE_LABEL[panel.key]}: {summaryTrendData[panel.key]?.last ?? 0}</span>
-                              <span>Avg: {Math.round(summaryTrendData[panel.key]?.avg ?? 0)}</span>
-                              <span>Peak: {summaryTrendData[panel.key]?.max ?? 0}</span>
-                            </div>
+                  <div className="workspace-summary-panels">
+                    {visiblePanels.length === 0 ? (
+                      <p className="muted">
+                        All panels are hidden. Use the toggles above to show at least one summary panel.
+                      </p>
+                    ) : (
+                      visiblePanels.map((panel) => (
+                        <div key={panel.key} className="workspace-summary-panel">
+                          <div className="workspace-summary-chart-bg" aria-hidden="true">
+                            <svg viewBox="0 0 100 40" preserveAspectRatio="none">
+                              {summaryTrendData[panel.key]?.areaPath ? (
+                                <path className="workspace-summary-chart-area" d={summaryTrendData[panel.key].areaPath} />
+                              ) : null}
+                              {summaryTrendData[panel.key]?.path ? (
+                                <path className="workspace-summary-chart-line" d={summaryTrendData[panel.key].path} />
+                              ) : null}
+                            </svg>
+                            <span className="workspace-summary-axis workspace-summary-axis-top">
+                              {summaryTrendData[panel.key]?.max ?? 0}
+                            </span>
+                            <span className="workspace-summary-axis workspace-summary-axis-bottom">
+                              {summaryTrendData[panel.key]?.min ?? 0}
+                            </span>
+                            <span className="workspace-summary-axis workspace-summary-axis-range">{summaryRange}</span>
                           </div>
-                        ))
-                      )}
-                    </div>
-                  )}
+                          <span className="muted">{panel.label}</span>
+                          <strong>{getPanelValue(panel.key)}</strong>
+                          <span className="workspace-summary-description">{panel.description}</span>
+                          <div className="workspace-summary-metrics">
+                            <span>{SUMMARY_PANEL_MEASURE_LABEL[panel.key]}: {summaryTrendData[panel.key]?.last ?? 0}</span>
+                            <span>Avg: {Math.round(summaryTrendData[panel.key]?.avg ?? 0)}</span>
+                            <span>Peak: {summaryTrendData[panel.key]?.max ?? 0}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
                 {!chartMetricsHealth.consistent ? (
                   <div className="banner error" role="alert">

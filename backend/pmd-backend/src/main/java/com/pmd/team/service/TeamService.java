@@ -19,6 +19,8 @@ public class TeamService {
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
     private static final Pattern TRIM_DASH = Pattern.compile("(^-+|-+$)");
+    private static final Pattern HEX_COLOR = Pattern.compile("^#[0-9a-fA-F]{6}$");
+    private static final String DEFAULT_TEAM_COLOR = "#3B82F6";
 
     private final TeamRepository teamRepository;
 
@@ -65,6 +67,7 @@ public class TeamService {
         Team team = new Team();
         team.setName(name);
         team.setSlug(slug);
+        team.setColor(normalizeColor(request.getColor(), DEFAULT_TEAM_COLOR));
         team.setWorkspaceId(workspaceId);
         team.setActive(true);
         team.setCreatedAt(Instant.now());
@@ -72,7 +75,7 @@ public class TeamService {
         return teamRepository.save(team);
     }
 
-    public Team updateTeam(String workspaceId, String id, String name, Boolean isActive) {
+    public Team updateTeam(String workspaceId, String id, String name, Boolean isActive, String color) {
         Team team = teamRepository.findByIdAndWorkspaceId(id, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
         if (name != null) {
@@ -94,6 +97,9 @@ public class TeamService {
         if (isActive != null) {
             team.setActive(isActive);
         }
+        if (color != null) {
+            team.setColor(normalizeColor(color, team.getColor() == null ? DEFAULT_TEAM_COLOR : team.getColor()));
+        }
         return teamRepository.save(team);
     }
 
@@ -104,5 +110,16 @@ public class TeamService {
         String lower = input.trim().toLowerCase(Locale.ROOT);
         String dashed = NON_ALNUM.matcher(lower).replaceAll("-");
         return TRIM_DASH.matcher(dashed).replaceAll("");
+    }
+
+    private String normalizeColor(String rawColor, String fallback) {
+        if (rawColor == null || rawColor.isBlank()) {
+            return fallback;
+        }
+        String trimmed = rawColor.trim();
+        if (!HEX_COLOR.matcher(trimmed).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid team color");
+        }
+        return trimmed.toUpperCase(Locale.ROOT);
     }
 }
