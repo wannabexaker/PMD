@@ -64,16 +64,7 @@ export function MentionTextarea({ value, onChange, options, ...textareaProps }: 
       })
       .slice(0, 12)
   }, [activeMention, options])
-
-  useEffect(() => {
-    if (filtered.length === 0) {
-      setActiveIndex(0)
-      return
-    }
-    if (activeIndex >= filtered.length) {
-      setActiveIndex(0)
-    }
-  }, [filtered.length, activeIndex])
+  const safeActiveIndex = filtered.length === 0 ? 0 : Math.min(activeIndex, filtered.length - 1)
 
   useEffect(() => {
     return () => {
@@ -123,7 +114,7 @@ export function MentionTextarea({ value, onChange, options, ...textareaProps }: 
     }
     if (event.key === 'Enter' || event.key === 'Tab') {
       event.preventDefault()
-      const selected = filtered[activeIndex]
+      const selected = filtered[safeActiveIndex]
       if (selected) {
         applyMention(selected)
       }
@@ -173,9 +164,9 @@ export function MentionTextarea({ value, onChange, options, ...textareaProps }: 
             <button
               key={option.key}
               type="button"
-              className={`mention-option${index === activeIndex ? ' active' : ''}`}
+              className={`mention-option${index === safeActiveIndex ? ' active' : ''}`}
               role="option"
-              aria-selected={index === activeIndex}
+              aria-selected={index === safeActiveIndex}
               onMouseDown={(event) => {
                 event.preventDefault()
                 applyMention(option)

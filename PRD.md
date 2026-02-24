@@ -3414,3 +3414,16 @@ Implemented
   - `latest` + `${sha}` always pushed
   - semantic tag (e.g. `vX.Y.Z`) pushed only on tag refs.
 
+## 2026-02-24 - CI lint/test unblocking fixes
+
+- [x] Frontend lint fixes for CI:
+  - removed unnecessary Hook deps in `SettingsPage` callbacks.
+  - replaced `any`-based CSS var casting with typed settings grid style vars.
+  - fixed ref-cleanup warning pattern for pending panel-fit set.
+  - refactored mention components to satisfy strict React Hooks rules:
+    - `MentionTextarea` no longer sets state directly inside effects for option-index normalization.
+    - `MentionText` no longer mutates module-level regex `lastIndex`; uses scoped regex instances.
+    - `useMentionOptions` no longer sets state synchronously in effect when workspace is missing.
+- [x] Backend test compilation fix for CI:
+  - `ProjectServiceTest` updated to pass new `ProjectService` constructor dependencies (`MentionNotificationService`, `MentionPolicyService`).
+

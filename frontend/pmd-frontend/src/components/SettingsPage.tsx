@@ -35,6 +35,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 
 type SettingsPanelId = 'preferences' | 'workspaces' | 'teams' | 'notifications' | 'roles' | 'audit'
 type SettingsViewMode = 'grid' | 'tabs'
+type SettingsGridStyleVars = CSSProperties & {
+  '--settings-col-1': string
+  '--settings-col-2': string
+  '--settings-col-3': string
+  '--settings-grid-gap': string
+}
 
 const SETTINGS_PANEL_IDS: SettingsPanelId[] = ['workspaces', 'teams', 'roles', 'audit', 'preferences', 'notifications']
 
@@ -505,7 +511,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       const role = `${workspace.roleName ?? workspace.role ?? ''}`.toLocaleLowerCase()
       return role.includes('owner')
     },
-    [isAdmin, workspaces]
+    [isAdmin]
   )
 
   const canEditWorkspaceProfileFor = useCallback(
@@ -514,7 +520,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       if (isAdmin) return true
       return Boolean(workspace.permissions?.manageWorkspaceSettings) || isWorkspaceCreator(workspace)
     },
-    [isAdmin, isWorkspaceCreator, workspaces]
+    [isAdmin, isWorkspaceCreator]
   )
 
   const profileWorkspace = useMemo(
@@ -599,14 +605,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     [panelHeights, panelOrder, panelRowSpans, settingsViewMode]
   )
 
-  const settingsGridStyle = useMemo<CSSProperties | undefined>(() => {
+  const settingsGridStyle = useMemo<SettingsGridStyleVars | undefined>(() => {
     if (settingsViewMode !== 'grid') return undefined
-    return ({
-      ['--settings-col-1' as any]: `${settingsGridBounds.col1}px`,
-      ['--settings-col-2' as any]: `${settingsGridBounds.col2}px`,
-      ['--settings-col-3' as any]: `${settingsGridBounds.col3}px`,
-      ['--settings-grid-gap' as any]: `${settingsGridBounds.gap}px`,
-    }) as CSSProperties
+    return {
+      '--settings-col-1': `${settingsGridBounds.col1}px`,
+      '--settings-col-2': `${settingsGridBounds.col2}px`,
+      '--settings-col-3': `${settingsGridBounds.col3}px`,
+      '--settings-grid-gap': `${settingsGridBounds.gap}px`,
+    }
   }, [settingsViewMode, settingsGridBounds])
 
   const clampPanelHeight = useCallback((id: SettingsPanelId, rawHeight: number) => {
@@ -1651,13 +1657,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       if (!card) return
       observer.observe(card)
     })
+    const pendingPanels = pendingFitPanelsRef.current
     return () => {
       observer.disconnect()
       if (fitRafRef.current != null) {
         window.cancelAnimationFrame(fitRafRef.current)
         fitRafRef.current = null
       }
-      pendingFitPanelsRef.current.clear()
+      pendingPanels.clear()
     }
   }, [activeResize, draggingPanel, scheduleFitPanel, settingsViewMode])
 

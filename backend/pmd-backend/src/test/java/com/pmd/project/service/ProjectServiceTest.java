@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.eq;
 
 import com.mongodb.client.MongoDatabase;
 import com.pmd.auth.policy.AccessPolicy;
+import com.pmd.mention.service.MentionPolicyService;
 import com.pmd.notification.EmailNotificationService;
 import com.pmd.project.dto.RandomAssignResponse;
 import com.pmd.project.model.Project;
@@ -42,6 +43,8 @@ class ProjectServiceTest {
     private ProjectService projectService;
     private TeamService teamService;
     private EmailNotificationService emailNotificationService;
+    private MentionNotificationService mentionNotificationService;
+    private MentionPolicyService mentionPolicyService;
 
     @BeforeEach
     void setUp() {
@@ -53,6 +56,8 @@ class ProjectServiceTest {
         mongoTemplate = mock(MongoTemplate.class);
         teamService = mock(TeamService.class);
         emailNotificationService = mock(EmailNotificationService.class);
+        mentionNotificationService = mock(MentionNotificationService.class);
+        mentionPolicyService = mock(MentionPolicyService.class);
 
         MongoDatabase mongoDatabase = mock(MongoDatabase.class);
         when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
@@ -67,7 +72,9 @@ class ProjectServiceTest {
             accessPolicy,
             mongoTemplate,
             teamService,
-            emailNotificationService
+            emailNotificationService,
+            mentionNotificationService,
+            mentionPolicyService
         );
     }
 

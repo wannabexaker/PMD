@@ -58,10 +58,7 @@ export function useMentionOptions(users: UserSummary[]) {
   }, [teams])
 
   useEffect(() => {
-    if (!activeWorkspaceId) {
-      setRoles([])
-      return
-    }
+    if (!activeWorkspaceId) return
     let active = true
     listRoles(activeWorkspaceId)
       .then((data) => {
@@ -78,6 +75,7 @@ export function useMentionOptions(users: UserSummary[]) {
   }, [activeWorkspaceId])
 
   return useMemo<MentionOption[]>(() => {
+    const effectiveRoles = activeWorkspaceId ? roles : []
     const options: MentionOption[] = [
       {
         key: 'everyone',
@@ -105,7 +103,7 @@ export function useMentionOptions(users: UserSummary[]) {
         })
       })
 
-    roles.forEach((role) => {
+    effectiveRoles.forEach((role) => {
       const name = (role.name ?? '').trim()
       if (!name) return
       options.push({
@@ -138,5 +136,5 @@ export function useMentionOptions(users: UserSummary[]) {
       })
 
     return options
-  }, [roles, teams, teamsById, users])
+  }, [activeWorkspaceId, roles, teams, teamsById, users])
 }

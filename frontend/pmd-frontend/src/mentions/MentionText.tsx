@@ -36,8 +36,8 @@ function pushPlainMentions(nodes: ReactNode[], segment: string, seed: string, on
   if (!segment) return
   let cursor = 0
   let match: RegExpExecArray | null
-  PLAIN_MENTION_RE.lastIndex = 0
-  while ((match = PLAIN_MENTION_RE.exec(segment)) !== null) {
+  const plainMentionRe = new RegExp(PLAIN_MENTION_RE.source, PLAIN_MENTION_RE.flags)
+  while ((match = plainMentionRe.exec(segment)) !== null) {
     const start = match.index
     const end = start + match[0].length
     if (start > cursor) {
@@ -83,8 +83,8 @@ export function MentionText({ text, className, onMentionClick }: MentionTextProp
   const nodes: ReactNode[] = []
   let cursor = 0
   let match: RegExpExecArray | null
-  TOKEN_MENTION_RE.lastIndex = 0
-  while ((match = TOKEN_MENTION_RE.exec(value)) !== null) {
+  const tokenMentionRe = new RegExp(TOKEN_MENTION_RE.source, TOKEN_MENTION_RE.flags)
+  while ((match = tokenMentionRe.exec(value)) !== null) {
     const start = match.index
     const end = start + match[0].length
     if (start > cursor) {
