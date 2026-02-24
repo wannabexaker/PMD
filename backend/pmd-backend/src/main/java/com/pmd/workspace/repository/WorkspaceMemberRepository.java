@@ -9,6 +9,7 @@ public interface WorkspaceMemberRepository extends MongoRepository<WorkspaceMemb
     List<WorkspaceMember> findByUserId(String userId);
 
     List<WorkspaceMember> findByWorkspaceId(String workspaceId);
+    long countByWorkspaceId(String workspaceId);
 
     Optional<WorkspaceMember> findByWorkspaceIdAndUserId(String workspaceId, String userId);
 }

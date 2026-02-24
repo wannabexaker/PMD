@@ -9,4 +9,5 @@ public interface WorkspaceInviteRepository extends MongoRepository<WorkspaceInvi
     Optional<WorkspaceInvite> findByToken(String token);
     Optional<WorkspaceInvite> findByCode(String code);
     List<WorkspaceInvite> findByWorkspaceId(String workspaceId);
+    long countByWorkspaceId(String workspaceId);
 }

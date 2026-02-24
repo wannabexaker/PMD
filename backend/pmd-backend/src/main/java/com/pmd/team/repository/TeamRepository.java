@@ -16,5 +16,6 @@ public interface TeamRepository extends MongoRepository<Team, String> {
     List<Team> findByIsActiveTrue(Sort sort);
     List<Team> findByWorkspaceIdAndIsActiveTrue(String workspaceId, Sort sort);
     List<Team> findByWorkspaceId(String workspaceId);
+    long countByWorkspaceId(String workspaceId);
     Optional<Team> findByIdAndWorkspaceId(String id, String workspaceId);
 }

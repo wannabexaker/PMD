@@ -182,6 +182,15 @@ Note: `scripts/.pmd-dev-pids.json` is a local runtime state file (ephemeral PIDs
   - env: `PMD_AUDIT_RETENTION_DAYS`
   - default: `365` days.
 
+## PMD Admin (global governance)
+
+- Platform admins (`isAdmin=true`) can use `/admin` for cross-workspace control.
+- Backend endpoints:
+  - `GET /api/admin/overview`
+  - `GET /api/admin/workspaces`
+  - `GET /api/admin/users`
+  - `GET /api/admin/audit`
+
 ## Runtime guardrails
 
 - PMD now enforces a single active runtime mode: `dev`, `deps`, or `reviewer`.

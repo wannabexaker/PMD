@@ -1060,14 +1060,12 @@ function AppView({
             path="/admin"
             element={
               isAuthed ? (
-                hasWorkspace && isAdmin ? (
-                  <AdminPanel users={users} projects={projects} />
+                isAdmin ? (
+                  <AdminPanel />
                 ) : workspaceLoading || workspaceError ? (
                   <PmdLoader size="md" variant="panel" />
-                ) : hasWorkspace ? (
-                  <Navigate to="/dashboard" replace />
                 ) : (
-                  noWorkspaceState
+                  <Navigate to="/dashboard" replace />
                 )
               ) : (
                 <Navigate to="/login" replace />

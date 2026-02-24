@@ -45,6 +45,19 @@ This file is the single source of truth for PMD requirements, roadmap, TODOs, an
   - indexes for hash-chain lookup and append-order retrieval.
 - [x] DB gate expanded with new audit indexes.
 
+## 2026-02-24 - PMD Admin (global control layer)
+
+- [x] Added backend global admin API (`/api/admin/*`) restricted to `isAdmin` users:
+  - `GET /api/admin/overview` (platform totals + isolation integrity counters)
+  - `GET /api/admin/workspaces` (all workspaces with ops counters)
+  - `GET /api/admin/users` (global user list/search)
+  - `GET /api/admin/audit` (cross-workspace audit feed with filters).
+- [x] Added frontend PMD Admin panel upgrade:
+  - Overview / Workspaces / Users / Global Audit sections
+  - table-based operational view for governance and rule checking
+  - filter/search controls for global audit.
+- [x] Admin route now depends on platform admin permission (not active workspace presence).
+
 - [x] Unified scrollbar styling across the whole frontend with higher overlay feel:
   - thumb transparency set to ~50% for idle state
   - transparent track everywhere

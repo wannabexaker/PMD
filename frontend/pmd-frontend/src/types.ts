@@ -360,3 +360,62 @@ export type NotificationPreferences = {
   emailOnProjectMembershipChange: boolean
   emailOnOverdueReminder: boolean
 }
+
+export type AdminOverview = {
+  totalUsers: number
+  totalWorkspaces: number
+  totalProjects: number
+  totalTeams: number
+  totalRoles: number
+  totalWorkspaceMembers: number
+  totalInvites: number
+  totalJoinRequests: number
+  totalAuditEvents: number
+  missingWorkspaceIdProjects: number
+  missingWorkspaceIdTeams: number
+  missingWorkspaceIdRoles: number
+  missingWorkspaceIdMembers: number
+  missingWorkspaceIdInvites: number
+  missingWorkspaceIdJoinRequests: number
+  missingWorkspaceIdAuditEvents: number
+}
+
+export type AdminWorkspaceRow = {
+  id: string
+  name: string
+  slug: string
+  demo: boolean
+  createdByUserId: string | null
+  createdAt: string | null
+  members: number
+  teams: number
+  roles: number
+  projects: number
+  invites: number
+  pendingJoinRequests: number
+  lastAuditAt: string | null
+}
+
+export type AdminUserRow = {
+  id: string
+  displayName: string
+  email: string
+  admin: boolean
+  emailVerified: boolean
+  createdAt: string | null
+}
+
+export type AdminAuditRow = {
+  id: string
+  workspaceId: string
+  createdAt: string
+  category: string
+  action: string
+  outcome: string
+  actorUserId: string
+  actorName: string
+  entityType: string | null
+  entityId: string | null
+  entityName: string | null
+  message: string | null
+}

@@ -11,4 +11,6 @@ public interface WorkspaceJoinRequestRepository extends MongoRepository<Workspac
     Optional<WorkspaceJoinRequest> findByWorkspaceIdAndUserId(String workspaceId, String userId);
     List<WorkspaceJoinRequest> findByWorkspaceId(String workspaceId);
     List<WorkspaceJoinRequest> findAllByWorkspaceId(String workspaceId);
+    long countByWorkspaceId(String workspaceId);
+    long countByWorkspaceIdAndStatus(String workspaceId, WorkspaceJoinRequestStatus status);
 }
