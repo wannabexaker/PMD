@@ -165,6 +165,8 @@ export type WorkspaceInvite = {
   workspaceId?: string | null
   token?: string | null
   code?: string | null
+  invitedEmail?: string | null
+  joinQuestion?: string | null
   defaultRoleId?: string | null
   expiresAt?: string | null
   maxUses?: number | null
@@ -178,6 +180,7 @@ export type WorkspaceInviteResolve = {
   workspaceName?: string | null
   token?: string | null
   code?: string | null
+  joinQuestion?: string | null
   defaultRoleId?: string | null
   expiresAt?: string | null
   maxUses?: number | null
@@ -191,7 +194,9 @@ export type WorkspaceJoinRequest = {
   userId?: string | null
   userName?: string | null
   userEmail?: string | null
-  status?: 'PENDING' | 'APPROVED' | 'DENIED' | (string & {})
+  inviteQuestion?: string | null
+  inviteAnswer?: string | null
+  status?: 'PENDING' | 'APPROVED' | 'DENIED' | 'CANCELED' | (string & {})
   createdAt?: string | null
 }
 
@@ -217,6 +222,12 @@ export type WorkspaceAuditEvent = {
 export type AuthResponse = {
   token?: string | null
   user?: User | null
+}
+
+export type RegisterResponse = {
+  accountCreated: boolean
+  verificationEmailSent: boolean
+  message: string
 }
 
 export type ConfirmEmailStatus = 'CONFIRMED' | 'ALREADY_CONFIRMED' | 'INVALID_TOKEN' | 'EXPIRED_TOKEN'
@@ -359,6 +370,11 @@ export type NotificationPreferences = {
   emailOnProjectStatusChange: boolean
   emailOnProjectMembershipChange: boolean
   emailOnOverdueReminder: boolean
+  emailOnWorkspaceInviteCreated: boolean
+  emailOnWorkspaceJoinRequestSubmitted: boolean
+  emailOnWorkspaceJoinRequestDecision: boolean
+  emailOnWorkspaceInviteAccepted: boolean
+  emailOnWorkspaceInviteAcceptedDigest: boolean
 }
 
 export type AdminOverview = {

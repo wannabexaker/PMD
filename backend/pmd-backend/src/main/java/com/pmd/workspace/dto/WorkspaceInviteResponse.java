@@ -8,6 +8,8 @@ public class WorkspaceInviteResponse {
     private String workspaceId;
     private String token;
     private String code;
+    private String invitedEmail;
+    private String joinQuestion;
     private String defaultRoleId;
     private Instant expiresAt;
     private Integer maxUses;
@@ -18,13 +20,16 @@ public class WorkspaceInviteResponse {
     public WorkspaceInviteResponse() {
     }
 
-    public WorkspaceInviteResponse(String id, String workspaceId, String token, String code, String defaultRoleId,
+    public WorkspaceInviteResponse(String id, String workspaceId, String token, String code, String invitedEmail,
+                                   String joinQuestion, String defaultRoleId,
                                    Instant expiresAt, Integer maxUses, int usesCount,
                                    boolean revoked, Instant createdAt) {
         this.id = id;
         this.workspaceId = workspaceId;
         this.token = token;
         this.code = code;
+        this.invitedEmail = invitedEmail;
+        this.joinQuestion = joinQuestion;
         this.defaultRoleId = defaultRoleId;
         this.expiresAt = expiresAt;
         this.maxUses = maxUses;
@@ -63,6 +68,22 @@ public class WorkspaceInviteResponse {
 
     public void setCode(String code) {
         this.code = code;
+    }
+
+    public String getInvitedEmail() {
+        return invitedEmail;
+    }
+
+    public void setInvitedEmail(String invitedEmail) {
+        this.invitedEmail = invitedEmail;
+    }
+
+    public String getJoinQuestion() {
+        return joinQuestion;
+    }
+
+    public void setJoinQuestion(String joinQuestion) {
+        this.joinQuestion = joinQuestion;
     }
 
     public String getDefaultRoleId() {

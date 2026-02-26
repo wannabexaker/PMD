@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { confirmEmail } from '../api/auth'
 import type { ConfirmEmailStatus } from '../types'
+import { useAuth } from '../auth/authUtils'
+import { getAuthNotification } from '../auth/authNotificationMatrix'
 
 export function ConfirmEmailPage() {
   const [searchParams] = useSearchParams()
@@ -10,6 +12,7 @@ export function ConfirmEmailPage() {
     token ? 'loading' : 'invalid'
   )
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   useEffect(() => {
     if (!token) {
@@ -34,19 +37,19 @@ export function ConfirmEmailPage() {
   const content = useMemo(() => {
     if (status === 'confirmed') {
       return {
-        message: 'Your account has been successfully activated.',
+        message: getAuthNotification('confirm_email_success').message,
         tone: 'success' as const,
       }
     }
     if (status === 'already') {
       return {
-        message: 'Your account is already activated.',
+        message: getAuthNotification('confirm_email_already').message,
         tone: 'info' as const,
       }
     }
     if (status === 'invalid') {
       return {
-        message: 'This confirmation link is invalid or has expired.',
+        message: getAuthNotification('confirm_email_invalid').message,
         tone: 'error' as const,
       }
     }
@@ -61,8 +64,12 @@ export function ConfirmEmailPage() {
       {status === 'loading' ? <p>Confirming your email...</p> : null}
       {content ? <p className={content.tone === 'error' ? 'error' : 'muted'}>{content.message}</p> : null}
       {status !== 'loading' ? (
-        <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
-          Go to login
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => navigate(user ? '/dashboard' : '/login')}
+        >
+          {user ? 'Back to app' : 'Go to login'}
         </button>
       ) : null}
     </section>

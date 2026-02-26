@@ -1,7 +1,11 @@
 package com.pmd.config.migration;
 
+import com.pmd.security.ClientMetadataService;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ThreadLocalRandom;
+import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -22,10 +26,14 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
 
     private final MigrationStateRepository migrationStateRepository;
     private final MongoTemplate mongoTemplate;
+    private final ClientMetadataService clientMetadataService;
 
-    public DatabaseMigrationRunner(MigrationStateRepository migrationStateRepository, MongoTemplate mongoTemplate) {
+    public DatabaseMigrationRunner(MigrationStateRepository migrationStateRepository,
+                                   MongoTemplate mongoTemplate,
+                                   ClientMetadataService clientMetadataService) {
         this.migrationStateRepository = migrationStateRepository;
         this.mongoTemplate = mongoTemplate;
+        this.clientMetadataService = clientMetadataService;
     }
 
     @Override
@@ -35,6 +43,9 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         apply("2026-02-24-index-foundation-v2", this::applyFoundationIndexesV2);
         apply("2026-02-24-audit-hardening-v1", this::applyAuditHardeningV1);
         apply("2026-02-24-workspace-guard-report-v1", this::applyWorkspaceGuardReport);
+        apply("2026-02-25-demo-invite-code-randomization-v1", this::applyDemoInviteCodeRandomization);
+        apply("2026-02-26-invite-notification-indexes-v1", this::applyInviteNotificationIndexes);
+        apply("2026-02-26-client-metadata-redaction-v1", this::applyClientMetadataRedactionV1);
     }
 
     private void apply(String migrationId, Runnable migration) {
@@ -61,7 +72,9 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
             "workspace_invites",
             "workspace_join_requests",
             "project_comments",
-            "user_notification_preferences"
+            "user_notification_preferences",
+            "workspace_join_request_email_throttle",
+            "workspace_invite_accepted_digest"
         );
         Query query = Query.query(new Criteria().orOperator(Criteria.where("schemaVersion").exists(false), Criteria.where("schemaVersion").is(null)));
         Update update = new Update().set("schemaVersion", 1);
@@ -108,7 +121,9 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
             "workspace_members",
             "workspace_invites",
             "workspace_join_requests",
-            "workspace_audit_events"
+            "workspace_audit_events",
+            "workspace_join_request_email_throttle",
+            "workspace_invite_accepted_digest"
         );
         Query missingWorkspaceQuery = Query.query(new Criteria().orOperator(
             Criteria.where("workspaceId").exists(false),
@@ -121,6 +136,100 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
                 logger.warn("Workspace guard report: collection '{}' has {} docs without workspaceId", collection, count);
             }
         }
+    }
+
+    private void applyDemoInviteCodeRandomization() {
+        Query legacyDemoCodeQuery = Query.query(Criteria.where("code").is("PMD-DEMO"));
+        List<Document> legacyInvites = mongoTemplate.find(legacyDemoCodeQuery, Document.class, "workspace_invites");
+        for (Document invite : legacyInvites) {
+            Object id = invite.get("_id");
+            if (id == null) {
+                continue;
+            }
+            String nextCode = generateUniqueDemoInviteCode();
+            mongoTemplate.updateFirst(
+                Query.query(Criteria.where("_id").is(id)),
+                new Update().set("code", nextCode),
+                "workspace_invites"
+            );
+            logger.info("Updated legacy demo invite code for invite {}", id);
+        }
+    }
+
+    private void applyInviteNotificationIndexes() {
+        ensureIndex(
+            "workspace_join_request_email_throttle",
+            new Index().on("workspaceId", Sort.Direction.ASC)
+                .on("recipientUserId", Sort.Direction.ASC)
+                .on("eventType", Sort.Direction.ASC)
+                .named("idx_join_req_email_throttle_workspace_recipient_event")
+        );
+        ensureIndex(
+            "workspace_invite_accepted_digest",
+            new Index().on("recipientUserId", Sort.Direction.ASC)
+                .on("deliveredAt", Sort.Direction.ASC)
+                .on("createdAt", Sort.Direction.ASC)
+                .named("idx_invite_accept_digest_recipient_delivered_created")
+        );
+        // Keep delivered digest rows for 30 days to avoid unbounded growth.
+        ensureIndex(
+            "workspace_invite_accepted_digest",
+            new Index().on("deliveredAt", Sort.Direction.ASC)
+                .expire(30L * 24 * 60 * 60)
+                .named("ttl_invite_accept_digest_delivered")
+        );
+    }
+
+    private void applyClientMetadataRedactionV1() {
+        sanitizeClientMetadataCollection("auth_sessions");
+        sanitizeClientMetadataCollection("auth_security_events");
+    }
+
+    private void sanitizeClientMetadataCollection(String collectionName) {
+        Query query = Query.query(new Criteria().orOperator(
+            Criteria.where("ipAddress").exists(true),
+            Criteria.where("userAgent").exists(true)
+        ));
+        List<Document> documents = mongoTemplate.find(query, Document.class, collectionName);
+        for (Document document : documents) {
+            Object id = document.get("_id");
+            if (id == null) {
+                continue;
+            }
+            String currentIp = document.getString("ipAddress");
+            String currentUserAgent = document.getString("userAgent");
+            String sanitizedIp = clientMetadataService.sanitizeIpForStorage(currentIp);
+            String sanitizedUserAgent = clientMetadataService.sanitizeUserAgentForStorage(currentUserAgent);
+            boolean changed = !java.util.Objects.equals(currentIp, sanitizedIp)
+                || !java.util.Objects.equals(currentUserAgent, sanitizedUserAgent);
+            if (!changed) {
+                continue;
+            }
+            Update update = new Update();
+            if (sanitizedIp == null) {
+                update.unset("ipAddress");
+            } else {
+                update.set("ipAddress", sanitizedIp);
+            }
+            if (sanitizedUserAgent == null) {
+                update.unset("userAgent");
+            } else {
+                update.set("userAgent", sanitizedUserAgent);
+            }
+            mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(id)), update, collectionName);
+        }
+    }
+
+    private String generateUniqueDemoInviteCode() {
+        for (int i = 0; i < 40; i++) {
+            int number = ThreadLocalRandom.current().nextInt(1, 1001);
+            String candidate = String.format("PMD-DEMO-%04d", number);
+            long count = mongoTemplate.count(Query.query(Criteria.where("code").is(candidate)), "workspace_invites");
+            if (count == 0) {
+                return candidate;
+            }
+        }
+        return "PMD-DEMO-" + Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36).toUpperCase(Locale.ROOT);
     }
 
     private void ensureIndex(String collectionName, Index index) {

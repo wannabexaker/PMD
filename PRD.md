@@ -7,6 +7,72 @@ This file is the single source of truth for PMD requirements, roadmap, TODOs, an
 
 ## 2026-02-20 - Global scrollbar visual unification
 
+## 2026-02-26 - First-run onboarding tour
+
+- [x] Added first-run guided onboarding for authenticated users (one-time per user/browser).
+- [x] Tour highlights key actions without logout step:
+  - active workspace switcher
+  - profile entry
+  - workspace settings entry
+  - Settings `Workspaces` card
+  - `Create workspace` action
+  - `Join workspace` action
+  - Dashboard area
+- [x] Added spotlight overlay + step controls (`Back`, `Next`, `Skip`, `Finish`) with route-aware steps (`/settings`, `/dashboard`).
+- [x] Added stable DOM tour anchors via `data-tour` attributes across App, Settings, and Dashboard.
+
+## 2026-02-26 - Invite/join notification matrix hardening (no-noise)
+
+- [x] Added workspace invite/join email preference flags (backend + frontend):
+  - `emailOnWorkspaceInviteCreated` (default `ON`)
+  - `emailOnWorkspaceJoinRequestSubmitted` (default `ON`)
+  - `emailOnWorkspaceJoinRequestDecision` (default `ON`)
+  - `emailOnWorkspaceInviteAccepted` (default `OFF`)
+  - `emailOnWorkspaceInviteAcceptedDigest` (default `ON`)
+- [x] Direct email invite notifications:
+  - invite create request now supports optional `invitedEmail`
+  - delivery target is only the invited recipient (registered user or external address)
+  - exposed in Settings invite creation UI (`Invite email (optional direct invite)`).
+- [x] Join request submitted notifications:
+  - recipients restricted to active workspace members with `approveJoinRequests` permission
+  - added batching throttle: max 1 email per 10 minutes per approver/workspace.
+- [x] Join request decision notifications:
+  - approve/deny emails are sent only to the requester.
+- [x] Member joined (invite accepted) notifications:
+  - recipient is inviter; fallback to owner/manager when inviter is unavailable
+  - immediate email follows `emailOnWorkspaceInviteAccepted` (default OFF)
+  - optional daily digest queue follows `emailOnWorkspaceInviteAcceptedDigest`.
+- [x] Added persistence + migration support:
+  - `workspace_join_request_email_throttle` collection
+  - `workspace_invite_accepted_digest` collection
+  - migration `2026-02-26-invite-notification-indexes-v1` (compound + TTL indexes).
+- [x] Validation:
+  - backend tests pass
+  - frontend lint/build pass.
+
+## 2026-02-25 - Workspace invite/join reliability fixes
+
+- [x] Demo invite codes are now workspace-unique and randomized (`PMD-DEMO-xxxx`) instead of shared static code.
+- [x] Existing demo invites with legacy shared code are auto-upgraded to a unique code on seed pass.
+- [x] Added self-cancel flow for pending join requests:
+  - backend: `POST /api/workspaces/{id}/requests/self/cancel`
+  - frontend: `Cancel` action on pending workspace membership rows.
+- [x] Pending-request handling hardened:
+  - dedup pending requests per user in approver list (latest kept)
+  - approve/deny now automatically clears duplicate stale pending requests for same workspace/user.
+- [x] Invite code generation hardened for normal invites with uniqueness check loop before save.
+
+## 2026-02-25 - Settings UX refinements (coming-soon + roles action sizing)
+
+- [x] `Coming soon` sections now default to collapsed in Settings with a right/down chevron toggle:
+  - `Preferences` (tab side)
+  - `Notifications` (tab side)
+  - `Workspaces` (grid + tab variants).
+- [x] `Coming soon` option lists are hidden until explicitly expanded by the user (dropdown-style behavior).
+- [x] `Assign role` action row in Roles updated with dedicated responsive layout:
+  - clearer 2-select + action button structure on wide screens
+  - automatic single-column stacking on smaller widths to prevent cramped bottom area.
+
 ## 2026-02-24 - LTS DB contract + CI gates (phase continuation)
 
 - [x] Added explicit `schemaVersion` field (default `1`) to core entities:
@@ -3566,3 +3632,197 @@ Implemented
   - CI backend workflow now includes explicit `DB schema/index gate` step.
 - [x] Added initial migration-driven index set for high-traffic collections and auth/audit retention lifecycle.
 
+## 2026-02-25 - Auth Register UX + Email Delivery Clarity
+
+- [x] Fixed register flow false-positive success behavior:
+  - frontend now treats register failures as real errors (no success toast on backend error).
+  - removed conflicting success/error notification race in register UX.
+- [x] Upgraded password validation UX on register form:
+  - frontend now enforces the same baseline policy as backend (length/upper/lower/digit/symbol/common-password block).
+  - added visible password requirements checklist during input.
+- [x] Hardened register backend response contract:
+  - new `RegisterResponse` with `accountCreated`, `verificationEmailSent`, `message`.
+  - registration now normalizes email (`trim + lowercase`) and login does the same for consistency.
+  - duplicate user handling now maps cleanly to `409` even on unique-index race conditions.
+- [x] Added email-delivery transparency:
+  - welcome email service now returns delivery result.
+  - frontend shows explicit info when account is created but verification email delivery failed.
+
+## 2026-02-25 - Register Flow UX Hardening (follow-up)
+
+- [x] Moved password policy hints to contextual popover:
+  - opens on password field focus/click.
+  - closes on click outside.
+  - live check marks with `✓/✕` per rule.
+  - includes live "confirm password matches" status.
+- [x] Fixed register notification conflicts:
+  - removed duplicate success/error race from register screen.
+  - backend validation messages now surface to user directly.
+- [x] Confirm-email UX while already authenticated:
+  - confirmation page CTA now routes back to app (`/dashboard`) when user is already logged in.
+- [x] Restored default demo experience for new users:
+  - registration now provisions demo workspace automatically (best-effort, non-blocking on register success).
+
+## 2026-02-25 - Auth Notifications Matrix (v1)
+
+- [x] Introduced centralized auth notification matrix:
+  - source of truth file: `frontend/pmd-frontend/src/auth/authNotificationMatrix.ts`
+  - categories: `self-service`, `security`, `system`
+  - normalized severity and base messages per auth event.
+- [x] Wired matrix into auth screens:
+  - login form validation notification
+  - register form validation/success/fallback notification
+  - confirm email result messaging
+  - app-level login/register API error mapping.
+
+# 2026-02-25 - Error Handling Hardening (Frontend + Backend)
+
+- Backend API error handling standardized:
+  - Added consistent error envelope fields: `timestamp`, `status`, `error`, `code`, `message`, `path`.
+  - Kept validation `fieldErrors` in the same envelope.
+  - Added safe global fallback for unhandled exceptions (`500` with `INTERNAL_ERROR`) and server-side logging.
+- Frontend error normalization added:
+  - New helper: `frontend/pmd-frontend/src/api/errors.ts`.
+  - Centralized mapping from API/network errors to semantic kinds (`validation`, `forbidden`, `rate_limited`, `server`, etc.).
+  - Reusable utilities: `classifyError`, `getErrorMessage`, `isForbiddenError`.
+- Settings/workspace flows hardened:
+  - Removed noisy sticky global forbidden behavior from workspace context refresh path.
+  - Improved role management error UX in settings:
+    - explicit permission message on `403`,
+    - normalized messages for create/update/assign/reset role actions.
+  - Reduced duplicate/unclear toasts for forbidden cases.
+- Stability check:
+  - Frontend lint passes.
+  - Backend compile passes (`mvn compile`).
+  - Full backend tests were started but timed out in local run window; keep CI as source of truth for full test suite.
+# 2026-02-25 - Error Hardening Phase: Request-ID + Contract Matrix
+
+- Implemented backend request correlation:
+  - Added `RequestIdFilter` that accepts/creates `X-Request-Id`, stores request attribute, sets response header, and publishes MDC value for logs.
+  - Wired filter in security chain before auth/ratelimit filters.
+  - Exposed/allowed `X-Request-Id` in CORS.
+- Extended API error envelope:
+  - `ApiExceptionHandler` now includes `requestId` in all error payloads.
+  - Added global `Exception` fallback returning `500 / INTERNAL_ERROR` with server-side logging.
+- Implemented frontend request-id propagation:
+  - `requestJson` now sends `X-Request-Id` per request.
+  - `ApiError` includes `requestId` for UI/support diagnostics.
+- Strengthened frontend classification:
+  - `frontend/src/api/errors.ts` now maps by canonical `code` first and status second.
+  - Added helper `getRequestId(error)` for support/debug surfaces.
+- Added documentation:
+  - New contract doc: `docs/error-contract.md`.
+  - README references the contract for operational debugging.
+# 2026-02-25 - Script hardening (Docker daemon unavailable)
+
+- Hardened PMD scripts to avoid noisy Docker pipe errors when Docker Desktop daemon is down.
+- Added shared guard in `scripts/pmd_guard.ps1`:
+  - `Test-PmdDockerDaemon` checks command presence + daemon reachability (`docker info`).
+- Updated scripts to fail gracefully:
+  - `scripts/pmd_dev_down.ps1`: skips deps shutdown if daemon unavailable.
+  - `scripts/pmd_down_deps.ps1`: prints clear message and exits cleanly.
+  - `scripts/pmd_up_deps.ps1`: explicit actionable failure (`start Docker Desktop`).
+  - `scripts/pmd_reviewer_down.ps1`: no-op with clear message when daemon unavailable.
+  - `scripts/pmd_reviewer_up.ps1`: explicit actionable failure when daemon unavailable.
+
+# 2026-02-25 - Infra Sweep (Docker/Nginx/CI/Docs)
+
+- Docker compose hardening:
+  - Added restart policies + healthchecks in `docker-compose.yml`, `docker-compose.deps.yml`, and `docker-compose.prod.yml`.
+  - Standardized host-port env mappings for deps stack:
+    - `PMD_MONGO_PORT`, `PMD_SMTP_PORT`, `PMD_MAILHOG_UI_PORT`.
+  - Production compose now gates frontend/backend startup on service health.
+  - Added `PMD_FRONTEND_PORT` mapping support in `docker-compose.prod.yml`.
+- Frontend runtime API contract:
+  - `frontend/src/api/http.ts` now defaults to same-origin API base (`''`) instead of hardcoded `http://localhost:8080`.
+  - Supports Nginx reverse-proxy flow for Docker/release paths.
+- Nginx production config upgrade:
+  - Added reverse proxy routes:
+    - `/api/*`, `/actuator/*`, `/uploads/*` -> backend service.
+  - Added gzip/static cache headers and baseline hardening headers.
+  - Added upload size guard (`client_max_body_size 5m`).
+- CI/CD improvements:
+  - Added `infra` CI job to validate compose files and run `nginx -t` against repo config.
+  - Frontend/backend jobs now depend on infra validation.
+- Build hygiene:
+  - Added `.dockerignore` for backend and frontend build contexts.
+- Documentation:
+  - README updated with same-origin proxy model and release checklist adjustments.
+
+# 2026-02-25 - Startup + CORS reliability fixes
+
+- PMD startup scripts:
+  - `scripts/pmd_dev_up.ps1` now checks Docker daemon before `Set-PmdMode` to prevent docker pipe error spam when Docker Desktop is closed.
+  - `scripts/pmd_guard.ps1` stop/cleanup helpers now skip docker-compose/container calls when daemon is unavailable.
+- LAN registration/login CORS:
+  - Expanded allowed origin patterns to include LAN client origins by default (`192.168.*`, `10.*`, `172.*`) through:
+    - `pmd.security.allowed-origin-patterns`
+    - env `PMD_ALLOWED_ORIGIN_PATTERNS`
+  - Synced CORS headers in MVC config with security config (`X-PMD-CSRF`, `X-Request-Id`).
+  - Removed origin-pattern/origin conflict risk by preferring origin patterns when configured.
+
+# 2026-02-26 - End-to-end quality pass (front/back/db/docker)
+
+- Auth + session reliability:
+  - Aligned backend register DTO constraints with frontend contract:
+    - password: `10..128`
+    - bio: `<= 256`
+    - first/last name max length guard.
+  - Normalized register conflict message to `User already exists`.
+  - Local auth cookie default set to `PMD_AUTH_SESSION_COOKIE_SECURE=false` for HTTP dev stability.
+  - Production compose keeps secure cookies via `PMD_AUTH_SESSION_COOKIE_SECURE=true` (override-able).
+- CORS + multi-device dev access:
+  - Expanded backend default allowed origins/patterns to include localhost (with/without port), private LAN ranges, and `*.local`.
+  - Expanded Vite dev-server CORS defaults to allow private LAN clients and wildcard-based `VITE_ALLOWED_ORIGINS`.
+- Error-handling hardening:
+  - Frontend error classifier now maps generic backend messages (`Forbidden`, `Not allowed`, etc.) to clear UX-safe messages.
+  - Removed stale overly-permissive security rule for `GET /api/teams` (no matching endpoint).
+- Operational hygiene:
+  - Reduced noisy API startup logging in frontend (`console.debug` only in development mode).
+  - Production compose now fails fast when `PMD_JWT_SECRET` is missing (CI compose validation injects a dummy secret only for syntax checks).
+  - Revalidated local gates: frontend lint/build, backend tests, and compose config parse.
+
+# 2026-02-26 - Onboarding tour UX visibility + focus update
+
+- Improved first-run onboarding bubbles so they guide attention to the exact UI target:
+  - Tour card is now dynamically positioned near each highlighted element (not fixed bottom-right).
+  - Position updates on step change, route change, resize, and scroll.
+- Improved readability/contrast:
+  - Reduced glass/transparency effect on the tour card.
+  - Upgraded title/description contrast for clear readability.
+  - Slightly adjusted backdrop/highlight balance to keep target and bubble both visible.
+
+# 2026-02-26 - Workspace invite question + settings layout refinement
+
+- Workspace invite flow:
+  - Added optional `joinQuestion` in invite creation.
+  - Join flow now accepts optional `inviteAnswer`.
+  - If an invite includes a question, answer is required before submit.
+  - Pending requests now include `inviteQuestion` + `inviteAnswer` for approvers.
+- API/DTO/model alignment:
+  - Backend models/dtos/controllers/services updated so invite question + answer move end-to-end.
+  - Frontend types/api/context updated to pass/consume the new fields.
+- Settings UX/layout:
+  - Workspaces tab: refined invites/pending/coming-soon panel sizing and invite form spacing.
+  - Added clearer answer block styling in pending requests.
+  - Roles actions reordered so **Assign role** sits directly under **Create role** for a more practical flow.
+- Validation + runtime checks:
+  - Frontend lint/build pass.
+  - Backend compile/tests pass.
+
+# 2026-02-26 - Privacy hardening (client metadata + user directory exposure)
+
+- Backend privacy hardening:
+  - Added `ClientMetadataService` to centralize client metadata handling.
+  - Added `pmd.security.trust-proxy-headers` to avoid trusting spoofable proxy headers unless explicitly enabled.
+  - Added `pmd.security.client-metadata.store-raw` + `pmd.security.client-metadata.hash-salt`.
+  - `AuthSessionService` and `AuthSecurityEventService` now store anonymized client metadata by default (`anon:...|fp:...`) instead of raw IP/user-agent.
+  - `MaliciousRequestFilter` security logs now use sanitized IP/user-agent instead of raw values.
+  - `RateLimitingFilter` and auth login path now resolve IP through the shared resolver (consistent and configurable trust model).
+- Data migration:
+  - Added migration `2026-02-26-client-metadata-redaction-v1` to sanitize existing `auth_sessions` and `auth_security_events` records.
+- Inter-user privacy:
+  - Workspace user directory endpoint now masks other users' emails for non-privileged members.
+  - Full emails remain visible to self and to roles with workspace-settings-level permissions (owner/manager/admin paths).
+- Validation:
+  - Backend compile/test run completed successfully after changes.

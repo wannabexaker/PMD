@@ -1,23 +1,37 @@
 services:
   mongo:
     image: mongo:7
+    restart: unless-stopped
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - pmd
 
   backend:
     image: ghcr.io/${GHCR_OWNER:-your-org}/pmd-backend:latest
+    restart: unless-stopped
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     environment:
       SPRING_DATA_MONGODB_URI: ${SPRING_DATA_MONGODB_URI:-mongodb://mongo:27017/pmd}
       SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-localhost}
       SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
       PMD_MAIL_FROM: ${PMD_MAIL_FROM:-no-reply@pmd.local}
-      PMD_JWT_SECRET: ${PMD_JWT_SECRET}
+      PMD_JWT_SECRET: ${PMD_JWT_SECRET:?PMD_JWT_SECRET must be set for production compose}
       PMD_JWT_EXPIRATIONSECONDS: ${PMD_JWT_EXPIRATIONSECONDS:-86400}
+      PMD_AUTH_SESSION_COOKIE_SECURE: ${PMD_AUTH_SESSION_COOKIE_SECURE:-true}
       SERVER_PORT: 8080
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     volumes:
       - uploads:/app/uploads
     networks:
@@ -27,12 +41,19 @@ services:
 
   frontend:
     image: ghcr.io/${GHCR_OWNER:-your-org}/pmd-frontend:latest
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     networks:
       - pmd
     ports:
-      - "80:80"
+      - "${PMD_FRONTEND_PORT:-80}:80"
 
 volumes:
   mongo_data:

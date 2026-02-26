@@ -1,6 +1,7 @@
 package com.pmd.workspace.service;
 
 import com.pmd.user.model.User;
+import com.pmd.user.service.UserService;
 import com.pmd.workspace.model.Workspace;
 import com.pmd.workspace.model.WorkspaceInvite;
 import com.pmd.workspace.model.WorkspaceJoinRequest;
@@ -43,7 +44,10 @@ public class WorkspaceService {
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
     private static final Pattern TRIM_DASH = Pattern.compile("(^-+|-+$)");
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final int MAX_CUSTOM_ROLES_PER_WORKSPACE = 10;
+    private static final int MAX_INVITE_QUESTION_LENGTH = 280;
+    private static final int MAX_INVITE_ANSWER_LENGTH = 560;
 
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
@@ -54,6 +58,8 @@ public class WorkspaceService {
     private final ProjectRepository projectRepository;
     private final TeamService teamService;
     private final DemoWorkspaceSeeder demoWorkspaceSeeder;
+    private final WorkspaceInviteNotificationService workspaceInviteNotificationService;
+    private final UserService userService;
 
     public WorkspaceService(WorkspaceRepository workspaceRepository,
                             WorkspaceMemberRepository workspaceMemberRepository,
@@ -63,7 +69,9 @@ public class WorkspaceService {
                             TeamRepository teamRepository,
                             ProjectRepository projectRepository,
                             TeamService teamService,
-                            DemoWorkspaceSeeder demoWorkspaceSeeder) {
+                            DemoWorkspaceSeeder demoWorkspaceSeeder,
+                            WorkspaceInviteNotificationService workspaceInviteNotificationService,
+                            UserService userService) {
         this.workspaceRepository = workspaceRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceInviteRepository = workspaceInviteRepository;
@@ -73,6 +81,8 @@ public class WorkspaceService {
         this.projectRepository = projectRepository;
         this.teamService = teamService;
         this.demoWorkspaceSeeder = demoWorkspaceSeeder;
+        this.workspaceInviteNotificationService = workspaceInviteNotificationService;
+        this.userService = userService;
     }
 
     public WorkspaceMembership createWorkspace(String name,
@@ -149,9 +159,11 @@ public class WorkspaceService {
             .toList();
     }
 
-    public WorkspaceMembership joinWorkspace(String inviteInput, User user) {
+    public WorkspaceMembership joinWorkspace(String inviteInput, String inviteAnswer, User user) {
         WorkspaceInvite invite = resolveInvite(inviteInput);
         Instant now = Instant.now();
+        String normalizedInviteAnswer = normalizeInviteAnswer(inviteAnswer);
+        validateInviteAnswer(invite, normalizedInviteAnswer);
         if (invite.getInvitedEmail() != null && user != null) {
             String email = user.getEmail();
             if (email == null || !invite.getInvitedEmail().equalsIgnoreCase(email)) {
@@ -173,6 +185,7 @@ public class WorkspaceService {
         WorkspaceMember member = existing.orElseGet(WorkspaceMember::new);
         member.setWorkspaceId(workspace.getId());
         member.setUserId(user.getId());
+        member.setInvitedByUserId(invite.getCreatedByUserId());
         member.setRole(WorkspaceMemberRole.MEMBER);
         if (memberRole != null) {
             member.setRoleId(memberRole.getId());
@@ -185,7 +198,8 @@ public class WorkspaceService {
             member.setStatus(WorkspaceMemberStatus.PENDING);
             member.setCreatedAt(member.getCreatedAt() != null ? member.getCreatedAt() : now);
             WorkspaceMember savedMember = workspaceMemberRepository.save(member);
-            createJoinRequest(workspace.getId(), user, now);
+            WorkspaceJoinRequest joinRequest = createJoinRequest(workspace.getId(), user, now, invite, normalizedInviteAnswer);
+            workspaceInviteNotificationService.notifyJoinRequestSubmitted(workspace, joinRequest, user);
             return new WorkspaceMembership(workspace, savedMember);
         }
 
@@ -197,10 +211,13 @@ public class WorkspaceService {
         }
         WorkspaceMember savedMember = workspaceMemberRepository.save(member);
         incrementInviteUses(invite);
+        User inviter = safeFindUserById(invite.getCreatedByUserId());
+        workspaceInviteNotificationService.notifyMemberJoined(workspace, savedMember, user, inviter);
         return new WorkspaceMembership(workspace, savedMember);
     }
 
-    public WorkspaceInvite createInvite(String workspaceId, User requester, Instant expiresAt, Integer maxUses, String defaultRoleId) {
+    public WorkspaceInvite createInvite(String workspaceId, User requester, Instant expiresAt, Integer maxUses,
+                                        String defaultRoleId, String invitedEmail, String joinQuestion) {
         requireWorkspacePermission(requester, workspaceId, WorkspacePermission.INVITE_MEMBERS);
         if (maxUses != null && maxUses < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Max uses must be at least 1");
@@ -209,7 +226,7 @@ public class WorkspaceService {
         WorkspaceInvite invite = new WorkspaceInvite();
         invite.setWorkspaceId(workspaceId);
         invite.setToken(generateToken());
-        invite.setCode(generateInviteCode());
+        invite.setCode(generateUniqueInviteCode());
         invite.setDefaultRoleId(roleFromInvite != null ? roleFromInvite.getId() : null);
         invite.setExpiresAt(expiresAt != null ? expiresAt : Instant.now().plus(7, ChronoUnit.DAYS));
         invite.setMaxUses(maxUses != null ? maxUses : 10);
@@ -217,7 +234,16 @@ public class WorkspaceService {
         invite.setRevoked(false);
         invite.setCreatedAt(Instant.now());
         invite.setCreatedByUserId(requester.getId());
-        return workspaceInviteRepository.save(invite);
+        String normalizedInvitedEmail = invitedEmail != null ? invitedEmail.trim() : null;
+        if (normalizedInvitedEmail != null && !normalizedInvitedEmail.isBlank() && !EMAIL_PATTERN.matcher(normalizedInvitedEmail).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invite email is invalid");
+        }
+        invite.setInvitedEmail((normalizedInvitedEmail == null || normalizedInvitedEmail.isBlank()) ? null : normalizedInvitedEmail);
+        invite.setJoinQuestion(normalizeInviteQuestion(joinQuestion));
+        WorkspaceInvite savedInvite = workspaceInviteRepository.save(invite);
+        Workspace workspace = workspaceRepository.findById(workspaceId).orElse(null);
+        workspaceInviteNotificationService.notifyInviteCreated(workspace, savedInvite, requester);
+        return savedInvite;
     }
 
     public List<WorkspaceInvite> listInvites(String workspaceId, User requester) {
@@ -326,8 +352,21 @@ public class WorkspaceService {
 
     public List<WorkspaceJoinRequest> listPendingRequests(String workspaceId, User requester) {
         requireWorkspacePermission(requester, workspaceId, WorkspacePermission.APPROVE_JOIN_REQUESTS);
-        return workspaceJoinRequestRepository.findByWorkspaceIdAndStatus(
-            workspaceId, WorkspaceJoinRequestStatus.PENDING);
+        Map<String, WorkspaceJoinRequest> latestByUser = workspaceJoinRequestRepository
+            .findByWorkspaceIdAndStatus(workspaceId, WorkspaceJoinRequestStatus.PENDING)
+            .stream()
+            .collect(Collectors.toMap(
+                WorkspaceJoinRequest::getUserId,
+                request -> request,
+                (left, right) -> {
+                    Instant leftAt = left.getCreatedAt() != null ? left.getCreatedAt() : Instant.EPOCH;
+                    Instant rightAt = right.getCreatedAt() != null ? right.getCreatedAt() : Instant.EPOCH;
+                    return rightAt.isAfter(leftAt) ? right : left;
+                }
+            ));
+        return latestByUser.values().stream()
+            .sorted(Comparator.comparing(WorkspaceJoinRequest::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+            .toList();
     }
 
     public WorkspaceJoinRequest approveRequest(String workspaceId, String requestId, User requester) {
@@ -337,10 +376,14 @@ public class WorkspaceService {
         if (!workspaceId.equals(request.getWorkspaceId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Request not found");
         }
+        if (request.getStatus() != WorkspaceJoinRequestStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request is not pending");
+        }
         request.setStatus(WorkspaceJoinRequestStatus.APPROVED);
         request.setDecidedAt(Instant.now());
         request.setDecidedByUserId(requester.getId());
         workspaceJoinRequestRepository.save(request);
+        clearDuplicatePendingRequests(workspaceId, request.getUserId(), request.getId(), requester.getId());
         WorkspaceMember joiner = workspaceMemberRepository
             .findByWorkspaceIdAndUserId(workspaceId, request.getUserId())
             .orElseGet(WorkspaceMember::new);
@@ -364,7 +407,18 @@ public class WorkspaceService {
         if (joiner.getJoinedAt() == null) {
             joiner.setJoinedAt(Instant.now());
         }
-        workspaceMemberRepository.save(joiner);
+        if (joiner.getInvitedByUserId() == null) {
+            joiner.setInvitedByUserId(request.getInvitedByUserId());
+        }
+        WorkspaceMember savedJoiner = workspaceMemberRepository.save(joiner);
+        if (request.getInviteId() != null) {
+            workspaceInviteRepository.findById(request.getInviteId()).ifPresent(this::incrementInviteUses);
+        }
+        Workspace workspace = workspaceRepository.findById(workspaceId).orElse(null);
+        User requesterUser = safeFindUserById(request.getUserId());
+        workspaceInviteNotificationService.notifyJoinRequestDecision(workspace, request, requesterUser, requester);
+        User inviter = safeFindUserById(request.getInvitedByUserId());
+        workspaceInviteNotificationService.notifyMemberJoined(workspace, savedJoiner, requesterUser, inviter);
         return request;
     }
 
@@ -375,13 +429,47 @@ public class WorkspaceService {
         if (!workspaceId.equals(request.getWorkspaceId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Request not found");
         }
+        if (request.getStatus() != WorkspaceJoinRequestStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request is not pending");
+        }
         request.setStatus(WorkspaceJoinRequestStatus.DENIED);
         request.setDecidedAt(Instant.now());
         request.setDecidedByUserId(requester.getId());
         workspaceJoinRequestRepository.save(request);
+        clearDuplicatePendingRequests(workspaceId, request.getUserId(), request.getId(), requester.getId());
         workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, request.getUserId())
             .ifPresent(workspaceMemberRepository::delete);
+        Workspace workspace = workspaceRepository.findById(workspaceId).orElse(null);
+        User requesterUser = safeFindUserById(request.getUserId());
+        workspaceInviteNotificationService.notifyJoinRequestDecision(workspace, request, requesterUser, requester);
         return request;
+    }
+
+    public void cancelOwnJoinRequest(String workspaceId, User requester) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace is required");
+        }
+        if (requester == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        if (!workspaceRepository.existsById(workspaceId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found");
+        }
+        List<WorkspaceJoinRequest> pendingRequests = workspaceJoinRequestRepository
+            .findByWorkspaceIdAndUserIdAndStatus(workspaceId, requester.getId(), WorkspaceJoinRequestStatus.PENDING);
+        if (pendingRequests.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Pending request not found");
+        }
+        Instant now = Instant.now();
+        for (WorkspaceJoinRequest request : pendingRequests) {
+            request.setStatus(WorkspaceJoinRequestStatus.CANCELED);
+            request.setDecidedAt(now);
+            request.setDecidedByUserId(requester.getId());
+        }
+        workspaceJoinRequestRepository.saveAll(pendingRequests);
+        workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, requester.getId())
+            .filter(member -> member.getStatus() == WorkspaceMemberStatus.PENDING)
+            .ifPresent(workspaceMemberRepository::delete);
     }
 
     public WorkspaceMembership updateSettings(
@@ -703,6 +791,47 @@ public class WorkspaceService {
         return role;
     }
 
+    private String normalizeInviteQuestion(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (normalized.length() > MAX_INVITE_QUESTION_LENGTH) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invite question must be at most " + MAX_INVITE_QUESTION_LENGTH + " characters"
+            );
+        }
+        return normalized;
+    }
+
+    private String normalizeInviteAnswer(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (normalized.length() > MAX_INVITE_ANSWER_LENGTH) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invite answer must be at most " + MAX_INVITE_ANSWER_LENGTH + " characters"
+            );
+        }
+        return normalized;
+    }
+
+    private void validateInviteAnswer(WorkspaceInvite invite, String inviteAnswer) {
+        String inviteQuestion = normalizeInviteQuestion(invite != null ? invite.getJoinQuestion() : null);
+        if (inviteQuestion != null && (inviteAnswer == null || inviteAnswer.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invite answer is required");
+        }
+    }
+
     private void enforceMemberActivationLimit(String workspaceId) {
         Workspace workspace = workspaceRepository.findById(workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
@@ -724,19 +853,45 @@ public class WorkspaceService {
         return value == 0 ? null : value;
     }
 
-    private void createJoinRequest(String workspaceId, User user, Instant now) {
-        WorkspaceJoinRequest existing = workspaceJoinRequestRepository
-            .findByWorkspaceIdAndUserId(workspaceId, user.getId())
+    private User safeFindUserById(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        try {
+            return userService.findById(userId);
+        } catch (ResponseStatusException ex) {
+            return null;
+        }
+    }
+
+    private WorkspaceJoinRequest createJoinRequest(String workspaceId, User user, Instant now,
+                                                   WorkspaceInvite invite, String inviteAnswer) {
+        String inviteQuestion = invite != null ? normalizeInviteQuestion(invite.getJoinQuestion()) : null;
+        WorkspaceJoinRequest existingPending = workspaceJoinRequestRepository
+            .findByWorkspaceIdAndUserIdAndStatus(workspaceId, user.getId(), WorkspaceJoinRequestStatus.PENDING)
+            .stream()
+            .findFirst()
             .orElse(null);
-        if (existing != null && existing.getStatus() == WorkspaceJoinRequestStatus.PENDING) {
-            return;
+        if (existingPending != null) {
+            existingPending.setInviteId(invite != null ? invite.getId() : existingPending.getInviteId());
+            existingPending.setInvitedByUserId(
+                invite != null ? invite.getCreatedByUserId() : existingPending.getInvitedByUserId()
+            );
+            existingPending.setInviteQuestion(inviteQuestion);
+            existingPending.setInviteAnswer(inviteAnswer);
+            workspaceJoinRequestRepository.save(existingPending);
+            return existingPending;
         }
         WorkspaceJoinRequest request = new WorkspaceJoinRequest();
         request.setWorkspaceId(workspaceId);
         request.setUserId(user.getId());
+        request.setInviteId(invite != null ? invite.getId() : null);
+        request.setInvitedByUserId(invite != null ? invite.getCreatedByUserId() : null);
+        request.setInviteQuestion(inviteQuestion);
+        request.setInviteAnswer(inviteAnswer);
         request.setStatus(WorkspaceJoinRequestStatus.PENDING);
         request.setCreatedAt(now);
-        workspaceJoinRequestRepository.save(request);
+        return workspaceJoinRequestRepository.save(request);
     }
 
     private String generateToken() {
@@ -751,6 +906,34 @@ public class WorkspaceService {
             builder.append(alphabet.charAt(idx));
         }
         return builder.toString();
+    }
+
+    private String generateUniqueInviteCode() {
+        for (int i = 0; i < 20; i++) {
+            String code = generateInviteCode();
+            if (workspaceInviteRepository.findByCode(code).isEmpty()) {
+                return code;
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to generate unique invite code");
+    }
+
+    private void clearDuplicatePendingRequests(String workspaceId, String userId, String keepRequestId, String decidedByUserId) {
+        Instant now = Instant.now();
+        List<WorkspaceJoinRequest> duplicates = workspaceJoinRequestRepository
+            .findByWorkspaceIdAndUserIdAndStatus(workspaceId, userId, WorkspaceJoinRequestStatus.PENDING)
+            .stream()
+            .filter(candidate -> !Objects.equals(candidate.getId(), keepRequestId))
+            .toList();
+        if (duplicates.isEmpty()) {
+            return;
+        }
+        for (WorkspaceJoinRequest duplicate : duplicates) {
+            duplicate.setStatus(WorkspaceJoinRequestStatus.CANCELED);
+            duplicate.setDecidedAt(now);
+            duplicate.setDecidedByUserId(decidedByUserId);
+        }
+        workspaceJoinRequestRepository.saveAll(duplicates);
     }
 
     public Optional<WorkspaceMember> findMembership(String workspaceId, String userId) {

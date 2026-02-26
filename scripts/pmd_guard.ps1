@@ -5,6 +5,19 @@ function Write-PmdStep {
   Write-Host "[PMD] $Message"
 }
 
+function Test-PmdDockerDaemon {
+  try {
+    $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+    if (-not $dockerCmd) {
+      return $false
+    }
+    docker info *> $null
+    return ($LASTEXITCODE -eq 0)
+  } catch {
+    return $false
+  }
+}
+
 function Get-PmdRoot {
   return (Split-Path $PSScriptRoot -Parent)
 }
@@ -73,6 +86,10 @@ function Test-PmdDepsRunning {
 
 function Stop-PmdReviewerStack {
   Write-PmdStep "Stopping reviewer docker stack..."
+  if (-not (Test-PmdDockerDaemon)) {
+    Write-PmdStep "Docker daemon unavailable; skipping reviewer stack stop."
+    return
+  }
   try {
     docker compose -f docker-compose.local.yml --profile reviewer down --remove-orphans | Out-Null
   } catch {
@@ -82,6 +99,10 @@ function Stop-PmdReviewerStack {
 
 function Stop-PmdDepsStack {
   Write-PmdStep "Stopping dependencies docker stack..."
+  if (-not (Test-PmdDockerDaemon)) {
+    Write-PmdStep "Docker daemon unavailable; skipping deps stack stop."
+    return
+  }
   try {
     docker compose -f docker-compose.deps.yml down --remove-orphans | Out-Null
   } catch {
@@ -90,6 +111,9 @@ function Stop-PmdDepsStack {
 }
 
 function Remove-PmdStoppedNamedContainers {
+  if (-not (Test-PmdDockerDaemon)) {
+    return
+  }
   $names = @('pmd-mongo', 'pmd-mailhog', 'pmd-backend', 'pmd-frontend')
   foreach ($name in $names) {
     try {
@@ -105,6 +129,9 @@ function Remove-PmdStoppedNamedContainers {
 }
 
 function Remove-PmdNamedContainersForce {
+  if (-not (Test-PmdDockerDaemon)) {
+    return
+  }
   $names = @('pmd-mongo', 'pmd-mailhog', 'pmd-backend', 'pmd-frontend')
   foreach ($name in $names) {
     try {

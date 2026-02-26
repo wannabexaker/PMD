@@ -23,6 +23,7 @@ import org.springframework.http.HttpMethod;
 import com.pmd.security.MaliciousRequestFilter;
 import com.pmd.security.RateLimitingFilter;
 import com.pmd.security.AuthCsrfFilter;
+import com.pmd.security.RequestIdFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -32,6 +33,7 @@ public class SecurityConfig {
     private final MaliciousRequestFilter maliciousRequestFilter;
     private final RateLimitingFilter rateLimitingFilter;
     private final AuthCsrfFilter authCsrfFilter;
+    private final RequestIdFilter requestIdFilter;
     private final String allowedOrigins;
     private final String allowedOriginPatterns;
 
@@ -40,13 +42,15 @@ public class SecurityConfig {
         MaliciousRequestFilter maliciousRequestFilter,
         RateLimitingFilter rateLimitingFilter,
         AuthCsrfFilter authCsrfFilter,
-        @Value("${pmd.security.allowed-origins:http://localhost:5173}") String allowedOrigins,
-        @Value("${pmd.security.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}") String allowedOriginPatterns
+        RequestIdFilter requestIdFilter,
+        @Value("${pmd.security.allowed-origins:http://localhost,http://localhost:5173,http://127.0.0.1,http://127.0.0.1:5173}") String allowedOrigins,
+        @Value("${pmd.security.allowed-origin-patterns:http://localhost,http://localhost:*,http://127.0.0.1,http://127.0.0.1:*,http://192.168.*,http://192.168.*:*,http://10.*,http://10.*:*,http://172.*,http://172.*:*,http://*.local,http://*.local:*}") String allowedOriginPatterns
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.maliciousRequestFilter = maliciousRequestFilter;
         this.rateLimitingFilter = rateLimitingFilter;
         this.authCsrfFilter = authCsrfFilter;
+        this.requestIdFilter = requestIdFilter;
         this.allowedOrigins = allowedOrigins;
         this.allowedOriginPatterns = allowedOriginPatterns;
     }
@@ -70,13 +74,13 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/auth/confirm").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/teams").permitAll()
                 .requestMatchers("/actuator/health/**").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
+            .addFilterBefore(requestIdFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(authCsrfFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(maliciousRequestFilter, UsernamePasswordAuthenticationFilter.class)
@@ -94,15 +98,23 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(
-            List.of(allowedOrigins.split(",")).stream().map(String::trim).filter(origin -> !origin.isEmpty()).collect(Collectors.toList())
-        );
-        configuration.setAllowedOriginPatterns(
-            List.of(allowedOriginPatterns.split(",")).stream().map(String::trim).filter(pattern -> !pattern.isEmpty()).collect(Collectors.toList())
-        );
+        List<String> originPatterns = List.of(allowedOriginPatterns.split(",")).stream()
+            .map(String::trim)
+            .filter(pattern -> !pattern.isEmpty())
+            .collect(Collectors.toList());
+        if (!originPatterns.isEmpty()) {
+            configuration.setAllowedOriginPatterns(originPatterns);
+        } else {
+            configuration.setAllowedOrigins(
+                List.of(allowedOrigins.split(",")).stream()
+                    .map(String::trim)
+                    .filter(origin -> !origin.isEmpty())
+                    .collect(Collectors.toList())
+            );
+        }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "X-PMD-CSRF"));
-        configuration.setExposedHeaders(List.of("X-RateLimit-Limit-Minute", "X-RateLimit-Remaining-Minute", "Retry-After"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "X-PMD-CSRF", "X-Request-Id"));
+        configuration.setExposedHeaders(List.of("X-RateLimit-Limit-Minute", "X-RateLimit-Remaining-Minute", "Retry-After", "X-Request-Id"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

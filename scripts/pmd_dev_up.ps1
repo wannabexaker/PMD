@@ -179,10 +179,11 @@ $portFile = Join-Path $Root '.runtime\backend-port.txt'
 $pidFile = Join-Path $PSScriptRoot ".pmd-dev-pids.json"
 
 Write-Step "Starting PMD dev (deps + backend + frontend)..."
-Set-PmdMode -TargetMode 'dev'
 
 Write-Step "Checking Docker..."
-try { docker info | Out-Null } catch { Fail "Docker is not running. Start Docker Desktop and retry." }
+if (-not (Test-PmdDockerDaemon)) { Fail "Docker daemon is not running. Start Docker Desktop and retry." }
+
+Set-PmdMode -TargetMode 'dev'
 
 if (-not $NoFrontend) {
   Write-Step "Checking Node..."

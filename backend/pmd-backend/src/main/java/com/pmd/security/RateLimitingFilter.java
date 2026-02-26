@@ -27,13 +27,16 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     private final int maxRequestsPerMinute;
     private final int maxRequestsPerHour;
+    private final ClientMetadataService clientMetadataService;
     private final LoadingCache<String, AtomicInteger> minuteRequestCounts;
     private final LoadingCache<String, AtomicInteger> hourRequestCounts;
 
     public RateLimitingFilter(
+        ClientMetadataService clientMetadataService,
         @Value("${pmd.security.rate-limit.per-minute:180}") int maxRequestsPerMinute,
         @Value("${pmd.security.rate-limit.per-hour:3000}") int maxRequestsPerHour
     ) {
+        this.clientMetadataService = clientMetadataService;
         this.maxRequestsPerMinute = maxRequestsPerMinute;
         this.maxRequestsPerHour = maxRequestsPerHour;
         this.minuteRequestCounts = CacheBuilder.newBuilder()
@@ -97,11 +100,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return clientMetadataService.resolveClientIp(request);
     }
 
     private String getRateLimitKey(HttpServletRequest request) {

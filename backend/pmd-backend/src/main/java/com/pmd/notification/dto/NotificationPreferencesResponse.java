@@ -13,6 +13,11 @@ public class NotificationPreferencesResponse {
     private boolean emailOnProjectStatusChange;
     private boolean emailOnProjectMembershipChange;
     private boolean emailOnOverdueReminder;
+    private boolean emailOnWorkspaceInviteCreated;
+    private boolean emailOnWorkspaceJoinRequestSubmitted;
+    private boolean emailOnWorkspaceJoinRequestDecision;
+    private boolean emailOnWorkspaceInviteAccepted;
+    private boolean emailOnWorkspaceInviteAcceptedDigest;
 
     public NotificationPreferencesResponse() {
     }
@@ -27,6 +32,11 @@ public class NotificationPreferencesResponse {
         this.emailOnProjectStatusChange = preferences.isEmailOnProjectStatusChange();
         this.emailOnProjectMembershipChange = preferences.isEmailOnProjectMembershipChange();
         this.emailOnOverdueReminder = preferences.isEmailOnOverdueReminder();
+        this.emailOnWorkspaceInviteCreated = preferences.isEmailOnWorkspaceInviteCreated();
+        this.emailOnWorkspaceJoinRequestSubmitted = preferences.isEmailOnWorkspaceJoinRequestSubmitted();
+        this.emailOnWorkspaceJoinRequestDecision = preferences.isEmailOnWorkspaceJoinRequestDecision();
+        this.emailOnWorkspaceInviteAccepted = preferences.isEmailOnWorkspaceInviteAccepted();
+        this.emailOnWorkspaceInviteAcceptedDigest = preferences.isEmailOnWorkspaceInviteAcceptedDigest();
     }
 
     public static NotificationPreferencesResponse defaults() {
@@ -40,6 +50,11 @@ public class NotificationPreferencesResponse {
         response.emailOnProjectStatusChange = true;
         response.emailOnProjectMembershipChange = true;
         response.emailOnOverdueReminder = true;
+        response.emailOnWorkspaceInviteCreated = true;
+        response.emailOnWorkspaceJoinRequestSubmitted = true;
+        response.emailOnWorkspaceJoinRequestDecision = true;
+        response.emailOnWorkspaceInviteAccepted = false;
+        response.emailOnWorkspaceInviteAcceptedDigest = true;
         return response;
     }
 
@@ -113,5 +128,45 @@ public class NotificationPreferencesResponse {
 
     public void setEmailOnOverdueReminder(boolean emailOnOverdueReminder) {
         this.emailOnOverdueReminder = emailOnOverdueReminder;
+    }
+
+    public boolean isEmailOnWorkspaceInviteCreated() {
+        return emailOnWorkspaceInviteCreated;
+    }
+
+    public void setEmailOnWorkspaceInviteCreated(boolean emailOnWorkspaceInviteCreated) {
+        this.emailOnWorkspaceInviteCreated = emailOnWorkspaceInviteCreated;
+    }
+
+    public boolean isEmailOnWorkspaceJoinRequestSubmitted() {
+        return emailOnWorkspaceJoinRequestSubmitted;
+    }
+
+    public void setEmailOnWorkspaceJoinRequestSubmitted(boolean emailOnWorkspaceJoinRequestSubmitted) {
+        this.emailOnWorkspaceJoinRequestSubmitted = emailOnWorkspaceJoinRequestSubmitted;
+    }
+
+    public boolean isEmailOnWorkspaceJoinRequestDecision() {
+        return emailOnWorkspaceJoinRequestDecision;
+    }
+
+    public void setEmailOnWorkspaceJoinRequestDecision(boolean emailOnWorkspaceJoinRequestDecision) {
+        this.emailOnWorkspaceJoinRequestDecision = emailOnWorkspaceJoinRequestDecision;
+    }
+
+    public boolean isEmailOnWorkspaceInviteAccepted() {
+        return emailOnWorkspaceInviteAccepted;
+    }
+
+    public void setEmailOnWorkspaceInviteAccepted(boolean emailOnWorkspaceInviteAccepted) {
+        this.emailOnWorkspaceInviteAccepted = emailOnWorkspaceInviteAccepted;
+    }
+
+    public boolean isEmailOnWorkspaceInviteAcceptedDigest() {
+        return emailOnWorkspaceInviteAcceptedDigest;
+    }
+
+    public void setEmailOnWorkspaceInviteAcceptedDigest(boolean emailOnWorkspaceInviteAcceptedDigest) {
+        this.emailOnWorkspaceInviteAcceptedDigest = emailOnWorkspaceInviteAcceptedDigest;
     }
 }

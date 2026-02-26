@@ -9,6 +9,8 @@ import com.pmd.project.model.Project;
 import com.pmd.project.model.ProjectStatus;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
+import com.pmd.workspace.model.Workspace;
+import com.pmd.workspace.model.WorkspaceInvite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -171,6 +173,89 @@ public class EmailNotificationService {
         sendEmail(recipient.getEmail(), content, "overdue reminder");
     }
 
+    public void sendWorkspaceInviteCreated(User recipient, Workspace workspace, WorkspaceInvite invite, User inviter) {
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+            return;
+        }
+        if (!preferencesService.resolvePreferences(recipient.getId()).isEmailOnWorkspaceInviteCreated()) {
+            return;
+        }
+        sendWorkspaceInviteCreatedEmail(recipient.getEmail(), workspace, invite, inviter);
+    }
+
+    public void sendWorkspaceInviteCreatedExternal(String email, Workspace workspace, WorkspaceInvite invite, User inviter) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        sendWorkspaceInviteCreatedEmail(email, workspace, invite, inviter);
+    }
+
+    public void sendWorkspaceJoinRequestSubmitted(User recipient, Workspace workspace, User requester) {
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+            return;
+        }
+        if (!preferencesService.resolvePreferences(recipient.getId()).isEmailOnWorkspaceJoinRequestSubmitted()) {
+            return;
+        }
+        String subject = "Join request pending approval: " + safe(workspace != null ? workspace.getName() : "Workspace");
+        String text = safe(requester != null ? requester.getDisplayName() : "A user")
+            + " requested access to workspace " + safe(workspace != null ? workspace.getName() : "");
+        EmailContent content = templateBuilder.buildSimpleEmail(subject, text);
+        sendEmail(recipient.getEmail(), content, "workspace join request submitted");
+    }
+
+    public void sendWorkspaceJoinRequestDecision(User recipient, Workspace workspace, boolean approved, User decidedBy) {
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+            return;
+        }
+        if (!preferencesService.resolvePreferences(recipient.getId()).isEmailOnWorkspaceJoinRequestDecision()) {
+            return;
+        }
+        String outcome = approved ? "approved" : "denied";
+        String subject = "Join request " + outcome + ": " + safe(workspace != null ? workspace.getName() : "Workspace");
+        String text = "Your request to join workspace " + safe(workspace != null ? workspace.getName() : "")
+            + " was " + outcome + "."
+            + (decidedBy != null ? "\nBy: " + safe(decidedBy.getDisplayName()) : "");
+        EmailContent content = templateBuilder.buildSimpleEmail(subject, text);
+        sendEmail(recipient.getEmail(), content, "workspace join request decision");
+    }
+
+    public void sendWorkspaceInviteAccepted(User recipient, Workspace workspace, User joinedUser) {
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+            return;
+        }
+        if (!preferencesService.resolvePreferences(recipient.getId()).isEmailOnWorkspaceInviteAccepted()) {
+            return;
+        }
+        String subject = "Member joined your workspace: " + safe(workspace != null ? workspace.getName() : "Workspace");
+        String text = safe(joinedUser != null ? joinedUser.getDisplayName() : "A member")
+            + " joined workspace " + safe(workspace != null ? workspace.getName() : "") + ".";
+        EmailContent content = templateBuilder.buildSimpleEmail(subject, text);
+        sendEmail(recipient.getEmail(), content, "workspace invite accepted");
+    }
+
+    public void sendWorkspaceInviteAcceptedDigest(User recipient, String subjectWorkspaceName, java.util.List<String> lines) {
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+            return;
+        }
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        if (!preferencesService.resolvePreferences(recipient.getId()).isEmailOnWorkspaceInviteAcceptedDigest()) {
+            return;
+        }
+        String workspaceName = safe(subjectWorkspaceName);
+        StringBuilder body = new StringBuilder();
+        body.append("Daily digest: new members joined ");
+        body.append(workspaceName.isBlank() ? "your workspaces" : ("workspace " + workspaceName));
+        body.append(".\n\n");
+        for (String line : lines) {
+            body.append("- ").append(safe(line)).append('\n');
+        }
+        EmailContent content = templateBuilder.buildSimpleEmail("Daily digest: workspace joins", body.toString());
+        sendEmail(recipient.getEmail(), content, "workspace invite accepted digest");
+    }
+
     private void sendEmail(String to, EmailContent content, String label) {
         if (to == null || to.isBlank() || content == null) {
             return;
@@ -207,5 +292,20 @@ public class EmailNotificationService {
             case "comment" -> prefs.isEmailOnMentionComment();
             default -> true;
         };
+    }
+
+    private void sendWorkspaceInviteCreatedEmail(String email, Workspace workspace, WorkspaceInvite invite, User inviter) {
+        String workspaceName = safe(workspace != null ? workspace.getName() : null);
+        String subject = "Workspace invite: " + workspaceName;
+        StringBuilder text = new StringBuilder();
+        text.append("You were invited to join workspace ").append(workspaceName).append('.');
+        if (inviter != null) {
+            text.append("\nInvited by: ").append(safe(inviter.getDisplayName()));
+        }
+        if (invite != null && invite.getCode() != null) {
+            text.append("\nInvite code: ").append(invite.getCode());
+        }
+        EmailContent content = templateBuilder.buildSimpleEmail(subject, text.toString());
+        sendEmail(email, content, "workspace invite created");
     }
 }

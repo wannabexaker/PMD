@@ -33,6 +33,11 @@ public class MaliciousRequestFilter extends OncePerRequestFilter {
         Pattern.compile("\\.htaccess", Pattern.CASE_INSENSITIVE),
         Pattern.compile("\\.env", Pattern.CASE_INSENSITIVE)
     );
+    private final ClientMetadataService clientMetadataService;
+
+    public MaliciousRequestFilter(ClientMetadataService clientMetadataService) {
+        this.clientMetadataService = clientMetadataService;
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -50,19 +55,19 @@ public class MaliciousRequestFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         String uri = request.getRequestURI();
         String query = request.getQueryString();
-        String userAgent = request.getHeader("User-Agent");
-        String clientIp = getClientIp(request);
+        String rawUserAgent = request.getHeader("User-Agent");
+        String rawClientIp = clientMetadataService.resolveClientIp(request);
 
         if (containsMaliciousPattern(uri)) {
-            block(response, clientIp, uri, "URI_ATTACK", userAgent);
+            block(response, rawClientIp, uri, "URI_ATTACK", rawUserAgent);
             return;
         }
         if (containsMaliciousPattern(query)) {
-            block(response, clientIp, uri + "?" + query, "QUERY_ATTACK", userAgent);
+            block(response, rawClientIp, uri + "?" + query, "QUERY_ATTACK", rawUserAgent);
             return;
         }
-        if (containsMaliciousPattern(userAgent)) {
-            block(response, clientIp, uri, "HEADER_ATTACK", userAgent);
+        if (containsMaliciousPattern(rawUserAgent)) {
+            block(response, rawClientIp, uri, "HEADER_ATTACK", rawUserAgent);
             return;
         }
 
@@ -73,10 +78,10 @@ public class MaliciousRequestFilter extends OncePerRequestFilter {
         throws IOException {
         securityLogger.warn(
             "ATTACK_BLOCKED | ip={} | target={} | type={} | userAgent={} | timestamp={}",
-            ip,
+            clientMetadataService.sanitizeIpForLogs(ip),
             target,
             attackType,
-            userAgent,
+            clientMetadataService.sanitizeUserAgentForLogs(userAgent),
             Instant.now()
         );
         response.sendError(HttpServletResponse.SC_FORBIDDEN, "Malicious request pattern detected");
@@ -103,15 +108,4 @@ public class MaliciousRequestFilter extends OncePerRequestFilter {
         }
     }
 
-    private String getClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp;
-        }
-        return request.getRemoteAddr();
-    }
 }

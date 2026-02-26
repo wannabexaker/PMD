@@ -51,6 +51,14 @@ public class NotificationPreferencesService {
         prefs.setEmailOnProjectStatusChange(resolve(request.getEmailOnProjectStatusChange()));
         prefs.setEmailOnProjectMembershipChange(resolve(request.getEmailOnProjectMembershipChange()));
         prefs.setEmailOnOverdueReminder(resolve(request.getEmailOnOverdueReminder()));
+        prefs.setEmailOnWorkspaceInviteCreated(resolve(request.getEmailOnWorkspaceInviteCreated()));
+        prefs.setEmailOnWorkspaceJoinRequestSubmitted(resolve(request.getEmailOnWorkspaceJoinRequestSubmitted()));
+        prefs.setEmailOnWorkspaceJoinRequestDecision(resolve(request.getEmailOnWorkspaceJoinRequestDecision()));
+        prefs.setEmailOnWorkspaceInviteAccepted(resolveFalseByDefault(
+            request.getEmailOnWorkspaceInviteAccepted(),
+            prefs.isEmailOnWorkspaceInviteAccepted()
+        ));
+        prefs.setEmailOnWorkspaceInviteAcceptedDigest(resolve(request.getEmailOnWorkspaceInviteAcceptedDigest()));
         prefs.setUpdatedAt(Instant.now());
         UserNotificationPreferences saved = repository.save(prefs);
         return new NotificationPreferencesResponse(saved);
@@ -58,5 +66,12 @@ public class NotificationPreferencesService {
 
     private boolean resolve(Boolean value) {
         return value == null || value;
+    }
+
+    private boolean resolveFalseByDefault(Boolean value, boolean current) {
+        if (value == null) {
+            return current;
+        }
+        return value;
     }
 }

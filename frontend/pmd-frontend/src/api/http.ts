@@ -1,14 +1,17 @@
 const ENV_API_BASE_URL = (import.meta as ImportMeta).env?.VITE_API_BASE_URL as string | undefined
 const MODE = (import.meta as ImportMeta).env?.MODE as string | undefined
-const DEFAULT_API_BASE_URL = MODE === 'development' ? '' : 'http://localhost:8080'
+// Keep API calls same-origin by default.
+// Dev uses Vite proxy, Docker/Prod uses Nginx reverse proxy.
+const DEFAULT_API_BASE_URL = ''
 export const API_BASE_URL =
   ENV_API_BASE_URL && ENV_API_BASE_URL.trim().length > 0 ? ENV_API_BASE_URL : DEFAULT_API_BASE_URL
 const ONLINE_EVENT = 'pmd:online'
 const OFFLINE_EVENT = 'pmd:offline'
 let lastReachability: 'online' | 'offline' | null = null
 
-if (typeof window !== 'undefined') {
-  console.info('[PMD] API base URL:', API_BASE_URL, 'mode:', MODE ?? 'unknown')
+if (typeof window !== 'undefined' && MODE === 'development') {
+  // Keep a single low-noise startup hint in dev only.
+  console.debug('[PMD] API base URL:', API_BASE_URL || '(same-origin)')
 }
 const TOKEN_KEY = 'pmd_token'
 const TOKEN_EXP_KEY = 'pmd_token_exp'
@@ -21,12 +24,14 @@ type JsonValue = unknown
 export class ApiError extends Error {
   status: number
   data?: JsonValue | null
+  requestId?: string | null
 
-  constructor(message: string, status: number, data?: JsonValue | null) {
+  constructor(message: string, status: number, data?: JsonValue | null, requestId?: string | null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.data = data
+    this.requestId = requestId ?? null
   }
 }
 
@@ -90,6 +95,7 @@ async function doFetch(path: string, options: RequestInit | undefined, token: st
   const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData
   const method = (options?.method ?? 'GET').toUpperCase()
   const csrfToken = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' ? readCookie('PMD_CSRF') : null
+  const requestId = createRequestId()
   return fetch(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: 'include',
@@ -97,6 +103,7 @@ async function doFetch(path: string, options: RequestInit | undefined, token: st
       ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(csrfToken ? { 'X-PMD-CSRF': csrfToken } : {}),
+      'X-Request-Id': requestId,
       ...(options?.headers ?? {}),
     },
   })
@@ -125,7 +132,7 @@ export async function requestJson<T>(path: string, options?: RequestInit): Promi
       lastReachability = 'offline'
       window.dispatchEvent(new CustomEvent(OFFLINE_EVENT, { detail: { baseUrl: API_BASE_URL } }))
     }
-    throw new ApiError(`Cannot reach server. Check backend is running at ${API_BASE_URL} and try again.`, 0)
+    throw new ApiError(`Cannot reach server. Check backend is running at ${API_BASE_URL} and try again.`, 0, null, null)
   }
 
   if (typeof window !== 'undefined' && lastReachability !== 'online') {
@@ -148,6 +155,12 @@ export async function requestJson<T>(path: string, options?: RequestInit): Promi
 
   const text = await response.text()
   const data = text ? safeParseJson(text) : null
+  const responseRequestId = response.headers.get('X-Request-Id')
+  const payloadRequestId =
+    typeof data === 'object' && data && 'requestId' in data && typeof (data as { requestId?: unknown }).requestId === 'string'
+      ? ((data as { requestId?: string }).requestId ?? null)
+      : null
+  const requestId = payloadRequestId ?? responseRequestId
 
   if (response.status === 401) {
     clearAuthToken()
@@ -170,8 +183,15 @@ export async function requestJson<T>(path: string, options?: RequestInit): Promi
                   .join(', ')
               : ''
         : ''
-    throw new ApiError(message || text || 'Request failed', response.status, data)
+    throw new ApiError(message || text || 'Request failed', response.status, data, requestId)
   }
 
   return data as T
+}
+
+function createRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }

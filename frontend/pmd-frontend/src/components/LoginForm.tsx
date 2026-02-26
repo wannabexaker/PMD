@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Logo } from './Logo'
 import type { LoginPayload } from '../types'
 import { useToast } from '../shared/ui/toast/ToastProvider'
+import { getAuthNotification } from '../auth/authNotificationMatrix'
 
 type LoginFormProps = {
   onLogin: (payload: LoginPayload) => Promise<void>
@@ -60,7 +61,7 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
     }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
-      showToast({ type: 'error', message: 'Please fix highlighted fields.' })
+      showToast({ type: 'error', message: getAuthNotification('login_form_invalid').message })
       return
     }
 
@@ -70,14 +71,14 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
   return (
     <section className="panel auth-card">
       <div className="panel-header">
-        <div className="panel-title">
-          <span className="panel-logo">
-            <Logo size={28} showText={false} />
-          </span>
-          <div>
-            <h2>Login</h2>
-            <p className="muted">Project Management Dashboard</p>
+        <div className="panel-title auth-panel-title">
+          <div className="auth-brand-row">
+            <span className="panel-logo">
+              <Logo size={28} showText={false} />
+            </span>
+            <p className="muted auth-brand-subtitle">Project Management Dashboard</p>
           </div>
+          <h2>Login</h2>
         </div>
         <button type="button" className="btn btn-secondary" onClick={onSwitchToRegister}>
           Register

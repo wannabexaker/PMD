@@ -5,6 +5,7 @@ import type {
   LoginPayload,
   PeoplePageWidgets,
   RegisterPayload,
+  RegisterResponse,
   UpdateProfilePayload,
   User,
 } from '../types'
@@ -53,8 +54,8 @@ export async function fetchMe(): Promise<User | null> {
   }
 }
 
-export async function register(payload: RegisterPayload): Promise<void> {
-  await requestJson<AuthResponse>('/api/auth/register', {
+export async function register(payload: RegisterPayload): Promise<RegisterResponse> {
+  return requestJson<RegisterResponse>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify({
       password: payload.password,

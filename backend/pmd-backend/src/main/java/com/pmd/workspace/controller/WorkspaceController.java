@@ -92,7 +92,7 @@ public class WorkspaceController {
     public WorkspaceResponse joinWorkspace(@Valid @RequestBody WorkspaceJoinRequest request,
                                            Authentication authentication) {
         User requester = getRequester(authentication);
-        WorkspaceMembership membership = workspaceService.joinWorkspace(request.getToken(), requester);
+        WorkspaceMembership membership = workspaceService.joinWorkspace(request.getToken(), request.getInviteAnswer(), requester);
         workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
             membership.workspace().getId(),
             "MEMBERSHIP",
@@ -122,7 +122,9 @@ public class WorkspaceController {
             requester,
             request.getExpiresAt(),
             request.getMaxUses(),
-            request.getDefaultRoleId()
+            request.getDefaultRoleId(),
+            request.getInvitedEmail(),
+            request.getJoinQuestion()
         );
         workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
             id,
@@ -183,6 +185,7 @@ public class WorkspaceController {
             workspaceName,
             invite.getToken(),
             invite.getCode(),
+            invite.getJoinQuestion(),
             invite.getDefaultRoleId(),
             invite.getExpiresAt(),
             invite.getMaxUses(),
@@ -332,6 +335,28 @@ public class WorkspaceController {
         return response;
     }
 
+    @PostMapping("/{id}/requests/self/cancel")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelOwnRequest(@PathVariable String id, Authentication authentication) {
+        User requester = getRequester(authentication);
+        workspaceService.cancelOwnJoinRequest(id, requester);
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            id,
+            "REQUEST",
+            "CANCEL",
+            "SUCCESS",
+            requester,
+            requester != null ? requester.getId() : null,
+            null,
+            null,
+            null,
+            "JOIN_REQUEST",
+            null,
+            requester != null ? requester.getDisplayName() : "User",
+            "Canceled own workspace join request"
+        ));
+    }
+
     @PatchMapping("/{id}/settings")
     public WorkspaceResponse updateSettings(@PathVariable String id,
                                             @RequestBody WorkspaceSettingsRequest request,
@@ -471,6 +496,8 @@ public class WorkspaceController {
             invite.getWorkspaceId(),
             invite.getToken(),
             invite.getCode(),
+            invite.getInvitedEmail(),
+            invite.getJoinQuestion(),
             invite.getDefaultRoleId(),
             invite.getExpiresAt(),
             invite.getMaxUses(),
@@ -488,6 +515,8 @@ public class WorkspaceController {
             request.getUserId(),
             user != null ? user.getDisplayName() : null,
             user != null ? user.getEmail() : null,
+            request.getInviteQuestion(),
+            request.getInviteAnswer(),
             request.getStatus(),
             request.getCreatedAt()
         );

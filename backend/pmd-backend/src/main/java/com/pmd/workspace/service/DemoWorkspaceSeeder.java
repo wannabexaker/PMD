@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -359,13 +360,21 @@ public class DemoWorkspaceSeeder {
 
     private void ensureDemoInvite(String workspaceId, User owner) {
         List<WorkspaceInvite> invites = workspaceInviteRepository.findByWorkspaceId(workspaceId);
-        if (invites.stream().anyMatch(invite -> "PMD-DEMO".equalsIgnoreCase(invite.getCode()))) {
+        WorkspaceInvite existing = invites.stream()
+            .filter(invite -> ("demo-" + workspaceId + "-invite").equalsIgnoreCase(invite.getToken()))
+            .findFirst()
+            .orElse(null);
+        if (existing != null) {
+            if (existing.getCode() == null || existing.getCode().isBlank() || "PMD-DEMO".equalsIgnoreCase(existing.getCode())) {
+                existing.setCode(generateUniqueDemoInviteCode());
+                workspaceInviteRepository.save(existing);
+            }
             return;
         }
         WorkspaceInvite invite = new WorkspaceInvite();
         invite.setWorkspaceId(workspaceId);
         invite.setToken("demo-" + workspaceId + "-invite");
-        invite.setCode("PMD-DEMO");
+        invite.setCode(generateUniqueDemoInviteCode());
         invite.setExpiresAt(Instant.now().plusSeconds(60L * 60L * 24L * 30L));
         invite.setMaxUses(25);
         invite.setUsesCount(0);
@@ -373,6 +382,17 @@ public class DemoWorkspaceSeeder {
         invite.setCreatedAt(Instant.now());
         invite.setCreatedByUserId(owner != null ? owner.getId() : null);
         workspaceInviteRepository.save(invite);
+    }
+
+    private String generateUniqueDemoInviteCode() {
+        for (int i = 0; i < 40; i++) {
+            int number = ThreadLocalRandom.current().nextInt(1, 1001);
+            String candidate = String.format("PMD-DEMO-%04d", number);
+            if (workspaceInviteRepository.findByCode(candidate).isEmpty()) {
+                return candidate;
+            }
+        }
+        return "PMD-DEMO-" + Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36).toUpperCase(Locale.ROOT);
     }
 
     private String buildDemoEmail(SeedUser seed, String workspaceId) {

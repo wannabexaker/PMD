@@ -6,12 +6,14 @@ import { useAuth } from '../auth/authUtils'
 import { getNotificationPreferences, updateNotificationPreferences } from '../api/notifications'
 import {
   approveJoinRequest,
+  cancelOwnJoinRequest,
   createInvite,
   createRole,
   denyJoinRequest,
   listInvites,
   listJoinRequests,
   listRoles,
+  resolveInvite,
   revokeInvite,
   assignMemberRole,
   updateRole,
@@ -20,6 +22,7 @@ import {
 } from '../api/workspaces'
 import { fetchUsers } from '../api/users'
 import { API_BASE_URL, isApiError } from '../api/http'
+import { getErrorMessage, isForbiddenError } from '../api/errors'
 import { uploadImage } from '../api/uploads'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
 import type {
@@ -268,6 +271,11 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   emailOnProjectStatusChange: true,
   emailOnProjectMembershipChange: true,
   emailOnOverdueReminder: true,
+  emailOnWorkspaceInviteCreated: true,
+  emailOnWorkspaceJoinRequestSubmitted: true,
+  emailOnWorkspaceJoinRequestDecision: true,
+  emailOnWorkspaceInviteAccepted: false,
+  emailOnWorkspaceInviteAcceptedDigest: true,
 }
 
 const AUDIT_CATEGORIES = ['WORKSPACE', 'MEMBERSHIP', 'INVITE', 'REQUEST', 'TEAM', 'ROLE', 'PROJECT', 'GENERAL']
@@ -286,6 +294,7 @@ type SettingsPageProps = {
 }
 
 type SavedCropState = { x: number; y: number; zoom: number }
+type ComingSoonSectionId = 'preferences' | 'notifications' | 'workspacesGrid' | 'workspacesTabs'
 const WORKSPACE_CROP_STORAGE_KEY = 'pmd.workspacePictureCropByUrl'
 
 function loadSavedCropMap(storageKey: string): Record<string, SavedCropState> {
@@ -319,6 +328,12 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [inviteDays, setInviteDays] = useState('7')
   const [inviteMaxUses, setInviteMaxUses] = useState('10')
   const [inviteDefaultRoleId, setInviteDefaultRoleId] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteQuestion, setInviteQuestion] = useState('')
+  const [joinInviteQuestion, setJoinInviteQuestion] = useState('')
+  const [joinInviteWorkspaceName, setJoinInviteWorkspaceName] = useState('')
+  const [joinInviteAnswer, setJoinInviteAnswer] = useState('')
+  const [joinInviteResolving, setJoinInviteResolving] = useState(false)
   const [invites, setInvites] = useState<WorkspaceInvite[]>([])
   const [invitesLoading, setInvitesLoading] = useState(false)
   const [requests, setRequests] = useState<WorkspaceJoinRequest[]>([])
@@ -390,6 +405,12 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   )
   const [settingsGridBounds, setSettingsGridBounds] = useState(DEFAULT_SETTINGS_GRID_BOUNDS)
   const [activeTabPanel, setActiveTabPanel] = useState<SettingsPanelId>('workspaces')
+  const [comingSoonExpanded, setComingSoonExpanded] = useState<Record<ComingSoonSectionId, boolean>>({
+    preferences: false,
+    notifications: false,
+    workspacesGrid: false,
+    workspacesTabs: false,
+  })
   const [draggingPanel, setDraggingPanel] = useState<SettingsPanelId | null>(null)
   const [dragOverPanel, setDragOverPanel] = useState<SettingsPanelId | 'end' | null>(null)
   const [orderMenuPanel, setOrderMenuPanel] = useState<SettingsPanelId | null>(null)
@@ -425,6 +446,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const settingsPanelRootRef = useRef<HTMLElement | null>(null)
   const workspaceCropDragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
   const workspaceProfileAvatarFileRef = useRef<HTMLInputElement | null>(null)
+  const lastResolvedJoinTokenRef = useRef('')
 
   const resolveAssetUrl = useCallback((url?: string | null) => {
     if (!url) return ''
@@ -500,9 +522,38 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
         checked: notificationPreferences.emailOnProjectStatusChange,
       },
       { key: 'emailOnOverdueReminder', label: 'Email overdue reminders', checked: notificationPreferences.emailOnOverdueReminder },
+      {
+        key: 'emailOnWorkspaceInviteCreated',
+        label: 'Email when direct invite is created',
+        checked: notificationPreferences.emailOnWorkspaceInviteCreated,
+      },
+      {
+        key: 'emailOnWorkspaceJoinRequestSubmitted',
+        label: 'Email when join request is submitted',
+        checked: notificationPreferences.emailOnWorkspaceJoinRequestSubmitted,
+      },
+      {
+        key: 'emailOnWorkspaceJoinRequestDecision',
+        label: 'Email when join request is approved/denied',
+        checked: notificationPreferences.emailOnWorkspaceJoinRequestDecision,
+      },
+      {
+        key: 'emailOnWorkspaceInviteAccepted',
+        label: 'Email when invited member joins workspace (instant)',
+        checked: notificationPreferences.emailOnWorkspaceInviteAccepted,
+      },
+      {
+        key: 'emailOnWorkspaceInviteAcceptedDigest',
+        label: 'Email digest for invited members who joined',
+        checked: notificationPreferences.emailOnWorkspaceInviteAcceptedDigest,
+      },
     ]
     return rows.sort((a, b) => a.label.localeCompare(b.label))
   }, [notificationPreferences])
+
+  const toggleComingSoon = useCallback((section: ComingSoonSectionId) => {
+    setComingSoonExpanded((prev) => ({ ...prev, [section]: !prev[section] }))
+  }, [])
 
   const isWorkspaceCreator = useCallback(
     (workspace: (typeof workspaces)[number] | null | undefined) => {
@@ -747,6 +798,52 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     return `${window.location.origin}/join?invite=${encodeURIComponent(token)}`
   }
 
+  useEffect(() => {
+    const token = parseInviteToken(joinValue)
+    if (!token || token.length < 4) {
+      lastResolvedJoinTokenRef.current = ''
+      setJoinInviteQuestion('')
+      setJoinInviteWorkspaceName('')
+      setJoinInviteAnswer('')
+      setJoinInviteResolving(false)
+      return
+    }
+    if (token === lastResolvedJoinTokenRef.current) {
+      return
+    }
+
+    let active = true
+    const timeoutId = window.setTimeout(async () => {
+      setJoinInviteResolving(true)
+      try {
+        const resolved = await resolveInvite(token)
+        if (!active) return
+        lastResolvedJoinTokenRef.current = token
+        const nextQuestion = (resolved.joinQuestion ?? '').trim()
+        setJoinInviteQuestion(nextQuestion)
+        setJoinInviteWorkspaceName((resolved.workspaceName ?? '').trim())
+        if (!nextQuestion) {
+          setJoinInviteAnswer('')
+        }
+      } catch {
+        if (!active) return
+        lastResolvedJoinTokenRef.current = ''
+        setJoinInviteQuestion('')
+        setJoinInviteWorkspaceName('')
+        setJoinInviteAnswer('')
+      } finally {
+        if (active) {
+          setJoinInviteResolving(false)
+        }
+      }
+    }, 220)
+
+    return () => {
+      active = false
+      window.clearTimeout(timeoutId)
+    }
+  }, [joinValue])
+
   const loadInvites = useCallback(async (workspaceId: string) => {
     setInvitesLoading(true)
     try {
@@ -779,9 +876,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       const sorted = [...data].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       setRoles(sorted)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load roles.'
-      setRolesError(message)
-      showToast({ type: 'error', message })
+      const message = getErrorMessage(err, 'Failed to load roles.')
+      if (isForbiddenError(err)) {
+        setRolesError('You do not have permission to view roles in this workspace.')
+      } else {
+        setRolesError(message)
+        showToast({ type: 'error', message })
+      }
     } finally {
       setRolesLoading(false)
     }
@@ -880,11 +981,21 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       showToast({ type: 'error', message: 'Invite token is required.' })
       return
     }
+    const inviteAnswer = joinInviteQuestion ? joinInviteAnswer.trim() : ''
+    if (joinInviteQuestion && !inviteAnswer) {
+      showToast({ type: 'error', message: 'This invite requires an answer before joining.' })
+      return
+    }
     setWorkspaceBusy(true)
-    const joined = await joinWorkspace(token)
+    const joined = await joinWorkspace(token, inviteAnswer || undefined)
     setWorkspaceBusy(false)
     if (joined?.id) {
       setJoinValue('')
+      setJoinInviteQuestion('')
+      setJoinInviteWorkspaceName('')
+      setJoinInviteAnswer('')
+      setJoinInviteResolving(false)
+      lastResolvedJoinTokenRef.current = ''
       await refresh()
       showToast({
         type: joined.status === 'PENDING' ? 'info' : 'success',
@@ -906,9 +1017,21 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       Number.isFinite(days) && days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : undefined
     const maxUsesValue = Number.isFinite(maxUses) && maxUses > 0 ? maxUses : undefined
     const defaultRoleId = inviteDefaultRoleId || undefined
+    const invitedEmail = inviteEmail.trim() || undefined
+    const joinQuestion = inviteQuestion.trim() || undefined
+    if (invitedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) {
+      showToast({ type: 'error', message: 'Enter a valid invite email or leave it empty.' })
+      return
+    }
+    if (joinQuestion && joinQuestion.length > 280) {
+      showToast({ type: 'error', message: 'Join question must be up to 280 characters.' })
+      return
+    }
     try {
-      await createInvite(activeWorkspaceId, { expiresAt, maxUses: maxUsesValue, defaultRoleId })
+      await createInvite(activeWorkspaceId, { expiresAt, maxUses: maxUsesValue, defaultRoleId, invitedEmail, joinQuestion })
       await loadInvites(activeWorkspaceId)
+      setInviteEmail('')
+      setInviteQuestion('')
       showToast({ type: 'success', message: 'Invite created.' })
     } catch {
       showToast({ type: 'error', message: 'Failed to create invite.' })
@@ -1103,6 +1226,20 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     setEditingTeamColor(color ?? '#3B82F6')
     setEditingTeamAction('rename')
     setTeamError(null)
+  }
+
+  const handleCancelOwnJoinRequest = async (workspaceId?: string | null) => {
+    if (!workspaceId) return
+    try {
+      await cancelOwnJoinRequest(workspaceId)
+      await refresh()
+      if (activeWorkspaceId === workspaceId) {
+        setActiveWorkspaceId(null)
+      }
+      showToast({ type: 'success', message: 'Join request canceled.' })
+    } catch {
+      showToast({ type: 'error', message: 'Failed to cancel join request.' })
+    }
   }
 
   const handleCancelEditTeam = () => {
@@ -1487,7 +1624,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       await loadRoles(activeWorkspaceId)
       showToast({ type: 'success', message: 'Role created.' })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create role.'
+      const message = getErrorMessage(err, 'Failed to create role.')
+      if (isForbiddenError(err)) {
+        setRolesError('You no longer have permission to manage roles in this workspace.')
+        await refresh()
+      }
       showToast({ type: 'error', message })
     }
   }
@@ -1511,8 +1652,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       handleCancelEditRole()
       await loadRoles(activeWorkspaceId)
       showToast({ type: 'success', message: 'Role updated.' })
-    } catch {
-      showToast({ type: 'error', message: 'Failed to update role.' })
+    } catch (err) {
+      const message = getErrorMessage(err, 'Failed to update role.')
+      setRolesError(message)
+      showToast({ type: 'error', message })
     }
   }
 
@@ -1526,8 +1669,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       setEditingRolePermissions(defaults)
       await loadRoles(activeWorkspaceId)
       showToast({ type: 'success', message: 'Demo role permissions reset.' })
-    } catch {
-      showToast({ type: 'error', message: 'Failed to reset role defaults.' })
+    } catch (err) {
+      const message = getErrorMessage(err, 'Failed to reset role defaults.')
+      setRolesError(message)
+      showToast({ type: 'error', message })
     }
   }
 
@@ -1549,8 +1694,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       await loadMembers(activeWorkspaceId)
       await refresh()
       showToast({ type: 'success', message: 'Role assigned.' })
-    } catch {
-      showToast({ type: 'error', message: 'Failed to assign role.' })
+    } catch (err) {
+      const message = getErrorMessage(err, 'Failed to assign role.')
+      setRolesError(message)
+      showToast({ type: 'error', message })
     }
   }
 
@@ -1994,7 +2141,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
         </div>
       </div>
       {settingsViewMode === 'tabs' ? (
-        <div className="settings-tabs-bar">
+        <div className="settings-tabs-bar" data-tour="settings-tabs-bar">
           {SETTINGS_PANEL_IDS.map((id) => (
             <button
               key={`tab-${id}`}
@@ -2194,39 +2341,51 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   </div>
                 </div>
                 <div className="settings-tab-side">
-                  <div className="workspace-group-header">
-                    <h4>Coming soon</h4>
-                  </div>
-                  <div className="form-field coming-soon-control" title="Coming soon">
-                    <label className="checkbox-row">
-                      <input type="checkbox" checked={preferences.compactMode} disabled />
-                      <span>Compact mode</span>
-                    </label>
-                    <span className="pill coming-soon-pill">Soon</span>
-                  </div>
-                  <div className="form-field coming-soon-control" title="Coming soon">
-                    <label className="checkbox-row">
-                      <input type="checkbox" checked={preferences.rememberOpenPanels} disabled />
-                      <span>Remember open panels</span>
-                    </label>
-                    <span className="pill coming-soon-pill">Soon</span>
-                  </div>
-                  <div className="form-field coming-soon-control" title="Coming soon">
-                    <label className="checkbox-row">
-                      <input type="checkbox" checked={preferences.defaultFiltersPreset} disabled />
-                      <span>Default filters preset</span>
-                    </label>
-                    <span className="pill coming-soon-pill">Soon</span>
-                  </div>
-                  <div className="form-field coming-soon-control" title="Coming soon">
-                    <label htmlFor="prefAutoRefresh">Auto-refresh interval</label>
-                    <select id="prefAutoRefresh" value={preferences.autoRefreshIntervalSeconds} disabled>
-                      <option value={0}>Off</option>
-                      <option value={30}>30s</option>
-                      <option value={60}>60s</option>
-                    </select>
-                    <span className="pill coming-soon-pill">Soon</span>
-                  </div>
+                  <button
+                    type="button"
+                    className="coming-soon-toggle"
+                    onClick={() => toggleComingSoon('preferences')}
+                    aria-expanded={comingSoonExpanded.preferences}
+                  >
+                    <span>Coming soon</span>
+                    <span className={`coming-soon-chevron${comingSoonExpanded.preferences ? ' is-open' : ''}`} aria-hidden="true">
+                      ▾
+                    </span>
+                  </button>
+                  {comingSoonExpanded.preferences ? (
+                    <>
+                      <div className="form-field coming-soon-control" title="Coming soon">
+                        <label className="checkbox-row">
+                          <input type="checkbox" checked={preferences.compactMode} disabled />
+                          <span>Compact mode</span>
+                        </label>
+                        <span className="pill coming-soon-pill">Soon</span>
+                      </div>
+                      <div className="form-field coming-soon-control" title="Coming soon">
+                        <label className="checkbox-row">
+                          <input type="checkbox" checked={preferences.rememberOpenPanels} disabled />
+                          <span>Remember open panels</span>
+                        </label>
+                        <span className="pill coming-soon-pill">Soon</span>
+                      </div>
+                      <div className="form-field coming-soon-control" title="Coming soon">
+                        <label className="checkbox-row">
+                          <input type="checkbox" checked={preferences.defaultFiltersPreset} disabled />
+                          <span>Default filters preset</span>
+                        </label>
+                        <span className="pill coming-soon-pill">Soon</span>
+                      </div>
+                      <div className="form-field coming-soon-control" title="Coming soon">
+                        <label htmlFor="prefAutoRefresh">Auto-refresh interval</label>
+                        <select id="prefAutoRefresh" value={preferences.autoRefreshIntervalSeconds} disabled>
+                          <option value={0}>Off</option>
+                          <option value={30}>30s</option>
+                          <option value={60}>60s</option>
+                        </select>
+                        <span className="pill coming-soon-pill">Soon</span>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -2238,6 +2397,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
         <div
           className={`card settings-card${dragOverPanel === 'workspaces' ? ' is-drop-target' : ''}${isTabVisible('workspaces') ? '' : ' settings-card-hidden'}`}
           data-panel-id="workspaces"
+          data-tour="settings-workspaces-card"
           ref={setPanelRef('workspaces')}
           style={panelCardStyle('workspaces')}
           onDragOver={handlePanelDragOver('workspaces')}
@@ -2284,6 +2444,18 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             {workspace.status === 'PENDING' ? <span className="pill">Pending</span> : null}
                             {activeWorkspace?.id === workspace.id ? <span className="pill">Current</span> : null}
                             {isWorkspaceCreator(workspace) ? <span className="pill">Creator</span> : null}
+                            {workspace.status === 'PENDING' && workspace.id ? (
+                              <button
+                                type="button"
+                                className="btn btn-secondary team-edit-trigger"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  void handleCancelOwnJoinRequest(workspace.id)
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            ) : null}
                             {workspace.id && canEditWorkspaceProfileFor(workspace) ? (
                               <button
                                 type="button"
@@ -2515,6 +2687,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 ) : null}
                 <div className="workspace-actions workspace-actions-stack">
                   <div className="form-field">
+                    <div data-tour="settings-create-workspace">
                     <label htmlFor="workspaceName">Create workspace</label>
                     <div className="workspace-row">
                       <input
@@ -2532,8 +2705,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                         Create
                       </button>
                     </div>
+                    </div>
                   </div>
                   <div className="form-field">
+                    <div data-tour="settings-join-workspace">
                     <label htmlFor="workspaceJoin">Join workspace</label>
                     <div className="workspace-row">
                       <input
@@ -2550,6 +2725,24 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       >
                         Join
                       </button>
+                    </div>
+                    {joinInviteResolving ? <p className="muted invite-join-meta">Checking invite...</p> : null}
+                    {joinInviteWorkspaceName ? (
+                      <p className="muted invite-join-meta">Workspace: {joinInviteWorkspaceName}</p>
+                    ) : null}
+                    {joinInviteQuestion ? (
+                      <div className="form-field invite-join-question">
+                        <label htmlFor="joinInviteAnswer">{joinInviteQuestion}</label>
+                        <textarea
+                          id="joinInviteAnswer"
+                          value={joinInviteAnswer}
+                          onChange={(event) => setJoinInviteAnswer(event.target.value)}
+                          placeholder="Type your answer"
+                          rows={2}
+                          maxLength={560}
+                        />
+                      </div>
+                    ) : null}
                     </div>
                   </div>
                 </div>
@@ -2757,7 +2950,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             {activeWorkspace?.id && (canInviteMembers || canApproveRequests) ? (
                 <div className="workspace-management">
                   {canInviteMembers ? (
-                    <div className="workspace-subpanel">
+                    <div className="workspace-subpanel workspace-subpanel-invites">
                       <div className="panel-header">
                         <div>
                           <h4>Invites</h4>
@@ -2798,6 +2991,27 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             ))}
                           </select>
                         </div>
+                        <div className="form-field">
+                          <label htmlFor="inviteEmail">Invite email (optional direct invite)</label>
+                          <input
+                            id="inviteEmail"
+                            type="email"
+                            value={inviteEmail}
+                            onChange={(event) => setInviteEmail(event.target.value)}
+                            placeholder="user@example.com"
+                          />
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor="inviteQuestion">Join question (optional)</label>
+                          <textarea
+                            id="inviteQuestion"
+                            value={inviteQuestion}
+                            onChange={(event) => setInviteQuestion(event.target.value)}
+                            placeholder="Optional question for users joining with this invite"
+                            rows={2}
+                            maxLength={280}
+                          />
+                        </div>
                         <button type="button" className="btn btn-secondary" onClick={handleCreateInvite}>
                           Create invite
                         </button>
@@ -2834,6 +3048,8 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                       ? ` - ${remaining} uses left`
                                       : ' - Unlimited uses'}
                                     {invite.defaultRoleId ? ` - role: ${roleNameById.get(invite.defaultRoleId) ?? 'Member'}` : ''}
+                                    {invite.invitedEmail ? ` - direct: ${invite.invitedEmail}` : ''}
+                                    {invite.joinQuestion ? ' - join question enabled' : ''}
                                   </div>
                                 </div>
                                 <div className="invite-actions invite-menu-wrap">
@@ -2895,7 +3111,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     </div>
                   ) : null}
                   {canApproveRequests ? (
-                    <div className="workspace-subpanel">
+                    <div className="workspace-subpanel workspace-subpanel-requests">
                       <div className="panel-header">
                         <div>
                           <h4>Pending requests</h4>
@@ -2912,6 +3128,16 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                   {request.userName ?? request.userEmail ?? 'User'}
                                 </strong>
                                 <span className="muted">{request.userEmail ?? ''}</span>
+                                {request.inviteQuestion ? (
+                                  <div className="request-answer-block">
+                                    <span className="muted truncate" title={request.inviteQuestion ?? ''}>
+                                      Q: {request.inviteQuestion}
+                                    </span>
+                                    <span className="truncate" title={request.inviteAnswer ?? ''}>
+                                      A: {request.inviteAnswer?.trim() ? request.inviteAnswer : 'No answer provided'}
+                                    </span>
+                                  </div>
+                                ) : null}
                               </div>
                               <div className="invite-actions">
                                 <button
@@ -2937,25 +3163,33 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   ) : null}
                   {settingsViewMode === 'tabs' ? (
                     <div className="workspace-subpanel workspace-subpanel-coming">
-                      <div className="panel-header">
-                        <div>
-                          <h4>Coming soon</h4>
+                      <button
+                        type="button"
+                        className="coming-soon-toggle"
+                        onClick={() => toggleComingSoon('workspacesTabs')}
+                        aria-expanded={comingSoonExpanded.workspacesTabs}
+                      >
+                        <span>Coming soon</span>
+                        <span className={`coming-soon-chevron${comingSoonExpanded.workspacesTabs ? ' is-open' : ''}`} aria-hidden="true">
+                          ▾
+                        </span>
+                      </button>
+                      {comingSoonExpanded.workspacesTabs ? (
+                        <div className="workspace-actions workspace-actions-stack">
+                          <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                            Member lifecycle (suspend/remove/re-activate) - Coming soon
+                          </button>
+                          <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                            Default role on join invite - Coming soon
+                          </button>
+                          <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                            Workspace limits (projects/members/storage) - Coming soon
+                          </button>
+                          <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                            Export/backup data (admin only) - Coming soon
+                          </button>
                         </div>
-                      </div>
-                      <div className="workspace-actions workspace-actions-stack">
-                        <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                          Member lifecycle (suspend/remove/re-activate) - Coming soon
-                        </button>
-                        <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                          Default role on join invite - Coming soon
-                        </button>
-                        <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                          Workspace limits (projects/members/storage) - Coming soon
-                        </button>
-                        <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                          Export/backup data (admin only) - Coming soon
-                        </button>
-                      </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -2964,23 +3198,33 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               <>
                 <div className="workspace-divider" />
                 <div className="workspace-group roles-actions-group">
-                  <div className="workspace-group-header">
-                    <h4>Coming soon</h4>
-                  </div>
-                  <div className="workspace-actions">
-                    <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                      Member lifecycle (suspend/remove/re-activate) - Coming soon
-                    </button>
-                    <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                      Default role on join invite - Coming soon
-                    </button>
-                    <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                      Workspace limits (projects/members/storage) - Coming soon
-                    </button>
-                    <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                      Export/backup data (admin only) - Coming soon
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="coming-soon-toggle"
+                    onClick={() => toggleComingSoon('workspacesGrid')}
+                    aria-expanded={comingSoonExpanded.workspacesGrid}
+                  >
+                    <span>Coming soon</span>
+                    <span className={`coming-soon-chevron${comingSoonExpanded.workspacesGrid ? ' is-open' : ''}`} aria-hidden="true">
+                      ▾
+                    </span>
+                  </button>
+                  {comingSoonExpanded.workspacesGrid ? (
+                    <div className="workspace-actions">
+                      <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                        Member lifecycle (suspend/remove/re-activate) - Coming soon
+                      </button>
+                      <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                        Default role on join invite - Coming soon
+                      </button>
+                      <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                        Workspace limits (projects/members/storage) - Coming soon
+                      </button>
+                      <button type="button" className="btn btn-danger coming-soon-button" disabled>
+                        Export/backup data (admin only) - Coming soon
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </>
             ) : null}
@@ -3509,44 +3753,56 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     </div>
                   </div>
                   <div className="settings-tab-side">
-                    <div className="workspace-group-header">
-                      <h4>Coming soon</h4>
-                    </div>
-                    <div className="form-field coming-soon-control" title="Coming soon">
-                      <label className="checkbox-row">
-                        <input type="checkbox" disabled />
-                        <span>Digest mode (hourly/daily)</span>
-                      </label>
-                      <span className="pill coming-soon-pill">Soon</span>
-                    </div>
-                    <div className="form-field coming-soon-control" title="Coming soon">
-                      <label className="checkbox-row">
-                        <input type="checkbox" disabled />
-                        <span>In-app notification center</span>
-                      </label>
-                      <span className="pill coming-soon-pill">Soon</span>
-                    </div>
-                    <div className="form-field coming-soon-control" title="Coming soon">
-                      <label className="checkbox-row">
-                        <input type="checkbox" disabled />
-                        <span>Per-workspace notification profile</span>
-                      </label>
-                      <span className="pill coming-soon-pill">Soon</span>
-                    </div>
-                    <div className="form-field coming-soon-control" title="Coming soon">
-                      <label className="checkbox-row">
-                        <input type="checkbox" disabled />
-                        <span>Quiet hours</span>
-                      </label>
-                      <span className="pill coming-soon-pill">Soon</span>
-                    </div>
-                    <div className="form-field coming-soon-control" title="Coming soon">
-                      <label className="checkbox-row">
-                        <input type="checkbox" disabled />
-                        <span>Snooze notifications</span>
-                      </label>
-                      <span className="pill coming-soon-pill">Soon</span>
-                    </div>
+                    <button
+                      type="button"
+                      className="coming-soon-toggle"
+                      onClick={() => toggleComingSoon('notifications')}
+                      aria-expanded={comingSoonExpanded.notifications}
+                    >
+                      <span>Coming soon</span>
+                      <span className={`coming-soon-chevron${comingSoonExpanded.notifications ? ' is-open' : ''}`} aria-hidden="true">
+                        ▾
+                      </span>
+                    </button>
+                    {comingSoonExpanded.notifications ? (
+                      <>
+                        <div className="form-field coming-soon-control" title="Coming soon">
+                          <label className="checkbox-row">
+                            <input type="checkbox" disabled />
+                            <span>Digest mode (hourly/daily)</span>
+                          </label>
+                          <span className="pill coming-soon-pill">Soon</span>
+                        </div>
+                        <div className="form-field coming-soon-control" title="Coming soon">
+                          <label className="checkbox-row">
+                            <input type="checkbox" disabled />
+                            <span>In-app notification center</span>
+                          </label>
+                          <span className="pill coming-soon-pill">Soon</span>
+                        </div>
+                        <div className="form-field coming-soon-control" title="Coming soon">
+                          <label className="checkbox-row">
+                            <input type="checkbox" disabled />
+                            <span>Per-workspace notification profile</span>
+                          </label>
+                          <span className="pill coming-soon-pill">Soon</span>
+                        </div>
+                        <div className="form-field coming-soon-control" title="Coming soon">
+                          <label className="checkbox-row">
+                            <input type="checkbox" disabled />
+                            <span>Quiet hours</span>
+                          </label>
+                          <span className="pill coming-soon-pill">Soon</span>
+                        </div>
+                        <div className="form-field coming-soon-control" title="Coming soon">
+                          <label className="checkbox-row">
+                            <input type="checkbox" disabled />
+                            <span>Snooze notifications</span>
+                          </label>
+                          <span className="pill coming-soon-pill">Soon</span>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ) : (
@@ -3699,7 +3955,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 </span>
               </div>
               <div className="workspace-actions">
-                <div className="form-field">
+                <div className="form-field role-create-field">
                   <label htmlFor="roleName">Create role</label>
                   <div className="workspace-row">
                     <input
@@ -3719,33 +3975,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     </button>
                   </div>
                 </div>
-                {canEditRoles ? (
-                  <div className="form-field">
-                    <label>Role permissions</label>
-                    <div className="settings-permissions">
-                      {ROLE_PERMISSION_GROUPS.map((group) => (
-                        <div key={group.label} className="settings-permission-group">
-                          <div className="settings-permission-title">{group.label}</div>
-                          {group.items.map((item) => (
-                            <label key={item.key} className="checkbox-row">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(rolePermissions?.[item.key])}
-                                onChange={() => setRolePermissions((prev) => toggleRolePermission(prev, item.key))}
-                              />
-                              <span>{item.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="muted">You do not have permission to manage roles.</p>
-                )}
-                <div className="form-field">
+                <div className="form-field role-assign-field">
                   <label>Assign role</label>
-                  <div className="workspace-row">
+                  <div className="workspace-row workspace-row-assign-role">
                     <select
                       value={assignUserId}
                       onChange={(event) => setAssignUserId(event.target.value)}
@@ -3781,6 +4013,30 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   </div>
                   {membersLoading ? <p className="muted">Loading members...</p> : null}
                 </div>
+                {canEditRoles ? (
+                  <div className="form-field role-permissions-field">
+                    <label>Role permissions</label>
+                    <div className="settings-permissions">
+                      {ROLE_PERMISSION_GROUPS.map((group) => (
+                        <div key={group.label} className="settings-permission-group">
+                          <div className="settings-permission-title">{group.label}</div>
+                          {group.items.map((item) => (
+                            <label key={item.key} className="checkbox-row">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(rolePermissions?.[item.key])}
+                                onChange={() => setRolePermissions((prev) => toggleRolePermission(prev, item.key))}
+                              />
+                              <span>{item.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="muted">You do not have permission to manage roles.</p>
+                )}
               </div>
             </div>
           </div>

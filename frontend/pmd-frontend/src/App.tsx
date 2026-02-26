@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
-import type { LoginPayload, Project, RegisterPayload, User, UserSummary } from './types'
+import type { LoginPayload, Project, RegisterPayload, RegisterResponse, User, UserSummary } from './types'
 import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
 import { fetchMe, login, logoutSession, refreshSession, register } from './api/auth'
@@ -18,6 +18,7 @@ import { SettingsPage } from './components/SettingsPage'
 import { Logo } from './components/Logo'
 import { ThemeToggle } from './components/ThemeToggle'
 import { PmdLoader } from './components/common/PmdLoader'
+import { getAuthNotification } from './auth/authNotificationMatrix'
 import { TeamsProvider } from './teams/TeamsContext'
 import { WorkspaceProvider, useWorkspace } from './workspaces/WorkspaceContext'
 import { loadUiPreferences, saveUiPreferences } from './ui/uiPreferences'
@@ -52,6 +53,70 @@ function toLandingPath(preferences: ReturnType<typeof loadUiPreferences>) {
 const LAST_APP_ROUTE_KEY = 'pmd.lastAppRoute'
 const ROUTE_MEMORY_ALLOWLIST = new Set(['/dashboard', '/assign', '/people', '/settings', '/profile', '/admin'])
 const THEME_KEY = 'pmd.theme'
+const ONBOARDING_TOUR_KEY_PREFIX = 'pmd.onboardingTour.v1.'
+
+type OnboardingTourStep = {
+  id: string
+  title: string
+  description: string
+  route?: '/dashboard' | '/settings'
+  selector?: string
+}
+
+const ONBOARDING_TOUR_STEPS: OnboardingTourStep[] = [
+  {
+    id: 'welcome',
+    title: 'Welcome to PMD',
+    description:
+      'This quick tour shows where profile, workspace controls, and setup actions are located.',
+  },
+  {
+    id: 'workspace-switcher',
+    title: 'Active workspace',
+    description: 'Use this selector to switch the workspace you are currently working in.',
+    selector: '[data-tour="workspace-switcher"]',
+  },
+  {
+    id: 'profile',
+    title: 'Your profile',
+    description: 'Open your profile from here to update personal details and profile picture.',
+    selector: '[data-tour="profile-button"]',
+  },
+  {
+    id: 'settings-entry',
+    title: 'Workspace settings',
+    description: 'Use this workspace icon to open Settings directly for workspace management.',
+    selector: '[data-tour="workspace-settings-button"]',
+  },
+  {
+    id: 'settings-workspaces',
+    title: 'Workspaces card',
+    description: 'This section contains workspace management, invite flow, and approvals.',
+    route: '/settings',
+    selector: '[data-tour="settings-workspaces-card"]',
+  },
+  {
+    id: 'create-workspace',
+    title: 'Create workspace',
+    description: 'Create a new workspace here when you need a separate environment.',
+    route: '/settings',
+    selector: '[data-tour="settings-create-workspace"]',
+  },
+  {
+    id: 'join-workspace',
+    title: 'Join workspace',
+    description: 'Use an invite token or link here to join another workspace.',
+    route: '/settings',
+    selector: '[data-tour="settings-join-workspace"]',
+  },
+  {
+    id: 'dashboard',
+    title: 'Dashboard',
+    description: 'Track project status and progress from the dashboard cards and metrics.',
+    route: '/dashboard',
+    selector: '[data-tour="dashboard-page"]',
+  },
+]
 
 function readLastAppRoute() {
   if (typeof window === 'undefined') return null
@@ -236,6 +301,13 @@ function AppView({
   const landingPath = toLandingPath(uiPreferences)
   const preferredAuthedRoute =
     uiPreferences.defaultLandingPage === 'lastVisited' ? (readLastAppRoute() ?? '/dashboard') : landingPath
+  const onboardingKey = currentUser?.id ? `${ONBOARDING_TOUR_KEY_PREFIX}${currentUser.id}` : null
+  const [tourOpen, setTourOpen] = useState(false)
+  const [tourStepIndex, setTourStepIndex] = useState(0)
+  const [tourHighlightRect, setTourHighlightRect] = useState<DOMRect | null>(null)
+  const [tourCardPosition, setTourCardPosition] = useState<{ top: number; left: number } | null>(null)
+  const tourCardRef = useRef<HTMLDivElement | null>(null)
+  const activeTourStep = tourOpen ? ONBOARDING_TOUR_STEPS[tourStepIndex] : null
   const resolveAssetUrl = useCallback((url?: string | null) => {
     if (!url) return ''
     if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -576,13 +648,19 @@ function AppView({
     } catch (err) {
       if (isApiError(err)) {
         if (err.status === 401) {
-          setAuthError('Wrong email or password.')
+          setAuthError(getAuthNotification('login_invalid_credentials').message)
         } else if (err.status === 403) {
-          setAuthError('Access denied. Your account may be disabled.')
+          const reason = (err.message || '').toLowerCase()
+          if (reason.includes('email verification required')) {
+            setAuthError('Email verification required. Please confirm your email first.')
+          } else {
+            setAuthError(getAuthNotification('login_access_denied').message)
+          }
         } else if (err.status >= 500) {
-          setAuthError('Server error. Try again in a moment.')
+          setAuthError(getAuthNotification('login_server_error').message)
         } else if (err.status === 0) {
-          setAuthError(`Cannot reach server (${API_BASE_URL}).`)
+          const base = getAuthNotification('login_network_error').message
+          setAuthError(`${base} (${API_BASE_URL}).`)
         } else {
           setAuthError(err.message)
         }
@@ -594,27 +672,31 @@ function AppView({
     }
   }
 
-  const handleRegister = async (payload: RegisterPayload) => {
+  const handleRegister = async (payload: RegisterPayload): Promise<RegisterResponse> => {
     setAuthError(null)
     try {
       setAuthLoading(true)
-      await register(payload)
+      return await register(payload)
     } catch (err) {
+      let message = 'Registration failed'
       if (isApiError(err)) {
         if (err.status === 409) {
-          setAuthError('An account with this email already exists.')
+          message = getAuthNotification('register_conflict').message
         } else if (err.status === 400 || err.status === 422) {
-          setAuthError('Please check the form fields.')
+          message = err.message || getAuthNotification('register_validation_error').message
         } else if (err.status >= 500) {
-          setAuthError('Server error. Try again in a moment.')
+          message = getAuthNotification('register_server_error').message
         } else if (err.status === 0) {
-          setAuthError(`Cannot reach server (${API_BASE_URL}).`)
+          const base = getAuthNotification('register_network_error').message
+          message = `${base} (${API_BASE_URL}).`
         } else {
-          setAuthError(err.message)
+          message = err.message || message
         }
       } else {
-        setAuthError(err instanceof Error ? err.message : 'Registration failed')
+        message = err instanceof Error ? err.message : message
       }
+      setAuthError(message)
+      throw new Error(message)
     } finally {
       setAuthLoading(false)
     }
@@ -652,6 +734,29 @@ function AppView({
     }
   }
 
+  const completeTour = useCallback(() => {
+    if (onboardingKey) {
+      window.localStorage.setItem(onboardingKey, 'done')
+    }
+    setTourOpen(false)
+    setTourHighlightRect(null)
+    setTourStepIndex(0)
+  }, [onboardingKey])
+
+  const nextTourStep = useCallback(() => {
+    setTourStepIndex((prev) => {
+      if (prev >= ONBOARDING_TOUR_STEPS.length - 1) {
+        completeTour()
+        return prev
+      }
+      return prev + 1
+    })
+  }, [completeTour])
+
+  const prevTourStep = useCallback(() => {
+    setTourStepIndex((prev) => Math.max(0, prev - 1))
+  }, [])
+
   const noWorkspaceState = (
     <section className="panel">
       <h2>No workspace selected</h2>
@@ -663,6 +768,103 @@ function AppView({
       </div>
     </section>
   )
+
+  useEffect(() => {
+    if (!isAuthed || !currentUser?.id || !onboardingKey) return
+    const alreadyDone = window.localStorage.getItem(onboardingKey) === 'done'
+    if (!alreadyDone) {
+      setTourStepIndex(0)
+      setTourOpen(true)
+    }
+  }, [currentUser?.id, isAuthed, onboardingKey])
+
+  useEffect(() => {
+    if (!tourOpen || !activeTourStep?.route) return
+    if (location.pathname !== activeTourStep.route) {
+      navigate(activeTourStep.route)
+    }
+  }, [activeTourStep?.route, location.pathname, navigate, tourOpen])
+
+  useEffect(() => {
+    if (!tourOpen || !activeTourStep?.selector) {
+      setTourHighlightRect(null)
+      return
+    }
+    const selector = activeTourStep.selector
+    const refreshRect = () => {
+      const element = document.querySelector(selector) as HTMLElement | null
+      if (!element) {
+        setTourHighlightRect(null)
+        return
+      }
+      setTourHighlightRect(element.getBoundingClientRect())
+    }
+    const timer = window.setTimeout(() => {
+      const element = document.querySelector(selector) as HTMLElement | null
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+      }
+      refreshRect()
+    }, 80)
+    refreshRect()
+    window.addEventListener('resize', refreshRect)
+    window.addEventListener('scroll', refreshRect, true)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('resize', refreshRect)
+      window.removeEventListener('scroll', refreshRect, true)
+    }
+  }, [activeTourStep?.id, activeTourStep?.selector, location.pathname, tourOpen])
+
+  useEffect(() => {
+    if (!tourOpen) {
+      setTourCardPosition(null)
+      return
+    }
+    const positionCard = () => {
+      const card = tourCardRef.current
+      if (!card) {
+        return
+      }
+      const cardRect = card.getBoundingClientRect()
+      const margin = 16
+      const gap = 14
+
+      let left = window.innerWidth - cardRect.width - margin
+      let top = window.innerHeight - cardRect.height - margin
+
+      if (tourHighlightRect) {
+        const spaceBelow = window.innerHeight - (tourHighlightRect.bottom + gap + margin)
+        const spaceAbove = tourHighlightRect.top - gap - margin
+        const placeBelow = spaceBelow >= cardRect.height || spaceBelow >= spaceAbove
+
+        top = placeBelow
+          ? tourHighlightRect.bottom + gap
+          : tourHighlightRect.top - cardRect.height - gap
+        left = tourHighlightRect.left + (tourHighlightRect.width / 2) - (cardRect.width / 2)
+      }
+
+      left = Math.max(margin, Math.min(left, window.innerWidth - cardRect.width - margin))
+      top = Math.max(margin, Math.min(top, window.innerHeight - cardRect.height - margin))
+
+      const next = { top: Math.round(top), left: Math.round(left) }
+      setTourCardPosition((prev) => {
+        if (prev && prev.top === next.top && prev.left === next.left) {
+          return prev
+        }
+        return next
+      })
+    }
+
+    const raf = window.requestAnimationFrame(positionCard)
+    window.addEventListener('resize', positionCard)
+    window.addEventListener('scroll', positionCard, true)
+    return () => {
+      window.cancelAnimationFrame(raf)
+      window.removeEventListener('resize', positionCard)
+      window.removeEventListener('scroll', positionCard, true)
+    }
+  }, [activeTourStep?.id, location.pathname, tourHighlightRect, tourOpen, tourStepIndex])
 
   if (authLoading) {
     return (
@@ -703,6 +905,7 @@ function AppView({
                       <button
                         type="button"
                         className="workspace-avatar avatar-button"
+                        data-tour="workspace-settings-button"
                         title={activeWorkspace?.name ?? 'Workspace settings'}
                         onClick={() => navigate('/settings')}
                       >
@@ -727,6 +930,7 @@ function AppView({
                   )}
                   <div className="workspace-switcher">
                     <select
+                      data-tour="workspace-switcher"
                       aria-label="Active workspace"
                       value={activeWorkspaceId ?? ''}
                       onChange={(event) => setActiveWorkspaceId(event.target.value || null)}
@@ -756,6 +960,7 @@ function AppView({
                     <button
                       type="button"
                       className="workspace-avatar avatar-button"
+                      data-tour="profile-button"
                       title="My profile"
                       onClick={() => navigate('/profile')}
                     >
@@ -918,6 +1123,55 @@ function AppView({
           )}
         </nav>
       </aside>
+      {tourOpen ? (
+        <div className="onboarding-tour-overlay" role="dialog" aria-modal="true" aria-label="PMD onboarding tour">
+          <div className="onboarding-tour-backdrop" />
+          {tourHighlightRect && activeTourStep?.selector ? (
+            <div
+              className="onboarding-tour-highlight"
+              style={{
+                top: Math.max(8, tourHighlightRect.top - 6),
+                left: Math.max(8, tourHighlightRect.left - 6),
+                width: Math.min(window.innerWidth - 16, tourHighlightRect.width + 12),
+                height: Math.min(window.innerHeight - 16, tourHighlightRect.height + 12),
+              }}
+            />
+          ) : null}
+          <div
+            ref={tourCardRef}
+            className="onboarding-tour-card"
+            style={
+              tourCardPosition
+                ? { top: `${tourCardPosition.top}px`, left: `${tourCardPosition.left}px` }
+                : undefined
+            }
+          >
+            <div className="onboarding-tour-head">
+              <strong>{activeTourStep?.title ?? 'PMD tour'}</strong>
+              <span>
+                {Math.min(tourStepIndex + 1, ONBOARDING_TOUR_STEPS.length)} / {ONBOARDING_TOUR_STEPS.length}
+              </span>
+            </div>
+            <p className="onboarding-tour-description">{activeTourStep?.description}</p>
+            <div className="onboarding-tour-actions">
+              <button type="button" className="btn btn-ghost" onClick={completeTour}>
+                Skip
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={prevTourStep}
+                disabled={tourStepIndex === 0}
+              >
+                Back
+              </button>
+              <button type="button" className="btn btn-primary" onClick={nextTourStep}>
+                {tourStepIndex >= ONBOARDING_TOUR_STEPS.length - 1 ? 'Finish' : 'Next'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <main className={`container${isAssignRoute || isSettingsRoute || isPeopleRoute || isDashboardRoute ? ' container-full' : ''}`}>
         {backendOffline ? (
@@ -1072,6 +1326,7 @@ function AppView({
               )
             }
           />
+          <Route path="/adminpanel" element={<Navigate to="/admin" replace />} />
           <Route
             path="/profile"
             element={
@@ -1121,7 +1376,6 @@ function AppView({
               ) : (
                 <RegisterForm
                   onRegister={handleRegister}
-                  error={authError}
                   loading={authLoading}
                   onSwitchToLogin={() => navigate('/login')}
                 />

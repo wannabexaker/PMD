@@ -6,6 +6,9 @@ import com.pmd.team.service.TeamService;
 import com.pmd.user.dto.UserSummaryResponse;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.model.WorkspaceMember;
+import com.pmd.workspace.model.WorkspacePermission;
+import com.pmd.workspace.model.WorkspaceRolePermissions;
 import com.pmd.workspace.service.WorkspaceService;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +45,10 @@ public class UserController {
         Authentication authentication
     ) {
         User requester = getRequester(authentication);
-        workspaceService.requireActiveMembership(workspaceId, requester);
+        WorkspaceMember requesterMembership = workspaceService.requireActiveMembership(workspaceId, requester);
+        WorkspaceRolePermissions requesterPermissions = workspaceService.resolveMemberPermissions(workspaceId, requesterMembership);
+        boolean canViewFullEmails = requester.isAdmin()
+            || (requesterPermissions != null && requesterPermissions.allows(WorkspacePermission.MANAGE_WORKSPACE_SETTINGS));
         boolean includeAdmins = userService.isAdmin(requester);
         List<User> users = userService.findAssignableUsers(workspaceId, query, teamId, includeAdmins);
         java.util.Map<String, Long> activeCounts = userService.findActiveProjectCounts(
@@ -58,21 +64,25 @@ public class UserController {
                 activeCounts.getOrDefault(user.getId(), 0L),
                 requester,
                 teamNames,
-                roleNames.get(user.getId())))
+                roleNames.get(user.getId()),
+                canViewFullEmails))
             .toList();
     }
 
     private UserSummaryResponse toSummary(User user, long activeProjectCount, User requester,
-                                          Map<String, String> teamNames, String roleName) {
+                                          Map<String, String> teamNames, String roleName,
+                                          boolean canViewFullEmails) {
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
         String teamId = resolveWorkspaceTeamId(user, teamNames);
         String teamName = teamId != null ? teamNames.get(teamId) : null;
+        boolean isSelf = requester.getId() != null && requester.getId().equals(user.getId());
+        String email = canViewFullEmails || isSelf ? user.getEmail() : maskEmail(user.getEmail());
         return new UserSummaryResponse(
             user.getId(),
             user.getDisplayName(),
-            user.getEmail(),
+            email,
             teamName,
             teamId,
             teamName,
@@ -99,5 +109,30 @@ public class UserController {
             return user.getTeamId();
         }
         return null;
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return email;
+        }
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "***";
+        }
+        String local = email.substring(0, at);
+        String domain = email.substring(at + 1);
+        String localMasked = local.length() <= 2
+            ? local.charAt(0) + "*"
+            : local.charAt(0) + "***" + local.charAt(local.length() - 1);
+        int dot = domain.indexOf('.');
+        if (dot <= 1) {
+            return localMasked + "@***";
+        }
+        String domainPrefix = domain.substring(0, dot);
+        String tld = domain.substring(dot);
+        String domainMasked = domainPrefix.length() <= 2
+            ? domainPrefix.charAt(0) + "*"
+            : domainPrefix.charAt(0) + "***" + domainPrefix.charAt(domainPrefix.length() - 1);
+        return localMasked + "@" + domainMasked + tld;
     }
 }

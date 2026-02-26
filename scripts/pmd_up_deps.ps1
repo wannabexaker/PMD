@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\pmd_guard.ps1"
 
+if (-not (Test-PmdDockerDaemon)) {
+  Write-PmdStep "Docker daemon is not available. Start Docker Desktop and try again."
+  exit 1
+}
+
 Set-PmdMode -TargetMode 'deps'
 
 Write-Host 'Starting PMD dependencies (MongoDB + MailHog)...'

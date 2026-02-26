@@ -57,12 +57,35 @@ function blockIfMalicious(req: IncomingMessage, res: ServerResponse): boolean {
   return true
 }
 
-function resolveAllowedOrigins(): string[] {
+type AllowedOriginMatcher = string | RegExp
+
+const DEFAULT_ALLOWED_ORIGINS: AllowedOriginMatcher[] = [
+  'http://localhost:5173',
+  /^http:\/\/localhost(?::\d+)?$/i,
+  /^http:\/\/127\.0\.0\.1(?::\d+)?$/i,
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(?::\d+)?$/i,
+  /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?$/i,
+  /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(?::\d+)?$/i,
+  /^http:\/\/[a-z0-9.-]+\.local(?::\d+)?$/i,
+]
+
+function wildcardToRegex(origin: string): RegExp {
+  const escaped = origin
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+  return new RegExp(`^${escaped}$`, 'i')
+}
+
+function resolveAllowedOrigins(): AllowedOriginMatcher[] {
   const configured = process.env.VITE_ALLOWED_ORIGINS
   if (!configured || configured.trim().length === 0) {
-    return ['http://localhost:5173']
+    return DEFAULT_ALLOWED_ORIGINS
   }
-  return configured.split(',').map((origin) => origin.trim()).filter((origin) => origin.length > 0)
+  return configured
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0)
+    .map((origin) => (origin.includes('*') ? wildcardToRegex(origin) : origin))
 }
 
 // https://vite.dev/config/

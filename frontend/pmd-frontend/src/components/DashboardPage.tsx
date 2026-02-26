@@ -310,7 +310,7 @@ export function DashboardPage({
 }: DashboardPageProps) {
   const navigate = useNavigate()
   const { teams } = useTeams()
-  const { activeWorkspaceId } = useWorkspace()
+  const { activeWorkspaceId, activeWorkspace } = useWorkspace()
   const mentionOptions = useMentionOptions(users)
   const [showCreate, setShowCreate] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -667,6 +667,8 @@ export function DashboardPage({
   const selectedIsArchived =
     toFolderKey(selectedProject?.status ?? 'NOT_STARTED') === 'ARCHIVED'
 
+  const canViewWorkspaceStats = Boolean(currentUser?.isAdmin || activeWorkspace?.permissions?.viewStats)
+
   const projectMatchesTeamFilter = useCallback(
     (project: Project) => {
       const allTeamsSelected =
@@ -707,6 +709,12 @@ export function DashboardPage({
         active = false
       }
     }
+    if (!canViewWorkspaceStats) {
+      setWorkspaceStats(null)
+      return () => {
+        active = false
+      }
+    }
     fetchDashboardStats(activeWorkspaceId)
       .then((data) => {
         if (active) {
@@ -715,13 +723,17 @@ export function DashboardPage({
       })
       .catch((err) => {
         if (active) {
+          if (isApiError(err) && err.status === 403) {
+            setWorkspaceStatsError('You do not have permission to view workspace summary in this workspace.')
+            return
+          }
           setWorkspaceStatsError(err instanceof Error ? err.message : 'Failed to load workspace stats')
         }
       })
     return () => {
       active = false
     }
-  }, [activeWorkspaceId])
+  }, [activeWorkspaceId, canViewWorkspaceStats])
 
   useEffect(() => {
     if (!activeWorkspaceId) {
@@ -1227,7 +1239,7 @@ export function DashboardPage({
   }
 
   return (
-    <section className="panel">
+    <section className="panel" data-tour="dashboard-page">
       <div className="panel-header dashboard-header-compact">
         <div>
           <h2>Dashboard</h2>

@@ -1,16 +1,40 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Logo } from './Logo'
-import type { RegisterPayload } from '../types'
+import type { RegisterPayload, RegisterResponse } from '../types'
 import { useToast } from '../shared/ui/toast/ToastProvider'
+import { getAuthNotification } from '../auth/authNotificationMatrix'
 
 type RegisterFormProps = {
-  onRegister: (payload: RegisterPayload) => Promise<void>
-  error: string | null
+  onRegister: (payload: RegisterPayload) => Promise<RegisterResponse>
   loading: boolean
   onSwitchToLogin: () => void
 }
 
-export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: RegisterFormProps) {
+const PASSWORD_REQUIREMENTS = [
+  { key: 'length', label: 'At least 10 characters', test: (value: string) => value.length >= 10 },
+  { key: 'upper', label: 'One uppercase letter', test: (value: string) => /[A-Z]/.test(value) },
+  { key: 'lower', label: 'One lowercase letter', test: (value: string) => /[a-z]/.test(value) },
+  { key: 'digit', label: 'One number', test: (value: string) => /\d/.test(value) },
+  { key: 'symbol', label: 'One symbol', test: (value: string) => /[^A-Za-z0-9]/.test(value) },
+]
+
+const COMMON_PASSWORDS = new Set([
+  '123456',
+  '12345678',
+  '123123',
+  'password',
+  'password1',
+  'qwerty',
+  'admin',
+  'admin123',
+  'letmein',
+  'welcome',
+  'iloveyou',
+  '111111',
+  '000000',
+])
+
+export function RegisterForm({ onRegister, loading, onSwitchToLogin }: RegisterFormProps) {
   const { showToast } = useToast()
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
@@ -22,15 +46,11 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [confirmTouched, setConfirmTouched] = useState(false)
-
-  useEffect(() => {
-    if (!error) {
-      return
-    }
-    showToast({ type: 'error', message: error })
-  }, [error, showToast])
+  const [showPasswordHints, setShowPasswordHints] = useState(false)
+  const passwordHintsRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!showSuccess) {
@@ -43,6 +63,24 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
       window.clearTimeout(timeout)
     }
   }, [showSuccess, onSwitchToLogin])
+
+  useEffect(() => {
+    if (!showPasswordHints) {
+      return
+    }
+    const onMouseDown = (event: MouseEvent) => {
+      if (!passwordHintsRef.current) {
+        return
+      }
+      if (!passwordHintsRef.current.contains(event.target as Node)) {
+        setShowPasswordHints(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+    }
+  }, [showPasswordHints])
 
   const handleChange: React.ChangeEventHandler<
     HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -61,8 +99,13 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
     }
     if (!form.password.trim()) {
       errors.password = 'Password is required.'
-    } else if (form.password.trim().length < 6) {
-      errors.password = 'Password must be at least 6 characters.'
+    } else {
+      const failed = PASSWORD_REQUIREMENTS.find((requirement) => !requirement.test(form.password.trim()))
+      if (failed) {
+        errors.password = `Password requirement: ${failed.label}.`
+      } else if (COMMON_PASSWORDS.has(form.password.trim().toLowerCase())) {
+        errors.password = 'Password is too common.'
+      }
     }
     if (!form.confirmPassword.trim()) {
       errors.confirmPassword = 'Please confirm your password.'
@@ -81,12 +124,12 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
     if (Object.keys(errors).length > 0) {
       setConfirmTouched(true)
       setFieldErrors(errors)
-      showToast({ type: 'error', message: 'Please fix highlighted fields.' })
+      showToast({ type: 'error', message: getAuthNotification('register_form_invalid').message })
       return
     }
 
     try {
-      await onRegister({
+      const result = await onRegister({
         email: form.email.trim(),
         password: form.password.trim(),
         confirmPassword: form.confirmPassword.trim(),
@@ -94,32 +137,48 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
         lastName: form.lastName.trim(),
         bio: form.bio?.trim() || '',
       })
-      setShowSuccess(true)
-      showToast({ type: 'success', message: 'Account created. Check your email to confirm.' })
+      if (!result.accountCreated) {
+        throw new Error(result.message || 'Registration failed')
+      }
+      if (result.verificationEmailSent) {
+        setShowSuccess(true)
+        showToast({
+          type: 'success',
+          message: result.message || getAuthNotification('register_created_email_sent').message,
+        })
+      } else {
+        showToast({
+          type: 'info',
+          message: result.message || getAuthNotification('register_created_email_failed').message,
+        })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed'
       showToast({ type: 'error', message })
     }
   }
 
+  const trimmedPassword = form.password.trim()
+  const trimmedConfirm = form.confirmPassword.trim()
   const passwordMismatch =
     confirmTouched &&
-    form.confirmPassword.length > 0 &&
-    form.password.length > 0 &&
-    form.password !== form.confirmPassword
+    trimmedConfirm.length > 0 &&
+    trimmedPassword.length > 0 &&
+    trimmedPassword !== trimmedConfirm
+  const confirmMatches = trimmedConfirm.length > 0 && trimmedPassword.length > 0 && !passwordMismatch
   const mismatchId = 'confirm-password-mismatch'
 
   return (
     <section className="panel auth-card">
       <div className="panel-header">
-        <div className="panel-title">
-          <span className="panel-logo">
-            <Logo size={28} showText={false} />
-          </span>
-          <div>
-            <h2>Register</h2>
-            <p className="muted">Create your PMD account</p>
+        <div className="panel-title auth-panel-title">
+          <div className="auth-brand-row">
+            <span className="panel-logo">
+              <Logo size={28} showText={false} />
+            </span>
+            <p className="muted auth-brand-subtitle">Project Management Dashboard</p>
           </div>
+          <h2>Register</h2>
         </div>
         <button type="button" className="btn btn-secondary" onClick={onSwitchToLogin}>
           Back to login
@@ -152,7 +211,7 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
               />
               <span className="field-error">{fieldErrors.email ?? ''}</span>
             </div>
-            <div className="form-field">
+            <div className="form-field password-field-with-hints" ref={passwordHintsRef}>
               <label htmlFor="password">
                 Password <span className="required">*</span>
               </label>
@@ -163,7 +222,9 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={handleChange}
-                  minLength={6}
+                  onFocus={() => setShowPasswordHints(true)}
+                  onClick={() => setShowPasswordHints(true)}
+                  minLength={10}
                   required
                 />
                 <button
@@ -176,6 +237,26 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                 </button>
               </div>
               <span className="field-error">{fieldErrors.password ?? ''}</span>
+              {showPasswordHints ? (
+                <div className="password-requirements-popover" aria-live="polite" role="dialog" aria-label="Password requirements">
+                  <div className="password-requirements-header">Password requirements</div>
+                  <div className="password-requirements-list">
+                    {PASSWORD_REQUIREMENTS.map((requirement) => {
+                      const ok = requirement.test(form.password)
+                      return (
+                        <span key={requirement.key} className={ok ? 'password-rule ok' : 'password-rule'}>
+                          <strong className="password-rule-mark" aria-hidden="true">{ok ? '✓' : '✕'}</strong>
+                          {requirement.label}
+                        </span>
+                      )
+                    })}
+                    <span className={confirmMatches ? 'password-rule ok' : 'password-rule'}>
+                      <strong className="password-rule-mark" aria-hidden="true">{confirmMatches ? '✓' : '✕'}</strong>
+                      Confirm password matches
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="form-field confirm-password-field">
               <label htmlFor="confirmPassword">
@@ -185,7 +266,7 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={form.confirmPassword}
                   onChange={(event) => {
                     handleChange(event)
@@ -193,7 +274,7 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                       setConfirmTouched(true)
                     }
                   }}
-                  minLength={6}
+                  minLength={10}
                   aria-invalid={passwordMismatch}
                   aria-describedby={passwordMismatch ? mismatchId : undefined}
                   required
@@ -201,10 +282,10 @@ export function RegisterForm({ onRegister, error, loading, onSwitchToLogin }: Re
                 <button
                   type="button"
                   className="input-icon-btn"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
                 >
-                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
               </div>
               <span id={mismatchId} className="field-error" aria-live="polite">

@@ -1,31 +1,35 @@
 package com.pmd.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 
 public class RegisterRequest {
 
     @NotBlank
-    @Size(min = 6)
+    @Size(min = 10, max = 128, message = "Password must be 10-128 characters.")
     private String password;
 
     @NotBlank
     private String confirmPassword;
 
     @NotBlank
+    @Email(message = "Enter a valid email address.")
     private String email;
 
     @NotBlank
+    @Size(max = 80)
     private String firstName;
 
     @NotBlank
+    @Size(max = 80)
     private String lastName;
 
     private String team;
 
     private String teamId;
 
-    @Size(max = 128)
+    @Size(max = 256)
     private String bio;
 
     public RegisterRequest() {

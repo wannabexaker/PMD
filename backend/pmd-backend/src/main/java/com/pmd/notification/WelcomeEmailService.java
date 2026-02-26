@@ -31,9 +31,9 @@ public class WelcomeEmailService {
         this.templateBuilder = templateBuilder;
     }
 
-    public void sendWelcomeEmail(User user, String token) {
+    public boolean sendWelcomeEmail(User user, String token) {
         if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
-            return;
+            return false;
         }
         EmailContent content = templateBuilder.buildWelcomeEmail(new WelcomeEmailModel(
             user.getDisplayName(),
@@ -50,8 +50,10 @@ public class WelcomeEmailService {
             helper.setSubject(content.getSubject());
             helper.setText(content.getTextBody(), content.getHtmlBody());
             mailSender.send(message);
+            return true;
         } catch (MailException | MessagingException ex) {
             logger.warn("Failed to send welcome email to {}", user.getEmail(), ex);
+            return false;
         }
     }
 

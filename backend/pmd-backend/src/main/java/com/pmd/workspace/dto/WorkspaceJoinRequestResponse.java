@@ -10,6 +10,8 @@ public class WorkspaceJoinRequestResponse {
     private String userId;
     private String userName;
     private String userEmail;
+    private String inviteQuestion;
+    private String inviteAnswer;
     private WorkspaceJoinRequestStatus status;
     private Instant createdAt;
 
@@ -18,12 +20,15 @@ public class WorkspaceJoinRequestResponse {
 
     public WorkspaceJoinRequestResponse(String id, String workspaceId, String userId,
                                         String userName, String userEmail,
+                                        String inviteQuestion, String inviteAnswer,
                                         WorkspaceJoinRequestStatus status, Instant createdAt) {
         this.id = id;
         this.workspaceId = workspaceId;
         this.userId = userId;
         this.userName = userName;
         this.userEmail = userEmail;
+        this.inviteQuestion = inviteQuestion;
+        this.inviteAnswer = inviteAnswer;
         this.status = status;
         this.createdAt = createdAt;
     }
@@ -66,6 +71,22 @@ public class WorkspaceJoinRequestResponse {
 
     public void setUserEmail(String userEmail) {
         this.userEmail = userEmail;
+    }
+
+    public String getInviteQuestion() {
+        return inviteQuestion;
+    }
+
+    public void setInviteQuestion(String inviteQuestion) {
+        this.inviteQuestion = inviteQuestion;
+    }
+
+    public String getInviteAnswer() {
+        return inviteAnswer;
+    }
+
+    public void setInviteAnswer(String inviteAnswer) {
+        this.inviteAnswer = inviteAnswer;
     }
 
     public WorkspaceJoinRequestStatus getStatus() {

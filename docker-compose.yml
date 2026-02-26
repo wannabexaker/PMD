@@ -2,19 +2,31 @@ services:
   mongo:
     image: mongo:7
     container_name: pmd-mongo
+    restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "${PMD_MONGO_PORT:-27017}:27017"
     volumes:
       - pmd_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - pmd-net
 
   mailhog:
     image: mailhog/mailhog:latest
     container_name: pmd-mailhog
+    restart: unless-stopped
     ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
+      - "${PMD_SMTP_PORT:-1025}:1025"   # SMTP
+      - "${PMD_MAILHOG_UI_PORT:-8025}:8025"   # Web UI
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8025 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - pmd-net
 

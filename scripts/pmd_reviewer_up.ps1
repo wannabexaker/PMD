@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\pmd_guard.ps1"
 
+if (-not (Test-PmdDockerDaemon)) {
+  Write-PmdStep "Docker daemon is not available. Start Docker Desktop and try again."
+  exit 1
+}
+
 Set-PmdMode -TargetMode 'reviewer'
 
 Write-Host '[PMD] Building reviewer stack (pull latest base images)...'

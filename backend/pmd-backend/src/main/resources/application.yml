@@ -27,7 +27,7 @@ pmd:
       cookie-name: ${PMD_AUTH_SESSION_COOKIE_NAME:PMD_RT}
       cookie-path: ${PMD_AUTH_SESSION_COOKIE_PATH:/api/auth}
       same-site: ${PMD_AUTH_SESSION_COOKIE_SAME_SITE:Lax}
-      secure-cookie: ${PMD_AUTH_SESSION_COOKIE_SECURE:true}
+      secure-cookie: ${PMD_AUTH_SESSION_COOKIE_SECURE:false}
       remember-ttl-seconds: ${PMD_AUTH_SESSION_REMEMBER_TTL_SECONDS:2592000}
       session-ttl-seconds: ${PMD_AUTH_SESSION_TTL_SECONDS:86400}
       inactivity-ttl-seconds: ${PMD_AUTH_SESSION_INACTIVITY_TTL_SECONDS:604800}
@@ -35,7 +35,12 @@ pmd:
       max-sessions-per-user: ${PMD_AUTH_MAX_SESSIONS_PER_USER:10}
       require-verified-email: ${PMD_AUTH_REQUIRE_VERIFIED_EMAIL:false}
   security:
-    allowed-origins: ${PMD_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+    trust-proxy-headers: ${PMD_SECURITY_TRUST_PROXY_HEADERS:false}
+    client-metadata:
+      store-raw: ${PMD_SECURITY_CLIENT_METADATA_STORE_RAW:false}
+      hash-salt: ${PMD_SECURITY_CLIENT_METADATA_HASH_SALT:}
+    allowed-origins: ${PMD_ALLOWED_ORIGINS:http://localhost,http://localhost:5173,http://127.0.0.1,http://127.0.0.1:5173}
+    allowed-origin-patterns: ${PMD_ALLOWED_ORIGIN_PATTERNS:http://localhost,http://localhost:*,http://127.0.0.1,http://127.0.0.1:*,http://192.168.*,http://192.168.*:*,http://10.*,http://10.*:*,http://172.*,http://172.*:*,http://*.local,http://*.local:*}
     auth-rate-limit:
       ip-per-10-min: ${PMD_AUTH_RATE_LIMIT_IP_PER_10_MIN:40}
       user-per-10-min: ${PMD_AUTH_RATE_LIMIT_USER_PER_10_MIN:12}

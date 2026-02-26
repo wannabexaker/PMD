@@ -28,16 +28,22 @@ export async function createWorkspace(
   })
 }
 
-export async function joinWorkspace(token: string): Promise<Workspace> {
+export async function joinWorkspace(token: string, inviteAnswer?: string): Promise<Workspace> {
   return requestJson<Workspace>('/api/workspaces/join', {
     method: 'POST',
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ token, inviteAnswer }),
   })
 }
 
 export async function createInvite(
   workspaceId: string,
-  payload?: { expiresAt?: string; maxUses?: number; defaultRoleId?: string }
+  payload?: {
+    expiresAt?: string
+    maxUses?: number
+    defaultRoleId?: string
+    invitedEmail?: string
+    joinQuestion?: string
+  }
 ) {
   return requestJson<WorkspaceInvite>(`/api/workspaces/${workspaceId}/invites`, {
     method: 'POST',
@@ -76,6 +82,12 @@ export async function approveJoinRequest(workspaceId: string, requestId: string)
 
 export async function denyJoinRequest(workspaceId: string, requestId: string): Promise<WorkspaceJoinRequest> {
   return requestJson<WorkspaceJoinRequest>(`/api/workspaces/${workspaceId}/requests/${requestId}/deny`, {
+    method: 'POST',
+  })
+}
+
+export async function cancelOwnJoinRequest(workspaceId: string): Promise<void> {
+  await requestJson<void>(`/api/workspaces/${workspaceId}/requests/self/cancel`, {
     method: 'POST',
   })
 }

@@ -7,6 +7,8 @@ public class WorkspaceInviteCreateRequest {
     private Instant expiresAt;
     private Integer maxUses;
     private String defaultRoleId;
+    private String invitedEmail;
+    private String joinQuestion;
 
     public WorkspaceInviteCreateRequest() {
     }
@@ -33,5 +35,21 @@ public class WorkspaceInviteCreateRequest {
 
     public void setDefaultRoleId(String defaultRoleId) {
         this.defaultRoleId = defaultRoleId;
+    }
+
+    public String getInvitedEmail() {
+        return invitedEmail;
+    }
+
+    public void setInvitedEmail(String invitedEmail) {
+        this.invitedEmail = invitedEmail;
+    }
+
+    public String getJoinQuestion() {
+        return joinQuestion;
+    }
+
+    public void setJoinQuestion(String joinQuestion) {
+        this.joinQuestion = joinQuestion;
     }
 }

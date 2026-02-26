@@ -3,6 +3,7 @@ package com.pmd.auth.service;
 import com.pmd.auth.model.AuthSession;
 import com.pmd.auth.repository.AuthSessionRepository;
 import com.pmd.config.AuthSessionProperties;
+import com.pmd.security.ClientMetadataService;
 import com.pmd.user.model.User;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,11 +28,15 @@ public class AuthSessionService {
 
     private final AuthSessionRepository authSessionRepository;
     private final AuthSessionProperties properties;
+    private final ClientMetadataService clientMetadataService;
     private final java.security.SecureRandom secureRandom = new java.security.SecureRandom();
 
-    public AuthSessionService(AuthSessionRepository authSessionRepository, AuthSessionProperties properties) {
+    public AuthSessionService(AuthSessionRepository authSessionRepository,
+                              AuthSessionProperties properties,
+                              ClientMetadataService clientMetadataService) {
         this.authSessionRepository = authSessionRepository;
         this.properties = properties;
+        this.clientMetadataService = clientMetadataService;
     }
 
     public IssuedSession createSession(User user, boolean remember, HttpServletRequest request) {
@@ -48,8 +53,10 @@ public class AuthSessionService {
         session.setCreatedAt(now);
         session.setLastUsedAt(now);
         session.setExpiresAt(expiresAt);
-        session.setUserAgent(trim(request.getHeader("User-Agent"), 300));
-        session.setIpAddress(extractClientIp(request));
+        String rawIp = clientMetadataService.resolveClientIp(request);
+        String rawUserAgent = request != null ? request.getHeader("User-Agent") : null;
+        session.setUserAgent(clientMetadataService.sanitizeUserAgentForStorage(rawUserAgent));
+        session.setIpAddress(clientMetadataService.sanitizeIpForStorage(rawIp));
         authSessionRepository.save(session);
         return new IssuedSession(rawToken, expiresAt, remember);
     }
@@ -170,14 +177,6 @@ public class AuthSessionService {
         return properties.isRequireVerifiedEmail();
     }
 
-    private String extractClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return trim(forwardedFor.split(",")[0].trim(), 120);
-        }
-        return trim(request.getRemoteAddr(), 120);
-    }
-
     private void enforceSessionLimit(String userId) {
         List<AuthSession> activeSessions = authSessionRepository.findByUserIdAndRevokedAtIsNull(userId).stream()
             .filter(session -> session.getExpiresAt() != null && session.getExpiresAt().isAfter(Instant.now()))
@@ -197,13 +196,6 @@ public class AuthSessionService {
 
     private void cleanupExpired() {
         authSessionRepository.deleteByExpiresAtBefore(Instant.now().minusSeconds(60));
-    }
-
-    private String trim(String value, int maxLen) {
-        if (value == null) {
-            return null;
-        }
-        return value.length() <= maxLen ? value : value.substring(0, maxLen);
     }
 
     private String generateToken() {

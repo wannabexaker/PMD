@@ -11,6 +11,11 @@ public class NotificationPreferencesRequest {
     private Boolean emailOnProjectStatusChange;
     private Boolean emailOnProjectMembershipChange;
     private Boolean emailOnOverdueReminder;
+    private Boolean emailOnWorkspaceInviteCreated;
+    private Boolean emailOnWorkspaceJoinRequestSubmitted;
+    private Boolean emailOnWorkspaceJoinRequestDecision;
+    private Boolean emailOnWorkspaceInviteAccepted;
+    private Boolean emailOnWorkspaceInviteAcceptedDigest;
 
     public Boolean getEmailOnAssign() {
         return emailOnAssign;
@@ -82,5 +87,45 @@ public class NotificationPreferencesRequest {
 
     public void setEmailOnOverdueReminder(Boolean emailOnOverdueReminder) {
         this.emailOnOverdueReminder = emailOnOverdueReminder;
+    }
+
+    public Boolean getEmailOnWorkspaceInviteCreated() {
+        return emailOnWorkspaceInviteCreated;
+    }
+
+    public void setEmailOnWorkspaceInviteCreated(Boolean emailOnWorkspaceInviteCreated) {
+        this.emailOnWorkspaceInviteCreated = emailOnWorkspaceInviteCreated;
+    }
+
+    public Boolean getEmailOnWorkspaceJoinRequestSubmitted() {
+        return emailOnWorkspaceJoinRequestSubmitted;
+    }
+
+    public void setEmailOnWorkspaceJoinRequestSubmitted(Boolean emailOnWorkspaceJoinRequestSubmitted) {
+        this.emailOnWorkspaceJoinRequestSubmitted = emailOnWorkspaceJoinRequestSubmitted;
+    }
+
+    public Boolean getEmailOnWorkspaceJoinRequestDecision() {
+        return emailOnWorkspaceJoinRequestDecision;
+    }
+
+    public void setEmailOnWorkspaceJoinRequestDecision(Boolean emailOnWorkspaceJoinRequestDecision) {
+        this.emailOnWorkspaceJoinRequestDecision = emailOnWorkspaceJoinRequestDecision;
+    }
+
+    public Boolean getEmailOnWorkspaceInviteAccepted() {
+        return emailOnWorkspaceInviteAccepted;
+    }
+
+    public void setEmailOnWorkspaceInviteAccepted(Boolean emailOnWorkspaceInviteAccepted) {
+        this.emailOnWorkspaceInviteAccepted = emailOnWorkspaceInviteAccepted;
+    }
+
+    public Boolean getEmailOnWorkspaceInviteAcceptedDigest() {
+        return emailOnWorkspaceInviteAcceptedDigest;
+    }
+
+    public void setEmailOnWorkspaceInviteAcceptedDigest(Boolean emailOnWorkspaceInviteAcceptedDigest) {
+        this.emailOnWorkspaceInviteAcceptedDigest = emailOnWorkspaceInviteAcceptedDigest;
     }
 }

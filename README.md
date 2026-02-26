@@ -69,6 +69,13 @@ Use `scripts\pmd_dev_down.bat`, `pmd.bat down`, or stop the Maven/Node processes
 
 Because Mongo and MailHog are already wired into this compose file, you do **not** need `docker-compose.deps.yml` when you run `docker compose -f docker-compose.local.yml --profile reviewer up -d --build`. This compose stack should be treated as a reviewer/CI path rather than the default day-to-day flow.
 
+The frontend image now serves SPA assets and reverse-proxies backend routes via Nginx:
+- `/api/*` -> backend
+- `/actuator/*` -> backend
+- `/uploads/*` -> backend
+
+That means production/reviewer frontend calls stay same-origin by default (no hardcoded `localhost:8080` needed).
+
 ### Release readiness check (Docker/Nginx)
 
 Use this sequence before tagging/pushing a release:
@@ -80,15 +87,18 @@ Use this sequence before tagging/pushing a release:
    - `docker compose -f docker-compose.prod.yml config`
 2. Validate Nginx config used by the frontend image:
    - `docker run --rm -v "${PWD}/frontend/pmd-frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.27-alpine nginx -t`
-3. Build reviewer images:
+3. Ensure compose production env contains at least:
+   - `PMD_JWT_SECRET`
+   - optional `PMD_FRONTEND_PORT`
+4. Build reviewer images:
    - `docker compose -f docker-compose.local.yml --profile reviewer build`
-4. If `pmd-mongo`/`pmd-mailhog` already exist from deps mode, stop the previous stack first:
+5. If `pmd-mongo`/`pmd-mailhog` already exist from deps mode, stop the previous stack first:
    - `docker compose -f docker-compose.deps.yml down`
    - or `docker compose -f docker-compose.local.yml down`
 
 ### Production compose note
 
-`docker-compose.prod.yml` expects `PMD_JWT_SECRET` to be set.
+`docker-compose.prod.yml` requires `PMD_JWT_SECRET` to be set (it now fails fast if missing).
 Before running production compose, create a `.env` file (or export env vars) and set a long random value:
 
 ```
@@ -123,6 +133,35 @@ PMD_JWT_SECRET=your-long-random-secret-at-least-32-characters
 - Additional auth env knobs:
   - `PMD_AUTH_REQUIRE_VERIFIED_EMAIL` (deny login for unverified users when true)
   - `PMD_AUTH_SESSION_INACTIVITY_TTL_SECONDS`
+  - `PMD_SECURITY_TRUST_PROXY_HEADERS` (default `false`; set `true` only behind trusted reverse proxy)
+  - `PMD_SECURITY_CLIENT_METADATA_STORE_RAW` (default `false`; keeps anonymized IP/user-agent at rest)
+  - `PMD_SECURITY_CLIENT_METADATA_HASH_SALT` (optional salt for metadata fingerprinting)
+  - `PMD_ALLOWED_ORIGINS`
+  - `PMD_ALLOWED_ORIGIN_PATTERNS` (use this for LAN/dev clients, e.g. second PC on same network)
+  - `VITE_ALLOWED_ORIGINS` (optional dev-server CORS allowlist override)
+
+Defaults:
+- Local/dev defaults keep `PMD_AUTH_SESSION_COOKIE_SECURE=false` so refresh cookies work over HTTP.
+- Production should set `PMD_AUTH_SESSION_COOKIE_SECURE=true` and run over HTTPS.
+- Client metadata (IP/user-agent) is anonymized at storage level by default; raw storage is opt-in via env.
+- Vite dev CORS defaults already allow localhost + common private LAN ranges (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`) and `*.local`.
+
+### Workspace invite/join email notifications (no-noise)
+
+- Notification preferences now include workspace invite/join events:
+  - `Email when direct invite is created` (default ON)
+  - `Email when join request is submitted` (default ON)
+  - `Email when join request is approved/denied` (default ON)
+  - `Email when invited member joins workspace (instant)` (default OFF)
+  - `Email digest for invited members who joined` (default ON)
+- Delivery rules:
+  - Direct invite created -> only the invite recipient (or direct email target).
+  - Join request submitted -> only users who can `approveJoinRequests` in that workspace.
+  - Join request approved/denied -> only the requester.
+  - Invite accepted/member joined -> inviter only; fallback to owner/manager when inviter is unavailable.
+- Anti-noise behavior:
+  - Join-request emails are throttled to max **1 email / 10 minutes / approver / workspace**.
+  - Invite-accepted digest entries are grouped and delivered daily.
 
 ## Ports & runtime facts
 
@@ -178,6 +217,7 @@ Note: `scripts/.pmd-dev-pids.json` is a local runtime state file (ephemeral PIDs
 ## Audit retention & integrity
 
 - Workspace audit log now uses append-only inserts plus hash-chain fields (`prevEventHash`, `eventHash`) for tamper-evidence.
+- API errors use a standardized envelope with semantic `code` + `requestId` for traceability. Contract: `docs/error-contract.md`.
 - Retention is managed by scheduled cleanup:
   - env: `PMD_AUDIT_RETENTION_DAYS`
   - default: `365` days.

@@ -6,6 +6,7 @@ public class WorkspaceJoinRequest {
 
     @NotBlank
     private String token;
+    private String inviteAnswer;
 
     public WorkspaceJoinRequest() {
     }
@@ -20,5 +21,13 @@ public class WorkspaceJoinRequest {
 
     public void setToken(String token) {
         this.token = token;
+    }
+
+    public String getInviteAnswer() {
+        return inviteAnswer;
+    }
+
+    public void setInviteAnswer(String inviteAnswer) {
+        this.inviteAnswer = inviteAnswer;
     }
 }

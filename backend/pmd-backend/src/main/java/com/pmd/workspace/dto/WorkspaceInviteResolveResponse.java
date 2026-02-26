@@ -8,6 +8,7 @@ public class WorkspaceInviteResolveResponse {
     private String workspaceName;
     private String token;
     private String code;
+    private String joinQuestion;
     private String defaultRoleId;
     private Instant expiresAt;
     private Integer maxUses;
@@ -18,12 +19,13 @@ public class WorkspaceInviteResolveResponse {
     }
 
     public WorkspaceInviteResolveResponse(String workspaceId, String workspaceName, String token, String code,
-                                          String defaultRoleId,
+                                          String joinQuestion, String defaultRoleId,
                                           Instant expiresAt, Integer maxUses, int usesCount, boolean revoked) {
         this.workspaceId = workspaceId;
         this.workspaceName = workspaceName;
         this.token = token;
         this.code = code;
+        this.joinQuestion = joinQuestion;
         this.defaultRoleId = defaultRoleId;
         this.expiresAt = expiresAt;
         this.maxUses = maxUses;
@@ -61,6 +63,14 @@ public class WorkspaceInviteResolveResponse {
 
     public void setCode(String code) {
         this.code = code;
+    }
+
+    public String getJoinQuestion() {
+        return joinQuestion;
+    }
+
+    public void setJoinQuestion(String joinQuestion) {
+        this.joinQuestion = joinQuestion;
     }
 
     public String getDefaultRoleId() {

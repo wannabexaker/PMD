@@ -21,6 +21,7 @@ public class WorkspaceInvite {
     private String code;
 
     private String invitedEmail;
+    private String joinQuestion;
     private String defaultRoleId;
 
     private Instant expiresAt;
@@ -39,7 +40,7 @@ public class WorkspaceInvite {
     }
 
     public WorkspaceInvite(String id, String workspaceId, String token, String code, String invitedEmail,
-                           String defaultRoleId,
+                           String joinQuestion, String defaultRoleId,
                            Instant expiresAt, Integer maxUses, int usesCount, boolean revoked,
                            Instant createdAt, String createdByUserId) {
         this.id = id;
@@ -47,6 +48,7 @@ public class WorkspaceInvite {
         this.token = token;
         this.code = code;
         this.invitedEmail = invitedEmail;
+        this.joinQuestion = joinQuestion;
         this.defaultRoleId = defaultRoleId;
         this.expiresAt = expiresAt;
         this.maxUses = maxUses;
@@ -94,6 +96,14 @@ public class WorkspaceInvite {
 
     public void setInvitedEmail(String invitedEmail) {
         this.invitedEmail = invitedEmail;
+    }
+
+    public String getJoinQuestion() {
+        return joinQuestion;
+    }
+
+    public void setJoinQuestion(String joinQuestion) {
+        this.joinQuestion = joinQuestion;
     }
 
     public String getDefaultRoleId() {

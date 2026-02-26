@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import type { Workspace } from '../types'
 import { useAuth } from '../auth/authUtils'
+import { classifyError, getErrorMessage } from '../api/errors'
 import {
   createWorkspace as createWorkspaceApi,
   enterDemoWorkspace,
@@ -24,7 +25,7 @@ type WorkspaceContextValue = {
   setActiveWorkspaceId: (id: string | null) => void
   refresh: () => Promise<void>
   createWorkspace: (name: string, initialTeams?: string[]) => Promise<Workspace | null>
-  joinWorkspace: (token: string) => Promise<Workspace | null>
+  joinWorkspace: (token: string, inviteAnswer?: string) => Promise<Workspace | null>
   enterDemo: () => Promise<Workspace | null>
   resetDemo: () => Promise<boolean>
 }
@@ -119,7 +120,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load workspaces')
+      const info = classifyError(err)
+      if (info.kind === 'forbidden') {
+        // Do not keep a sticky global 403 banner for workspace-scoped permission misses.
+        setError(null)
+      } else {
+        setError(getErrorMessage(err, 'Failed to load workspaces'))
+      }
     } finally {
       setLoading(false)
     }
@@ -140,21 +147,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       })
       setActiveWorkspaceId(created.id ?? null)
+      setError(null)
       return created
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create workspace')
+    } catch {
       return null
     }
   }, [setActiveWorkspaceId])
 
-  const joinWorkspace = useCallback(async (token: string) => {
+  const joinWorkspace = useCallback(async (token: string, inviteAnswer?: string) => {
     const trimmed = token.trim()
     if (!trimmed) {
       setError('Invite token is required.')
       return null
     }
     try {
-      const joined = await joinWorkspaceApi(trimmed)
+      const joined = await joinWorkspaceApi(trimmed, inviteAnswer)
       setWorkspaces((prev) => {
         const next = [joined, ...prev.filter((ws) => ws.id !== joined.id)]
         return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
@@ -164,9 +171,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       } else {
         setActiveWorkspaceId(null)
       }
+      setError(null)
       return joined
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join workspace')
+    } catch {
       return null
     }
   }, [setActiveWorkspaceId])
@@ -179,9 +186,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       })
       setActiveWorkspaceId(demo.id ?? null)
+      setError(null)
       return demo
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to enter demo workspace')
+    } catch {
       return null
     }
   }, [setActiveWorkspaceId])
@@ -194,9 +201,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     try {
       await resetDemoWorkspaceApi(workspaceId)
+      setError(null)
       return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset demo workspace')
+    } catch {
       return false
     }
   }, [activeWorkspaceId])
