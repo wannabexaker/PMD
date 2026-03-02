@@ -7,5 +7,6 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface WorkspaceInviteAcceptedDigestRepository extends MongoRepository<WorkspaceInviteAcceptedDigestEntry, String> {
     List<WorkspaceInviteAcceptedDigestEntry> findByDeliveredAtIsNullAndCreatedAtBefore(Instant before);
-}
 
+    long deleteByWorkspaceId(String workspaceId);
+}

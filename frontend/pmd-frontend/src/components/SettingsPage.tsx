@@ -1,4 +1,4 @@
-﻿import type { UiPreferences } from '../ui/uiPreferences'
+import type { UiPreferences } from '../ui/uiPreferences'
 import { useToast } from '../shared/ui/toast/ToastProvider'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
@@ -186,6 +186,43 @@ const ROLE_PERMISSION_GROUPS: { label: string; items: { key: keyof WorkspacePerm
     ],
   },
 ]
+
+function SettingsEditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 20h5l10-10-5-5L4 15z" />
+      <path d="m12.8 6.2 5 5" />
+    </svg>
+  )
+}
+
+function SettingsCloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
+}
+
+function SettingsChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {open ? <path d="m6 15 6-6 6 6" /> : <path d="m6 9 6 6 6-6" />}
+    </svg>
+  )
+}
+
+function SettingsDiceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 5h14v14H5z" />
+      <circle cx="9" cy="9" r="1.6" />
+      <circle cx="15" cy="12" r="1.6" />
+      <circle cx="10" cy="15" r="1.6" />
+    </svg>
+  )
+}
 
 const DEFAULT_ROLE_PERMISSIONS: WorkspacePermissions = {
   inviteMembers: false,
@@ -376,18 +413,24 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [workspaceProfileDescription, setWorkspaceProfileDescription] = useState('')
   const [teamName, setTeamName] = useState('')
   const [teamColor, setTeamColor] = useState<string>('#3B82F6')
+  const [teamColorPickerOpen, setTeamColorPickerOpen] = useState(false)
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [editingTeamName, setEditingTeamName] = useState('')
   const [editingTeamColor, setEditingTeamColor] = useState<string>('#3B82F6')
+  const [editingTeamColorPickerOpen, setEditingTeamColorPickerOpen] = useState(false)
   const [editingTeamAction, setEditingTeamAction] = useState<'rename' | 'delete' | 'toggle' | null>(null)
   const [teamError, setTeamError] = useState<string | null>(null)
   const [roles, setRoles] = useState<WorkspaceRole[]>([])
   const [rolesLoading, setRolesLoading] = useState(false)
   const [rolesError, setRolesError] = useState<string | null>(null)
   const [roleName, setRoleName] = useState('')
+  const [roleBadgeColor, setRoleBadgeColor] = useState<string>('#3B82F6')
+  const [roleColorPickerOpen, setRoleColorPickerOpen] = useState(false)
   const [rolePermissions, setRolePermissions] = useState<WorkspacePermissions>({ ...DEFAULT_ROLE_PERMISSIONS })
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
   const [editingRoleName, setEditingRoleName] = useState('')
+  const [editingRoleBadgeColor, setEditingRoleBadgeColor] = useState<string>('#3B82F6')
+  const [editingRoleColorPickerOpen, setEditingRoleColorPickerOpen] = useState(false)
   const [editingRoleAction, setEditingRoleAction] = useState<'rename' | 'permissions' | 'reset' | null>(null)
   const [editingRolePermissions, setEditingRolePermissions] = useState<WorkspacePermissions>({
     ...DEFAULT_ROLE_PERMISSIONS,
@@ -605,6 +648,30 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     [roles]
   )
   const customRolesLimitReached = customRolesCount >= MAX_CUSTOM_ROLES_PER_WORKSPACE
+
+  const usedTeamRoleColors = useMemo(() => {
+    const colors = new Set<string>()
+    teams.forEach((team) => {
+      const color = (team.color ?? '').trim()
+      if (color) colors.add(color.toUpperCase())
+    })
+    roles.forEach((role) => {
+      const color = (role.badge?.color ?? '').trim()
+      if (color) colors.add(color.toUpperCase())
+    })
+    return colors
+  }, [roles, teams])
+
+  const pickUnusedPaletteColor = useCallback((excludeColors: string[] = []) => {
+    const blocked = new Set(usedTeamRoleColors)
+    excludeColors.forEach((color) => {
+      const normalized = (color ?? '').trim().toUpperCase()
+      if (normalized) blocked.delete(normalized)
+    })
+    const available = TEAM_COLOR_PALETTE.filter((color) => !blocked.has(color.toUpperCase()))
+    const pool = available.length > 0 ? available : TEAM_COLOR_PALETTE
+    return pool[Math.floor(Math.random() * pool.length)] ?? '#3B82F6'
+  }, [usedTeamRoleColors])
 
   const movePanel = useCallback((sourceId: SettingsPanelId, targetId: SettingsPanelId | 'end') => {
     if (sourceId === targetId) return
@@ -1126,6 +1193,12 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   }, [workspaceProfileTargetId, workspaces])
 
   useEffect(() => {
+    if (!workspaceProfileTargetId) {
+      setWorkspacePmdImagesOpen(false)
+    }
+  }, [workspaceProfileTargetId])
+
+  useEffect(() => {
     setWorkspaceProfileName(profileWorkspace?.name ?? '')
     setWorkspaceProfileSlug(profileWorkspace?.slug ?? '')
     setWorkspaceProfileLanguage(profileWorkspace?.language ?? '')
@@ -1210,7 +1283,8 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     const created = await createTeam(name, teamColor)
     if (created?.id) {
       setTeamName('')
-      setTeamColor('#3B82F6')
+      setTeamColor(pickUnusedPaletteColor())
+      setTeamColorPickerOpen(false)
       setTeamError(null)
       await refreshTeams()
       showToast({ type: 'success', message: 'Team created.' })
@@ -1219,11 +1293,16 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     }
   }
 
+  const handleRandomTeamColor = useCallback(() => {
+    setTeamColor(pickUnusedPaletteColor())
+  }, [pickUnusedPaletteColor])
+
   const handleStartEditTeam = (id?: string | null, name?: string | null, color?: string | null) => {
     if (!id) return
     setEditingTeamId(id)
     setEditingTeamName(name ?? '')
     setEditingTeamColor(color ?? '#3B82F6')
+    setEditingTeamColorPickerOpen(false)
     setEditingTeamAction('rename')
     setTeamError(null)
   }
@@ -1246,9 +1325,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     setEditingTeamId(null)
     setEditingTeamName('')
     setEditingTeamColor('#3B82F6')
+    setEditingTeamColorPickerOpen(false)
     setEditingTeamAction(null)
     setTeamError(null)
   }
+
+  const handleRandomEditingTeamColor = useCallback(() => {
+    setEditingTeamColor((prev) => pickUnusedPaletteColor([prev]))
+  }, [pickUnusedPaletteColor])
 
   const handleSaveTeam = async () => {
     if (!editingTeamId || !canEditTeams) return
@@ -1595,6 +1679,8 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     if (!role.id) return
     setEditingRoleId(role.id)
     setEditingRoleName(role.name ?? '')
+    setEditingRoleBadgeColor((role.badge?.color ?? '#3B82F6').trim() || '#3B82F6')
+    setEditingRoleColorPickerOpen(false)
     setEditingRolePermissions(normalizePermissions(role.permissions))
     setEditingRoleAction(null)
   }
@@ -1602,6 +1688,8 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const handleCancelEditRole = () => {
     setEditingRoleId(null)
     setEditingRoleName('')
+    setEditingRoleBadgeColor('#3B82F6')
+    setEditingRoleColorPickerOpen(false)
     setEditingRolePermissions({ ...DEFAULT_ROLE_PERMISSIONS })
     setEditingRoleAction(null)
   }
@@ -1618,8 +1706,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       return
     }
     try {
-      await createRole(activeWorkspaceId, { name, permissions: rolePermissions })
+      await createRole(activeWorkspaceId, {
+        name,
+        permissions: rolePermissions,
+        badge: { color: roleBadgeColor },
+      })
       setRoleName('')
+      setRoleBadgeColor(pickUnusedPaletteColor())
+      setRoleColorPickerOpen(false)
       setRolePermissions({ ...DEFAULT_ROLE_PERMISSIONS })
       await loadRoles(activeWorkspaceId)
       showToast({ type: 'success', message: 'Role created.' })
@@ -1632,6 +1726,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       showToast({ type: 'error', message })
     }
   }
+
+  const handleRandomRoleColor = useCallback(() => {
+    setRoleBadgeColor(pickUnusedPaletteColor())
+  }, [pickUnusedPaletteColor])
+
+  const handleRandomEditingRoleColor = useCallback(() => {
+    setEditingRoleBadgeColor((prev) => pickUnusedPaletteColor([prev]))
+  }, [pickUnusedPaletteColor])
 
   const handleSaveRole = async () => {
     if (!activeWorkspaceId || !editingRoleId) return
@@ -1648,6 +1750,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       await updateRole(activeWorkspaceId, editingRoleId, {
         name,
         permissions: editingRolePermissions,
+        badge: { color: editingRoleBadgeColor },
       })
       handleCancelEditRole()
       await loadRoles(activeWorkspaceId)
@@ -2349,7 +2452,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   >
                     <span>Coming soon</span>
                     <span className={`coming-soon-chevron${comingSoonExpanded.preferences ? ' is-open' : ''}`} aria-hidden="true">
-                      ▾
+                      <SettingsChevronIcon open={comingSoonExpanded.preferences} />
                     </span>
                   </button>
                   {comingSoonExpanded.preferences ? (
@@ -2440,10 +2543,28 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             {workspace.name ?? 'Untitled'}
                           </div>
                           <div className="workspace-badges">
-                            {workspace.demo ? <span className="pill">Demo</span> : null}
+                            {workspace.demo ? (
+                              <span className="pill pill-with-icon pill-demo">
+                                <span className="pill-icon" aria-hidden="true">
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="M7 6h10v2H7zM9 10h6v8H9z" />
+                                  </svg>
+                                </span>
+                                <span>Demo</span>
+                              </span>
+                            ) : null}
                             {workspace.status === 'PENDING' ? <span className="pill">Pending</span> : null}
                             {activeWorkspace?.id === workspace.id ? <span className="pill">Current</span> : null}
-                            {isWorkspaceCreator(workspace) ? <span className="pill">Creator</span> : null}
+                            {isWorkspaceCreator(workspace) ? (
+                              <span className="pill pill-with-icon pill-creator">
+                                <span className="pill-icon" aria-hidden="true">
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="m12 3 2.6 5.3 5.9.9-4.3 4.2 1 5.9L12 16.5 6.8 19.3l1-5.9L3.5 9.2l5.9-.9z" />
+                                  </svg>
+                                </span>
+                                <span>Creator</span>
+                              </span>
+                            ) : null}
                             {workspace.status === 'PENDING' && workspace.id ? (
                               <button
                                 type="button"
@@ -2459,13 +2580,21 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             {workspace.id && canEditWorkspaceProfileFor(workspace) ? (
                               <button
                                 type="button"
-                                className="btn btn-secondary team-edit-trigger"
+                                className="btn btn-secondary team-edit-trigger settings-icon-action settings-icon-edit"
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   setWorkspaceProfileTargetId((prev) => (prev === workspace.id ? null : workspace.id ?? null))
                                 }}
+                                title={workspaceProfileTargetId === workspace.id ? 'Close' : 'Edit'}
+                                aria-label={workspaceProfileTargetId === workspace.id ? 'Close' : 'Edit'}
                               >
-                                {workspaceProfileTargetId === workspace.id ? 'Close' : 'Edit'}
+                                <span className="settings-icon-glyph" aria-hidden="true">
+                                  {workspaceProfileTargetId === workspace.id ? (
+                                    <SettingsCloseIcon />
+                                  ) : (
+                                    <SettingsEditIcon />
+                                  )}
+                                </span>
                               </button>
                             ) : null}
                           </div>
@@ -2558,11 +2687,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                         if (!ok) return
                                         void handleDeleteWorkspaceAvatar()
                                       }}
-                                      disabled={workspaceProfileAvatarUploading || settingsBusy}
-                                    >
-                                      ×
-                                    </button>
-                                  ) : null}
+                                    disabled={workspaceProfileAvatarUploading || settingsBusy}
+                                  >
+                                    <span className="settings-icon-glyph" aria-hidden="true">
+                                      <SettingsCloseIcon />
+                                    </span>
+                                  </button>
+                                ) : null}
                                 </div>
                                 <div className="workspace-profile-avatar-actions">
                                   <div className="workspace-profile-avatar-actions-row">
@@ -2609,24 +2740,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                   <div className="workspace-profile-avatar-meta">
                                     <span className="muted">PNG/JPG/WEBP up to 2MB</span>
                                   </div>
-                                  {workspacePmdImagesOpen ? (
-                                    <div className="pmd-images-grid" role="list" aria-label="PMD workspace images">
-                                      {pmdImages.map((fileName) => (
-                                        <button
-                                          key={fileName}
-                                          type="button"
-                                          className="pmd-image-thumb"
-                                          title={fileName}
-                                          onClick={() => {
-                                            setWorkspaceProfileAvatarUrl(`/profile-pictures/${fileName}`)
-                                            setWorkspacePmdImagesOpen(false)
-                                          }}
-                                        >
-                                          <img src={`/profile-pictures/${fileName}`} alt={fileName} loading="lazy" />
-                                        </button>
-                                      ))}
-                                    </div>
-                                  ) : null}
+                                  {workspacePmdImagesOpen ? <p className="muted">Select from PMD images window.</p> : null}
                                 </div>
                                 <input
                                   ref={workspaceProfileAvatarFileRef}
@@ -2663,6 +2777,16 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                 >
                                   Save profile
                                 </button>
+                                {workspace.demo ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-danger team-edit-trigger"
+                                    onClick={handleResetDemo}
+                                    disabled={settingsBusy}
+                                  >
+                                    Reset demo
+                                  </button>
+                                ) : null}
                               </div>
                             </div>
                           </div>
@@ -2678,13 +2802,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 <div className="workspace-group-header">
                   <h4>Workspace actions</h4>
                 </div>
-                {activeWorkspace?.demo ? (
-                  <div className="workspace-inline-actions">
-                    <button type="button" className="btn btn-danger team-edit-trigger" onClick={handleResetDemo}>
-                      Reset Demo
-                    </button>
-                  </div>
-                ) : null}
                 <div className="workspace-actions workspace-actions-stack">
                   <div className="form-field">
                     <div data-tour="settings-create-workspace">
@@ -2841,11 +2958,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                               if (!ok) return
                               void handleDeleteWorkspaceAvatar()
                             }}
-                            disabled={workspaceProfileAvatarUploading || settingsBusy}
-                          >
-                            ×
-                          </button>
-                        ) : null}
+                                      disabled={workspaceProfileAvatarUploading || settingsBusy}
+                                    >
+                                      <span className="settings-icon-glyph" aria-hidden="true">
+                                        <SettingsCloseIcon />
+                                      </span>
+                                    </button>
+                                  ) : null}
                       </div>
                       <div className="workspace-profile-avatar-actions">
                         <div className="workspace-profile-avatar-actions-row">
@@ -2892,24 +3011,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                         <div className="workspace-profile-avatar-meta">
                           <span className="muted">PNG/JPG/WEBP up to 2MB</span>
                         </div>
-                        {workspacePmdImagesOpen ? (
-                          <div className="pmd-images-grid" role="list" aria-label="PMD workspace images">
-                            {pmdImages.map((fileName) => (
-                              <button
-                                key={fileName}
-                                type="button"
-                                className="pmd-image-thumb"
-                                title={fileName}
-                                onClick={() => {
-                                  setWorkspaceProfileAvatarUrl(`/profile-pictures/${fileName}`)
-                                  setWorkspacePmdImagesOpen(false)
-                                }}
-                              >
-                                <img src={`/profile-pictures/${fileName}`} alt={fileName} loading="lazy" />
-                              </button>
-                            ))}
-                          </div>
-                        ) : null}
+                        {workspacePmdImagesOpen ? <p className="muted">Select from PMD images window.</p> : null}
                       </div>
                       <input
                         ref={workspaceProfileAvatarFileRef}
@@ -2941,6 +3043,16 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       <button type="button" className="btn btn-primary" onClick={handleSaveWorkspaceProfile} disabled={settingsBusy}>
                         Save profile
                       </button>
+                      {profileWorkspace.demo ? (
+                        <button
+                          type="button"
+                          className="btn btn-danger team-edit-trigger"
+                          onClick={handleResetDemo}
+                          disabled={settingsBusy}
+                        >
+                          Reset demo
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -3062,7 +3174,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                       setOpenInviteMenuId((prev) => (prev === (invite.id ?? invite.token ?? '') ? null : (invite.id ?? invite.token ?? '')))
                                     }
                                   >
-                                    ▼
+                                    <span className="settings-icon-glyph" aria-hidden="true">
+                                      <SettingsChevronIcon open />
+                                    </span>
                                   </button>
                                   {openInviteMenuId === (invite.id ?? invite.token ?? '') ? (
                                     <div className="invite-menu-dropdown">
@@ -3171,7 +3285,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       >
                         <span>Coming soon</span>
                         <span className={`coming-soon-chevron${comingSoonExpanded.workspacesTabs ? ' is-open' : ''}`} aria-hidden="true">
-                          ▾
+                          <SettingsChevronIcon open={comingSoonExpanded.workspacesTabs} />
                         </span>
                       </button>
                       {comingSoonExpanded.workspacesTabs ? (
@@ -3206,7 +3320,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   >
                     <span>Coming soon</span>
                     <span className={`coming-soon-chevron${comingSoonExpanded.workspacesGrid ? ' is-open' : ''}`} aria-hidden="true">
-                      ▾
+                      <SettingsChevronIcon open={comingSoonExpanded.workspacesGrid} />
                     </span>
                   </button>
                   {comingSoonExpanded.workspacesGrid ? (
@@ -3270,7 +3384,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       }}
                       disabled={auditLoading || !activeWorkspaceId}
                     >
-                      {auditLoading ? '...' : '↻'}
+                      {auditLoading ? '...' : '?'}
                     </button>
                     <button
                       type="button"
@@ -3433,10 +3547,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                           {canEditTeams && editingTeamId !== team.id ? (
                             <button
                               type="button"
-                              className="btn btn-secondary team-edit-trigger"
+                              className="btn btn-secondary team-edit-trigger settings-icon-action settings-icon-edit"
                               onClick={() => handleStartEditTeam(team.id, team.name, team.color)}
+                              title="Edit team"
+                              aria-label="Edit team"
                             >
-                              Edit
+                              <span className="settings-icon-glyph" aria-hidden="true">
+                                <SettingsEditIcon />
+                              </span>
                             </button>
                           ) : null}
                         </div>
@@ -3460,10 +3578,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             </button>
                             <button
                               type="button"
-                              className={`btn btn-ghost${editingTeamAction === 'delete' ? ' assign-toggle is-active' : ''}`}
+                              className={`btn btn-secondary team-edit-trigger settings-icon-action settings-icon-delete${editingTeamAction === 'delete' ? ' assign-toggle is-active' : ''}`}
                               onClick={() => setEditingTeamAction('delete')}
+                              title="Delete"
+                              aria-label="Delete"
                             >
-                              Delete
+                              <span className="settings-icon-glyph" aria-hidden="true">
+                                <SettingsCloseIcon />
+                              </span>
                             </button>
                           </div>
                           {editingTeamAction === 'rename' ? (
@@ -3486,25 +3608,53 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                 }}
                                 placeholder="New team name"
                               />
-                              <div className="team-color-picker team-color-picker-edit" role="group" aria-label="Edit team color">
-                                {TEAM_COLOR_PALETTE.map((color) => {
-                                  const selected = editingTeamColor === color
-                                  return (
-                                    <button
-                                      key={`edit-team-color-${team.id ?? team.name}-${color}`}
-                                      type="button"
-                                      className={`team-color-swatch${selected ? ' is-selected' : ''}`}
-                                      style={{ backgroundColor: color }}
-                                      onClick={() => {
-                                        setEditingTeamColor(color)
-                                        if (teamError) setTeamError(null)
-                                      }}
-                                      title={color}
-                                      aria-label={`Select color ${color}`}
-                                    />
-                                  )
-                                })}
+                              <div className="workspace-inline-actions color-picker-toggle-row">
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary team-edit-trigger settings-icon-action"
+                                  onClick={() => setEditingTeamColorPickerOpen((prev) => !prev)}
+                                  title={editingTeamColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                                  aria-label={editingTeamColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                                  aria-expanded={editingTeamColorPickerOpen}
+                                >
+                                  <span className="settings-icon-glyph" aria-hidden="true">
+                                    <SettingsChevronIcon open={editingTeamColorPickerOpen} />
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary team-edit-trigger settings-icon-action"
+                                  onClick={handleRandomEditingTeamColor}
+                                  title="Random unique color"
+                                  aria-label="Random unique color"
+                                >
+                                  <span className="settings-icon-glyph" aria-hidden="true">
+                                    <SettingsDiceIcon />
+                                  </span>
+                                </button>
+                                <span className="color-preview-swatch" style={{ backgroundColor: editingTeamColor }} title={editingTeamColor} />
                               </div>
+                              {editingTeamColorPickerOpen ? (
+                                <div className="team-color-picker team-color-picker-edit" role="group" aria-label="Edit team color">
+                                  {TEAM_COLOR_PALETTE.map((color) => {
+                                    const selected = editingTeamColor === color
+                                    return (
+                                      <button
+                                        key={`edit-team-color-${team.id ?? team.name}-${color}`}
+                                        type="button"
+                                        className={`team-color-swatch${selected ? ' is-selected' : ''}`}
+                                        style={{ backgroundColor: color }}
+                                        onClick={() => {
+                                          setEditingTeamColor(color)
+                                          if (teamError) setTeamError(null)
+                                        }}
+                                        title={color}
+                                        aria-label={`Select color ${color}`}
+                                      />
+                                    )
+                                  })}
+                                </div>
+                              ) : null}
                             </div>
                           ) : (
                             <p className="muted team-edit-note">
@@ -3564,22 +3714,50 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       Add team
                     </button>
                   </div>
-                  <div className="team-color-picker" role="group" aria-label="Team color">
-                    {TEAM_COLOR_PALETTE.map((color) => {
-                      const selected = teamColor === color
-                      return (
-                        <button
-                          key={`team-color-${color}`}
-                          type="button"
-                          className={`team-color-swatch${selected ? ' is-selected' : ''}`}
-                          style={{ backgroundColor: color }}
-                          onClick={() => setTeamColor(color)}
-                          title={color}
-                          aria-label={`Select color ${color}`}
-                        />
-                      )
-                    })}
+                  <div className="workspace-inline-actions color-picker-toggle-row">
+                    <button
+                      type="button"
+                      className="btn btn-secondary team-edit-trigger settings-icon-action"
+                      onClick={() => setTeamColorPickerOpen((prev) => !prev)}
+                      title={teamColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                      aria-label={teamColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                      aria-expanded={teamColorPickerOpen}
+                    >
+                      <span className="settings-icon-glyph" aria-hidden="true">
+                        <SettingsChevronIcon open={teamColorPickerOpen} />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary team-edit-trigger settings-icon-action"
+                      onClick={handleRandomTeamColor}
+                      title="Random unique color"
+                      aria-label="Random unique color"
+                    >
+                      <span className="settings-icon-glyph" aria-hidden="true">
+                        <SettingsDiceIcon />
+                      </span>
+                    </button>
+                    <span className="color-preview-swatch" style={{ backgroundColor: teamColor }} title={teamColor} />
                   </div>
+                  {teamColorPickerOpen ? (
+                    <div className="team-color-picker" role="group" aria-label="Team color">
+                      {TEAM_COLOR_PALETTE.map((color) => {
+                        const selected = teamColor === color
+                        return (
+                          <button
+                            key={`team-color-${color}`}
+                            type="button"
+                            className={`team-color-swatch${selected ? ' is-selected' : ''}`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setTeamColor(color)}
+                            title={color}
+                            aria-label={`Select color ${color}`}
+                          />
+                        )
+                      })}
+                    </div>
+                  ) : null}
                   {teamError ? <p className="field-error">{teamError}</p> : null}
                   {!activeWorkspaceId ? <p className="muted">Select a workspace to manage teams.</p> : null}
                   {activeWorkspaceId && !canManageTeams ? (
@@ -3599,8 +3777,16 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   <strong className="truncate" title={editingTeam.name ?? ''}>
                     Team edit: {editingTeam.name ?? 'Team'}
                   </strong>
-                  <button type="button" className="btn btn-ghost team-edit-trigger" onClick={handleCancelEditTeam}>
-                    Close
+                  <button
+                    type="button"
+                    className="btn btn-ghost team-edit-trigger settings-icon-action settings-icon-edit"
+                    onClick={handleCancelEditTeam}
+                    title="Close"
+                    aria-label="Close"
+                  >
+                    <span className="settings-icon-glyph" aria-hidden="true">
+                      <SettingsCloseIcon />
+                    </span>
                   </button>
                 </div>
                 <div className="team-edit-box">
@@ -3621,10 +3807,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     </button>
                     <button
                       type="button"
-                      className={`btn btn-ghost${editingTeamAction === 'delete' ? ' assign-toggle is-active' : ''}`}
+                      className={`btn btn-secondary team-edit-trigger settings-icon-action settings-icon-delete${editingTeamAction === 'delete' ? ' assign-toggle is-active' : ''}`}
                       onClick={() => setEditingTeamAction('delete')}
+                      title="Delete"
+                      aria-label="Delete"
                     >
-                      Delete
+                      <span className="settings-icon-glyph" aria-hidden="true">
+                        <SettingsCloseIcon />
+                      </span>
                     </button>
                   </div>
                   {editingTeamAction === 'rename' ? (
@@ -3637,25 +3827,53 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                         }}
                         placeholder="New team name"
                       />
-                      <div className="team-color-picker team-color-picker-edit" role="group" aria-label="Edit team color">
-                        {TEAM_COLOR_PALETTE.map((color) => {
-                          const selected = editingTeamColor === color
-                          return (
-                            <button
-                              key={`edit-team-overlay-color-${editingTeam.id ?? editingTeam.name}-${color}`}
-                              type="button"
-                              className={`team-color-swatch${selected ? ' is-selected' : ''}`}
-                              style={{ backgroundColor: color }}
-                              onClick={() => {
-                                setEditingTeamColor(color)
-                                if (teamError) setTeamError(null)
-                              }}
-                              title={color}
-                              aria-label={`Select color ${color}`}
-                            />
-                          )
-                        })}
+                      <div className="workspace-inline-actions color-picker-toggle-row">
+                        <button
+                          type="button"
+                          className="btn btn-secondary team-edit-trigger settings-icon-action"
+                          onClick={() => setEditingTeamColorPickerOpen((prev) => !prev)}
+                          title={editingTeamColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                          aria-label={editingTeamColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                          aria-expanded={editingTeamColorPickerOpen}
+                        >
+                          <span className="settings-icon-glyph" aria-hidden="true">
+                            <SettingsChevronIcon open={editingTeamColorPickerOpen} />
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary team-edit-trigger settings-icon-action"
+                          onClick={handleRandomEditingTeamColor}
+                          title="Random unique color"
+                          aria-label="Random unique color"
+                        >
+                          <span className="settings-icon-glyph" aria-hidden="true">
+                            <SettingsDiceIcon />
+                          </span>
+                        </button>
+                        <span className="color-preview-swatch" style={{ backgroundColor: editingTeamColor }} title={editingTeamColor} />
                       </div>
+                      {editingTeamColorPickerOpen ? (
+                        <div className="team-color-picker team-color-picker-edit" role="group" aria-label="Edit team color">
+                          {TEAM_COLOR_PALETTE.map((color) => {
+                            const selected = editingTeamColor === color
+                            return (
+                              <button
+                                key={`edit-team-overlay-color-${editingTeam.id ?? editingTeam.name}-${color}`}
+                                type="button"
+                                className={`team-color-swatch${selected ? ' is-selected' : ''}`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => {
+                                  setEditingTeamColor(color)
+                                  if (teamError) setTeamError(null)
+                                }}
+                                title={color}
+                                aria-label={`Select color ${color}`}
+                              />
+                            )
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   ) : (
                     <p className="muted team-edit-note">
@@ -3761,7 +3979,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     >
                       <span>Coming soon</span>
                       <span className={`coming-soon-chevron${comingSoonExpanded.notifications ? ' is-open' : ''}`} aria-hidden="true">
-                        ▾
+                        <SettingsChevronIcon open={comingSoonExpanded.notifications} />
                       </span>
                     </button>
                     {comingSoonExpanded.notifications ? (
@@ -3850,15 +4068,28 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             {roleMemberCountByName.get((role.name ?? '').trim().toLocaleLowerCase()) ?? 0}
                           </span>
                           {role.system ? (
-                            <span className="pill">{activeWorkspace?.demo ? 'Demo' : 'System'}</span>
+                            <span className="pill pill-with-icon">
+                              {activeWorkspace?.demo ? (
+                                <span className="pill-icon" aria-hidden="true">
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="M7 6h10v2H7zM9 10h6v8H9z" />
+                                  </svg>
+                                </span>
+                              ) : null}
+                              <span>{activeWorkspace?.demo ? 'Demo' : 'System'}</span>
+                            </span>
                           ) : null}
                           {canEditRoles ? (
                             <button
                               type="button"
-                              className="btn btn-secondary team-edit-trigger"
+                              className="btn btn-secondary team-edit-trigger settings-icon-action settings-icon-edit"
                               onClick={() => handleStartEditRole(role)}
+                              title="Edit role"
+                              aria-label="Edit role"
                             >
-                              Edit
+                              <span className="settings-icon-glyph" aria-hidden="true">
+                                <SettingsEditIcon />
+                              </span>
                             </button>
                           ) : null}
                         </div>
@@ -3893,12 +4124,58 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             ) : null}
                           </div>
                           {editingRoleAction === 'rename' ? (
-                            <input
-                              value={editingRoleName}
-                              onChange={(event) => setEditingRoleName(event.target.value)}
-                              placeholder="Role name"
-                              disabled={Boolean(role.system)}
-                            />
+                            <div className="team-edit-rename">
+                              <input
+                                value={editingRoleName}
+                                onChange={(event) => setEditingRoleName(event.target.value)}
+                                placeholder="Role name"
+                                disabled={Boolean(role.system)}
+                              />
+                              <div className="workspace-inline-actions color-picker-toggle-row">
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary team-edit-trigger settings-icon-action"
+                                  onClick={() => setEditingRoleColorPickerOpen((prev) => !prev)}
+                                  title={editingRoleColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                                  aria-label={editingRoleColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                                  aria-expanded={editingRoleColorPickerOpen}
+                                >
+                                  <span className="settings-icon-glyph" aria-hidden="true">
+                                    <SettingsChevronIcon open={editingRoleColorPickerOpen} />
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary team-edit-trigger settings-icon-action"
+                                  onClick={handleRandomEditingRoleColor}
+                                  title="Random unique color"
+                                  aria-label="Random unique color"
+                                >
+                                  <span className="settings-icon-glyph" aria-hidden="true">
+                                    <SettingsDiceIcon />
+                                  </span>
+                                </button>
+                                <span className="color-preview-swatch" style={{ backgroundColor: editingRoleBadgeColor }} title={editingRoleBadgeColor} />
+                              </div>
+                              {editingRoleColorPickerOpen ? (
+                                <div className="team-color-picker role-badge-color-picker" role="group" aria-label="Edit role color">
+                                  {TEAM_COLOR_PALETTE.map((color) => {
+                                    const selected = editingRoleBadgeColor === color
+                                    return (
+                                      <button
+                                        key={`edit-role-color-${role.id ?? role.name}-${color}`}
+                                        type="button"
+                                        className={`team-color-swatch${selected ? ' is-selected' : ''}`}
+                                        style={{ backgroundColor: color }}
+                                        onClick={() => setEditingRoleBadgeColor(color)}
+                                        title={color}
+                                        aria-label={`Select role color ${color}`}
+                                      />
+                                    )
+                                  })}
+                                </div>
+                              ) : null}
+                            </div>
                           ) : null}
                           {editingRoleAction === 'permissions' ? (
                             <div className="settings-permissions">
@@ -3974,6 +4251,50 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       Add role
                     </button>
                   </div>
+                  <div className="workspace-inline-actions color-picker-toggle-row">
+                    <button
+                      type="button"
+                      className="btn btn-secondary team-edit-trigger settings-icon-action"
+                      onClick={() => setRoleColorPickerOpen((prev) => !prev)}
+                      title={roleColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                      aria-label={roleColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                      aria-expanded={roleColorPickerOpen}
+                    >
+                      <span className="settings-icon-glyph" aria-hidden="true">
+                        <SettingsChevronIcon open={roleColorPickerOpen} />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary team-edit-trigger settings-icon-action"
+                      onClick={handleRandomRoleColor}
+                      title="Random unique color"
+                      aria-label="Random unique color"
+                    >
+                      <span className="settings-icon-glyph" aria-hidden="true">
+                        <SettingsDiceIcon />
+                      </span>
+                    </button>
+                    <span className="color-preview-swatch" style={{ backgroundColor: roleBadgeColor }} title={roleBadgeColor} />
+                  </div>
+                  {roleColorPickerOpen ? (
+                    <div className="team-color-picker role-badge-color-picker" role="group" aria-label="Role badge color">
+                      {TEAM_COLOR_PALETTE.map((color) => {
+                        const selected = roleBadgeColor === color
+                        return (
+                          <button
+                            key={`role-color-${color}`}
+                            type="button"
+                            className={`team-color-swatch${selected ? ' is-selected' : ''}`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setRoleBadgeColor(color)}
+                            title={color}
+                            aria-label={`Select role color ${color}`}
+                          />
+                        )
+                      })}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="form-field role-assign-field">
                   <label>Assign role</label>
@@ -4050,8 +4371,16 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   <strong className="truncate" title={editingRole.name ?? ''}>
                     Role edit: {editingRole.name ?? 'Role'}
                   </strong>
-                  <button type="button" className="btn btn-ghost team-edit-trigger" onClick={handleCancelEditRole}>
-                    Close
+                  <button
+                    type="button"
+                    className="btn btn-ghost team-edit-trigger settings-icon-action settings-icon-edit"
+                    onClick={handleCancelEditRole}
+                    title="Close"
+                    aria-label="Close"
+                  >
+                    <span className="settings-icon-glyph" aria-hidden="true">
+                      <SettingsCloseIcon />
+                    </span>
                   </button>
                 </div>
                 <div className="team-edit-box">
@@ -4083,12 +4412,58 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     ) : null}
                   </div>
                   {editingRoleAction === 'rename' ? (
-                    <input
-                      value={editingRoleName}
-                      onChange={(event) => setEditingRoleName(event.target.value)}
-                      placeholder="Role name"
-                      disabled={Boolean(editingRole.system)}
-                    />
+                    <div className="team-edit-rename">
+                      <input
+                        value={editingRoleName}
+                        onChange={(event) => setEditingRoleName(event.target.value)}
+                        placeholder="Role name"
+                        disabled={Boolean(editingRole.system)}
+                      />
+                      <div className="workspace-inline-actions color-picker-toggle-row">
+                        <button
+                          type="button"
+                          className="btn btn-secondary team-edit-trigger settings-icon-action"
+                          onClick={() => setEditingRoleColorPickerOpen((prev) => !prev)}
+                          title={editingRoleColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                          aria-label={editingRoleColorPickerOpen ? 'Hide colors' : 'Choose color'}
+                          aria-expanded={editingRoleColorPickerOpen}
+                        >
+                          <span className="settings-icon-glyph" aria-hidden="true">
+                            <SettingsChevronIcon open={editingRoleColorPickerOpen} />
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary team-edit-trigger settings-icon-action"
+                          onClick={handleRandomEditingRoleColor}
+                          title="Random unique color"
+                          aria-label="Random unique color"
+                        >
+                          <span className="settings-icon-glyph" aria-hidden="true">
+                            <SettingsDiceIcon />
+                          </span>
+                        </button>
+                        <span className="color-preview-swatch" style={{ backgroundColor: editingRoleBadgeColor }} title={editingRoleBadgeColor} />
+                      </div>
+                      {editingRoleColorPickerOpen ? (
+                        <div className="team-color-picker role-badge-color-picker" role="group" aria-label="Edit role color">
+                          {TEAM_COLOR_PALETTE.map((color) => {
+                            const selected = editingRoleBadgeColor === color
+                            return (
+                              <button
+                                key={`edit-role-overlay-color-${editingRole.id ?? editingRole.name}-${color}`}
+                                type="button"
+                                className={`team-color-swatch${selected ? ' is-selected' : ''}`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => setEditingRoleBadgeColor(color)}
+                                title={color}
+                                aria-label={`Select role color ${color}`}
+                              />
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                   {editingRoleAction === 'permissions' ? (
                     <div className="settings-permissions">
@@ -4147,6 +4522,44 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           </div>
         ) : null}
       </div>
+      {workspacePmdImagesOpen ? (
+        <div className="modal-overlay profile-avatar-context-overlay" onClick={() => setWorkspacePmdImagesOpen(false)}>
+          <div className="modal pmd-images-picker-modal" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="avatar-editor-close"
+              aria-label="Close PMD images"
+              onClick={() => setWorkspacePmdImagesOpen(false)}
+            >
+              <span className="settings-icon-glyph" aria-hidden="true">
+                <SettingsCloseIcon />
+              </span>
+            </button>
+            <div className="pmd-images-picker-header">
+              <h4>PMD images</h4>
+              <p className="muted">{pmdImages.length} images</p>
+            </div>
+            <div className="pmd-images-picker-grid">
+              <div className="pmd-images-grid" role="list" aria-label="PMD workspace images">
+                {pmdImages.map((fileName) => (
+                  <button
+                    key={fileName}
+                    type="button"
+                    className="pmd-image-thumb"
+                    title={fileName}
+                    onClick={() => {
+                      setWorkspaceProfileAvatarUrl(`/profile-pictures/${fileName}`)
+                      setWorkspacePmdImagesOpen(false)
+                    }}
+                  >
+                    <img src={`/profile-pictures/${fileName}`} alt={fileName} loading="lazy" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {workspaceAvatarCropPreviewUrl ? (
         <div
           className="modal-overlay profile-avatar-context-overlay"
@@ -4169,7 +4582,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 setWorkspaceAvatarCropSourceUrl(null)
               }}
             >
-              ×
+              <span className="settings-icon-glyph" aria-hidden="true">
+                <SettingsCloseIcon />
+              </span>
             </button>
             <div className="avatar-crop-body">
               <h4>Adjust thumbnail</h4>
@@ -4261,6 +4676,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     </section>
   )
 }
+
 
 
 

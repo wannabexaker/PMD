@@ -141,6 +141,34 @@ public class WorkspaceInviteNotificationService {
         }
     }
 
+    public void notifyWorkspaceDeletionScheduled(Workspace workspace, User requestedBy, Instant scheduledAt) {
+        if (workspace == null || workspace.getId() == null) {
+            return;
+        }
+        List<User> recipients = resolveActiveWorkspaceUsers(workspace.getId()).stream()
+            .filter(Objects::nonNull)
+            .filter(user -> user.getId() != null)
+            .filter(user -> requestedBy == null || !Objects.equals(user.getId(), requestedBy.getId()))
+            .toList();
+        for (User recipient : recipients) {
+            emailNotificationService.sendWorkspaceDeletionScheduled(recipient, workspace, requestedBy, scheduledAt);
+        }
+    }
+
+    public void notifyWorkspaceDeletionCanceled(Workspace workspace, User canceledBy) {
+        if (workspace == null || workspace.getId() == null) {
+            return;
+        }
+        List<User> recipients = resolveActiveWorkspaceUsers(workspace.getId()).stream()
+            .filter(Objects::nonNull)
+            .filter(user -> user.getId() != null)
+            .filter(user -> canceledBy == null || !Objects.equals(user.getId(), canceledBy.getId()))
+            .toList();
+        for (User recipient : recipients) {
+            emailNotificationService.sendWorkspaceDeletionCanceled(recipient, workspace, canceledBy);
+        }
+    }
+
     @Scheduled(cron = "0 10 9 * * *")
     public void sendInviteAcceptedDigest() {
         Instant now = Instant.now();
@@ -226,6 +254,22 @@ public class WorkspaceInviteNotificationService {
             return List.of();
         }
         return userRepository.findAllById(approverIds).stream()
+            .filter(Objects::nonNull)
+            .toList();
+    }
+
+    private List<User> resolveActiveWorkspaceUsers(String workspaceId) {
+        List<WorkspaceMember> activeMembers = workspaceMemberRepository.findByWorkspaceId(workspaceId).stream()
+            .filter(member -> member.getStatus() == WorkspaceMemberStatus.ACTIVE)
+            .filter(member -> member.getUserId() != null)
+            .toList();
+        if (activeMembers.isEmpty()) {
+            return List.of();
+        }
+        Set<String> ids = activeMembers.stream()
+            .map(WorkspaceMember::getUserId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        return userRepository.findAllById(ids).stream()
             .filter(Objects::nonNull)
             .toList();
     }

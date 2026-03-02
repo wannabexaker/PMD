@@ -61,7 +61,9 @@ public class DemoWorkspaceSeeder {
         new SeedUser("Evan", "Kim", "UX / UI Design", "Member"),
         new SeedUser("Farah", "Patel", "Cybersecurity", "Viewer"),
         new SeedUser("Gabe", "Williams", "QA / Testing", "Member"),
-        new SeedUser("Hana", "Sato", "IT Support / Helpdesk", "Member")
+        new SeedUser("Hana", "Sato", "IT Support / Helpdesk", "Member"),
+        new SeedUser("Iris", "Morgan", "Network Engineering", "Member"),
+        new SeedUser("Leo", "Bennett", "Project Management", "Member")
     );
 
     private static final List<SeedProject> SEED_PROJECTS = List.of(
@@ -336,25 +338,32 @@ public class DemoWorkspaceSeeder {
         if (user.getId() == null) {
             return;
         }
-        if (workspaceJoinRequestRepository.findByWorkspaceIdAndUserId(workspaceId, user.getId()).isPresent()) {
+        Optional<WorkspaceMember> existingMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, user.getId());
+        if (existingMember.isPresent() && existingMember.get().getStatus() == WorkspaceMemberStatus.ACTIVE) {
             return;
         }
-        if (workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, user.getId()).isPresent()) {
-            return;
-        }
-        WorkspaceJoinRequest request = new WorkspaceJoinRequest();
+        WorkspaceJoinRequest request = workspaceJoinRequestRepository
+            .findByWorkspaceIdAndUserIdAndStatus(workspaceId, user.getId(), WorkspaceJoinRequestStatus.PENDING)
+            .stream()
+            .findFirst()
+            .orElseGet(WorkspaceJoinRequest::new);
         request.setWorkspaceId(workspaceId);
         request.setUserId(user.getId());
         request.setStatus(WorkspaceJoinRequestStatus.PENDING);
-        request.setCreatedAt(Instant.now());
+        request.setInviteQuestion("Why do you want to join this workspace?");
+        request.setInviteAnswer("I want to collaborate with the team.");
+        request.setDecidedAt(null);
+        request.setDecidedByUserId(null);
+        request.setCreatedAt(request.getCreatedAt() != null ? request.getCreatedAt() : Instant.now());
         workspaceJoinRequestRepository.save(request);
 
-        WorkspaceMember member = new WorkspaceMember();
+        WorkspaceMember member = existingMember.orElseGet(WorkspaceMember::new);
         member.setWorkspaceId(workspaceId);
         member.setUserId(user.getId());
         member.setRole(WorkspaceMemberRole.MEMBER);
         member.setStatus(WorkspaceMemberStatus.PENDING);
-        member.setCreatedAt(Instant.now());
+        member.setCreatedAt(member.getCreatedAt() != null ? member.getCreatedAt() : Instant.now());
+        member.setJoinedAt(null);
         workspaceMemberRepository.save(member);
     }
 
@@ -386,7 +395,7 @@ public class DemoWorkspaceSeeder {
 
     private String generateUniqueDemoInviteCode() {
         for (int i = 0; i < 40; i++) {
-            int number = ThreadLocalRandom.current().nextInt(1, 1001);
+            int number = ThreadLocalRandom.current().nextInt(1, 10000);
             String candidate = String.format("PMD-DEMO-%04d", number);
             if (workspaceInviteRepository.findByCode(candidate).isEmpty()) {
                 return candidate;

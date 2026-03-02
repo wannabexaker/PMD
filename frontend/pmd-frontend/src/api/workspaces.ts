@@ -7,6 +7,7 @@ import type {
   WorkspaceAuditEvent,
   WorkspaceRole,
   WorkspacePermissions,
+  WorkspaceDeletePreview,
 } from '../types'
 
 function asArray<T>(value: unknown): T[] {
@@ -113,6 +114,23 @@ export async function updateWorkspaceSettings(
   })
 }
 
+export async function fetchWorkspaceDeletePreview(workspaceId: string): Promise<WorkspaceDeletePreview> {
+  return requestJson<WorkspaceDeletePreview>(`/api/workspaces/${workspaceId}/delete/preview`)
+}
+
+export async function requestWorkspaceDelete(workspaceId: string, confirmName: string): Promise<WorkspaceDeletePreview> {
+  return requestJson<WorkspaceDeletePreview>(`/api/workspaces/${workspaceId}/delete/request`, {
+    method: 'POST',
+    body: JSON.stringify({ confirmName }),
+  })
+}
+
+export async function cancelWorkspaceDelete(workspaceId: string): Promise<WorkspaceDeletePreview> {
+  return requestJson<WorkspaceDeletePreview>(`/api/workspaces/${workspaceId}/delete/cancel`, {
+    method: 'POST',
+  })
+}
+
 export async function enterDemoWorkspace(): Promise<Workspace> {
   return requestJson<Workspace>('/api/workspaces/demo', {
     method: 'POST',
@@ -132,7 +150,11 @@ export async function listRoles(workspaceId: string): Promise<WorkspaceRole[]> {
 
 export async function createRole(
   workspaceId: string,
-  payload: { name: string; permissions?: WorkspacePermissions }
+  payload: {
+    name: string
+    permissions?: WorkspacePermissions
+    badge?: { label?: string; color?: string }
+  }
 ): Promise<WorkspaceRole> {
   return requestJson<WorkspaceRole>(`/api/workspaces/${workspaceId}/roles`, {
     method: 'POST',
@@ -143,7 +165,11 @@ export async function createRole(
 export async function updateRole(
   workspaceId: string,
   roleId: string,
-  payload: { name?: string; permissions?: WorkspacePermissions }
+  payload: {
+    name?: string
+    permissions?: WorkspacePermissions
+    badge?: { label?: string; color?: string }
+  }
 ): Promise<WorkspaceRole> {
   return requestJson<WorkspaceRole>(`/api/workspaces/${workspaceId}/roles/${roleId}`, {
     method: 'PATCH',

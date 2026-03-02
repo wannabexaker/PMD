@@ -14,6 +14,7 @@ public interface ProjectRepository extends MongoRepository<Project, String> {
     List<Project> findByMemberIdsContaining(String memberId);
     List<Project> findByWorkspaceId(String workspaceId, Sort sort);
     long countByWorkspaceId(String workspaceId);
+    long deleteByWorkspaceId(String workspaceId);
     Optional<Project> findByIdAndWorkspaceId(String id, String workspaceId);
     List<Project> findByWorkspaceIdAndMemberIdsContaining(String workspaceId, String memberId);
     List<Project> findByTeamIdIsNull();

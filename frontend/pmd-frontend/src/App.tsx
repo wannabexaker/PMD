@@ -283,12 +283,14 @@ function AppView({
     workspaces,
     loading: workspaceLoading,
     error: workspaceError,
+    workspaceSwitchCooldownActive,
     setActiveWorkspaceId,
   } = useWorkspace()
   const location = useLocation()
   const navigate = useNavigate()
   const previousPathRef = useRef<string>(location.pathname)
   const previousWorkspaceIdRef = useRef<string | null>(activeWorkspaceId ?? null)
+  const workspaceWarpTimerRef = useRef<number | null>(null)
   const isAuthed = Boolean(currentUser)
   const isAdmin = Boolean(currentUser?.isAdmin)
   const isAssignRoute = location.pathname === '/assign'
@@ -306,6 +308,7 @@ function AppView({
   const [tourStepIndex, setTourStepIndex] = useState(0)
   const [tourHighlightRect, setTourHighlightRect] = useState<DOMRect | null>(null)
   const [tourCardPosition, setTourCardPosition] = useState<{ top: number; left: number } | null>(null)
+  const [workspaceWarpActive, setWorkspaceWarpActive] = useState(false)
   const tourCardRef = useRef<HTMLDivElement | null>(null)
   const activeTourStep = tourOpen ? ONBOARDING_TOUR_STEPS[tourStepIndex] : null
   const resolveAssetUrl = useCallback((url?: string | null) => {
@@ -594,6 +597,14 @@ function AppView({
       return
     }
     previousWorkspaceIdRef.current = activeWorkspaceId ?? null
+    setWorkspaceWarpActive(true)
+    if (workspaceWarpTimerRef.current) {
+      window.clearTimeout(workspaceWarpTimerRef.current)
+    }
+    workspaceWarpTimerRef.current = window.setTimeout(() => {
+      setWorkspaceWarpActive(false)
+      workspaceWarpTimerRef.current = null
+    }, 540)
     setUsers([])
     setProjects([])
     setUsersError(null)
@@ -616,6 +627,21 @@ function AppView({
     setUsersError,
     setUsersLoading,
   ])
+
+  useEffect(() => {
+    return () => {
+      if (workspaceWarpTimerRef.current) {
+        window.clearTimeout(workspaceWarpTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handleWorkspaceSwitcherChange = useCallback(
+    (nextWorkspaceId: string | null) => {
+      setActiveWorkspaceId(nextWorkspaceId)
+    },
+    [setActiveWorkspaceId]
+  )
 
   useEffect(() => {
     if (!currentUser || !activeWorkspaceId) {
@@ -876,6 +902,9 @@ function AppView({
 
   return (
     <>
+      <div className={`workspace-warp-overlay${workspaceWarpActive ? ' is-active' : ''}`} aria-hidden="true">
+        <div className="workspace-warp-ring" />
+      </div>
       <header className="topbar">
         <div className="topbar-inner">
           <button
@@ -933,7 +962,7 @@ function AppView({
                       data-tour="workspace-switcher"
                       aria-label="Active workspace"
                       value={activeWorkspaceId ?? ''}
-                      onChange={(event) => setActiveWorkspaceId(event.target.value || null)}
+                      onChange={(event) => handleWorkspaceSwitcherChange(event.target.value || null)}
                     >
                       <option value="" disabled>
                         Select workspace
@@ -952,6 +981,11 @@ function AppView({
                         )
                       })}
                     </select>
+                    {workspaceSwitchCooldownActive ? (
+                      <span className="workspace-switch-indicator" aria-live="polite">
+                        switching…
+                      </span>
+                    ) : null}
                   </div>
                   {activeWorkspace?.demo ? <span className="pill">Demo</span> : null}
                 </div>

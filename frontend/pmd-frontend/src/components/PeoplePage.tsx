@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type {
   PeopleOverviewStatsResponse,
   PeopleUserStatsResponse,
@@ -41,6 +41,25 @@ const WIDGET_IDS = {
 } as const
 const WIDGET_ORDER_DEFAULT = [WIDGET_IDS.projectsByStatus, WIDGET_IDS.activeVsInactive]
 const STATUS_LABELS_DEFAULT = ['Not started', 'In progress', 'Completed', 'Canceled', 'Archived']
+const DEFAULT_ROLE_BADGE_COLOR = '#6366F1'
+
+function roleBadgeStyle(user: UserSummary): CSSProperties | undefined {
+  const raw = user.roleBadgeColor?.trim()
+  const color = raw && /^#[0-9A-Fa-f]{6}$/.test(raw) ? raw : DEFAULT_ROLE_BADGE_COLOR
+  return {
+    backgroundColor: `${color}22`,
+    borderColor: `${color}99`,
+    color,
+  }
+}
+
+function roleBadgeLabel(user: UserSummary): string | null {
+  const label = user.roleBadgeLabel?.trim()
+  if (label) return label
+  const roleName = user.roleName?.trim()
+  if (roleName) return roleName
+  return null
+}
 
 const DEFAULT_WIDGETS: PeoplePageWidgets = {
   visible: WIDGET_ORDER_DEFAULT,
@@ -780,7 +799,11 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                       <strong className="truncate" title={user.displayName ?? ''}>
                         {user.displayName ?? '-'}
                       </strong>
-                      {user.roleName ? <span className="pill">{user.roleName}</span> : null}
+                      {roleBadgeLabel(user) ? (
+                        <span className="pill role-badge-pill" style={roleBadgeStyle(user)}>
+                          {roleBadgeLabel(user)}
+                        </span>
+                      ) : null}
                     </div>
                     <span
                       className="muted truncate"
@@ -850,7 +873,11 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     <div className="muted truncate" title={selectedUser.email ?? ''}>
                       {selectedUser.email ?? ''}
                     </div>
-                    {selectedUser.roleName ? <span className="pill">{selectedUser.roleName}</span> : null}
+                    {roleBadgeLabel(selectedUser) ? (
+                      <span className="pill role-badge-pill" style={roleBadgeStyle(selectedUser)}>
+                        {roleBadgeLabel(selectedUser)}
+                      </span>
+                    ) : null}
                     <div
                       className="muted truncate"
                       title={teamById.get(selectedUser.teamId ?? '')?.name ?? 'No team'}

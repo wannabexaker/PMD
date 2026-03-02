@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface PersonRepository extends MongoRepository<Person, String> {
     List<Person> findByWorkspaceId(String workspaceId);
+    long deleteByWorkspaceId(String workspaceId);
 
     Optional<Person> findByIdAndWorkspaceId(String id, String workspaceId);
 

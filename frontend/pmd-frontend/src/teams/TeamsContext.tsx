@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import type { Team, User } from '../types'
 import { createTeam as createTeamApi, fetchTeams, updateTeam as updateTeamApi } from '../api/teams'
-import { isApiError } from '../api/http'
+import { getErrorMessage } from '../api/errors'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 
 type TeamsContextValue = {
@@ -11,8 +11,8 @@ type TeamsContextValue = {
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
-  createTeam: (name: string, color?: string) => Promise<Team | null>
-  updateTeam: (id: string, payload: { name?: string; isActive?: boolean; color?: string }) => Promise<Team | null>
+  createTeam: (name: string, color?: string) => Promise<Team>
+  updateTeam: (id: string, payload: { name?: string; isActive?: boolean; color?: string }) => Promise<Team>
   teamById: Map<string, Team>
 }
 
@@ -48,12 +48,14 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
   const createTeam = useCallback(
     async (name: string, color?: string) => {
       if (!activeWorkspaceId) {
-        setError('Select a workspace first.')
-        return null
+        const message = 'Select a workspace first.'
+        setError(message)
+        throw new Error(message)
       }
       if (!name.trim()) {
-        setError('Team name is required.')
-        return null
+        const message = 'Team name is required.'
+        setError(message)
+        throw new Error(message)
       }
       try {
         const created = await createTeamApi(activeWorkspaceId, name.trim(), color)
@@ -65,15 +67,12 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
           const next = [normalizedCreated, ...prev.filter((team) => team.id !== normalizedCreated.id)]
           return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
         })
+        setError(null)
         return normalizedCreated
       } catch (err) {
-        if (isApiError(err) && err.status === 409) {
-          setError('Team already exists.')
-        } else {
-          const message = err instanceof Error ? err.message : 'Failed to create team'
-          setError(message)
-        }
-        return null
+        const message = getErrorMessage(err, 'Failed to create team.')
+        setError(message)
+        throw err instanceof Error ? err : new Error(message)
       }
     },
     [activeWorkspaceId]
@@ -81,8 +80,9 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
 
   const updateTeam = useCallback(async (id: string, payload: { name?: string; isActive?: boolean; color?: string }) => {
     if (!activeWorkspaceId) {
-      setError('Select a workspace first.')
-      return null
+      const message = 'Select a workspace first.'
+      setError(message)
+      throw new Error(message)
     }
     try {
       const updated = await updateTeamApi(activeWorkspaceId, id, payload)
@@ -99,11 +99,12 @@ export function TeamsProvider({ user, children }: { user: User | null; children:
         })
         return next.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       })
+      setError(null)
       return updated
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update team'
+      const message = getErrorMessage(err, 'Failed to update team.')
       setError(message)
-      return null
+      throw err instanceof Error ? err : new Error(message)
     }
   }, [activeWorkspaceId])
 

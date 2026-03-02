@@ -14,5 +14,5 @@ public interface AuthSessionRepository extends MongoRepository<AuthSession, Stri
 
     void deleteByExpiresAtBefore(Instant cutoff);
 
-    void deleteByRevokedAtBeforeAndRevokedAtIsNotNull(Instant cutoff);
+    void deleteByRevokedAtBefore(Instant cutoff);
 }

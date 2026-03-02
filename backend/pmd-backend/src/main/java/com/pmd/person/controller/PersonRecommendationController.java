@@ -4,6 +4,7 @@ import com.pmd.auth.security.UserPrincipal;
 import com.pmd.person.dto.RecommendationToggleResponse;
 import com.pmd.team.model.Team;
 import com.pmd.team.service.TeamService;
+import com.pmd.user.dto.UserIdentityBadgeResponse;
 import com.pmd.user.dto.UserSummaryResponse;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -89,16 +91,19 @@ public class PersonRecommendationController {
                 .thenComparing(user -> user.getDisplayName() != null ? user.getDisplayName() : ""))
             .toList();
         var activeCounts = userService.findActiveProjectCounts(workspaceId, users, includeAdmins);
-        var teamNames = teamService.findActiveTeams(workspaceId).stream()
-            .collect(Collectors.toMap(Team::getId, Team::getName));
-        var roleNames = userService.findWorkspaceRoleNames(workspaceId, users);
+        List<Team> workspaceTeams = teamService.findActiveTeams(workspaceId);
+        Map<String, Team> teamsById = workspaceTeams.stream()
+            .collect(Collectors.toMap(Team::getId, team -> team));
+        var roleDisplays = userService.findWorkspaceRoleDisplays(workspaceId, users);
+        var roleEntriesByUser = userService.findWorkspaceRoleBadgeEntries(workspaceId, users);
         return users.stream()
             .map(user -> toSummary(
                 user,
                 activeCounts.getOrDefault(user.getId(), 0L),
                 requester,
-                teamNames,
-                roleNames.get(user.getId())
+                teamsById,
+                roleDisplays.get(user.getId()),
+                roleEntriesByUser.getOrDefault(user.getId(), List.of())
             ))
             .toList();
     }
@@ -125,28 +130,36 @@ public class PersonRecommendationController {
             .filter(user -> includeAdmins || !userService.isAdminTeam(user))
             .toList();
         var activeCounts = userService.findActiveProjectCounts(workspaceId, recommenders, includeAdmins);
-        var teamNames = teamService.findActiveTeams(workspaceId).stream()
-            .collect(Collectors.toMap(Team::getId, Team::getName));
-        var roleNames = userService.findWorkspaceRoleNames(workspaceId, recommenders);
+        List<Team> workspaceTeams = teamService.findActiveTeams(workspaceId);
+        Map<String, Team> teamsById = workspaceTeams.stream()
+            .collect(Collectors.toMap(Team::getId, team -> team));
+        var roleDisplays = userService.findWorkspaceRoleDisplays(workspaceId, recommenders);
+        var roleEntriesByUser = userService.findWorkspaceRoleBadgeEntries(workspaceId, recommenders);
         return recommenders.stream()
             .map(user -> toSummary(
                 user,
                 activeCounts.getOrDefault(user.getId(), 0L),
                 requester,
-                teamNames,
-                roleNames.get(user.getId())
+                teamsById,
+                roleDisplays.get(user.getId()),
+                roleEntriesByUser.getOrDefault(user.getId(), List.of())
             ))
             .toList();
     }
 
     private UserSummaryResponse toSummary(User user, long activeProjectCount, User requester,
-                                          java.util.Map<String, String> teamNames, String roleName) {
+                                          Map<String, Team> teamsById,
+                                          UserService.WorkspaceRoleDisplay roleDisplay,
+                                          List<UserService.WorkspaceRoleBadgeEntry> roleEntries) {
+        String roleName = roleDisplay != null ? roleDisplay.roleName() : null;
+        String roleBadgeLabel = roleDisplay != null ? roleDisplay.roleBadgeLabel() : roleName;
+        String roleBadgeColor = roleDisplay != null ? roleDisplay.roleBadgeColor() : null;
         boolean recommendedByMe = requester.getId() != null
             && user.getRecommendedByUserIds() != null
             && user.getRecommendedByUserIds().contains(requester.getId());
-        String teamId = resolveWorkspaceTeamId(user, teamNames);
-        String teamName = teamId != null ? teamNames.get(teamId) : null;
-        return new UserSummaryResponse(
+        String teamId = resolveWorkspaceTeamId(user, teamsById);
+        String teamName = teamId != null ? teamsById.get(teamId).getName() : null;
+        UserSummaryResponse summary = new UserSummaryResponse(
             user.getId(),
             user.getDisplayName(),
             user.getEmail(),
@@ -154,11 +167,16 @@ public class PersonRecommendationController {
             teamId,
             teamName,
             roleName,
+            roleBadgeLabel,
+            roleBadgeColor,
             userService.isAdminTeam(user),
             activeProjectCount,
             user.getRecommendedCount(),
             recommendedByMe
         );
+        summary.setTeamBadges(buildTeamBadges(user, teamsById));
+        summary.setRoleBadges(buildRoleBadges(roleEntries));
+        return summary;
     }
 
     private User getRequester(Authentication authentication) {
@@ -168,12 +186,66 @@ public class PersonRecommendationController {
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
     }
 
-    private String resolveWorkspaceTeamId(User user, java.util.Map<String, String> teamNames) {
+    private List<UserIdentityBadgeResponse> buildTeamBadges(User user, Map<String, Team> teamsById) {
+        List<String> orderedTeamIds = new ArrayList<>();
+        String primaryTeamId = user.getTeamId() != null ? user.getTeamId().trim() : "";
+        if (!primaryTeamId.isBlank()) {
+            orderedTeamIds.add(primaryTeamId);
+        }
+        if (user.getTeamIds() != null) {
+            user.getTeamIds().stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .filter(value -> !orderedTeamIds.contains(value))
+                .forEach(orderedTeamIds::add);
+        }
+        List<UserIdentityBadgeResponse> badges = new ArrayList<>();
+        for (int i = 0; i < orderedTeamIds.size(); i += 1) {
+            Team team = teamsById.get(orderedTeamIds.get(i));
+            if (team == null) {
+                continue;
+            }
+            badges.add(new UserIdentityBadgeResponse(
+                team.getId(),
+                team.getName(),
+                team.getColor(),
+                i
+            ));
+        }
+        return badges;
+    }
+
+    private List<UserIdentityBadgeResponse> buildRoleBadges(List<UserService.WorkspaceRoleBadgeEntry> roleEntries) {
+        if (roleEntries == null || roleEntries.isEmpty()) {
+            return List.of();
+        }
+        List<UserIdentityBadgeResponse> badges = new ArrayList<>();
+        for (int i = 0; i < roleEntries.size(); i += 1) {
+            UserService.WorkspaceRoleBadgeEntry entry = roleEntries.get(i);
+            badges.add(new UserIdentityBadgeResponse(
+                entry.roleId(),
+                entry.roleBadgeLabel(),
+                entry.roleBadgeColor(),
+                i
+            ));
+        }
+        return badges;
+    }
+
+    private String resolveWorkspaceTeamId(User user, Map<String, Team> teamsById) {
         if (user == null) {
             return null;
         }
-        if (user.getTeamId() != null && teamNames.containsKey(user.getTeamId())) {
+        if (user.getTeamId() != null && teamsById.containsKey(user.getTeamId())) {
             return user.getTeamId();
+        }
+        if (user.getTeamIds() != null) {
+            for (String teamId : user.getTeamIds()) {
+                if (teamId != null && teamsById.containsKey(teamId)) {
+                    return teamId;
+                }
+            }
         }
         return null;
     }

@@ -34,6 +34,12 @@ public class Workspace {
     private Integer maxMembers;
     private Integer maxTeams;
     private Integer maxStorageMb;
+    private Instant deletionRequestedAt;
+
+    @Indexed
+    private Instant deletionScheduledAt;
+
+    private String deletionRequestedByUserId;
     private int schemaVersion = 1;
 
     public Workspace() {
@@ -168,6 +174,30 @@ public class Workspace {
 
     public void setMaxStorageMb(Integer maxStorageMb) {
         this.maxStorageMb = maxStorageMb;
+    }
+
+    public Instant getDeletionRequestedAt() {
+        return deletionRequestedAt;
+    }
+
+    public void setDeletionRequestedAt(Instant deletionRequestedAt) {
+        this.deletionRequestedAt = deletionRequestedAt;
+    }
+
+    public Instant getDeletionScheduledAt() {
+        return deletionScheduledAt;
+    }
+
+    public void setDeletionScheduledAt(Instant deletionScheduledAt) {
+        this.deletionScheduledAt = deletionScheduledAt;
+    }
+
+    public String getDeletionRequestedByUserId() {
+        return deletionRequestedByUserId;
+    }
+
+    public void setDeletionRequestedByUserId(String deletionRequestedByUserId) {
+        this.deletionRequestedByUserId = deletionRequestedByUserId;
     }
 
     public int getSchemaVersion() {

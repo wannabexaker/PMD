@@ -476,7 +476,11 @@ public class ProjectService {
         String teamName = user.getTeamId() != null
             ? teamService.findById(workspaceId, user.getTeamId()).map(Team::getName).orElse(user.getTeam())
             : user.getTeam();
-        String roleName = userService.findWorkspaceRoleNames(workspaceId, List.of(user)).get(user.getId());
+        UserService.WorkspaceRoleDisplay roleDisplay = userService.findWorkspaceRoleDisplays(workspaceId, List.of(user))
+            .get(user.getId());
+        String roleName = roleDisplay != null ? roleDisplay.roleName() : null;
+        String roleBadgeLabel = roleDisplay != null ? roleDisplay.roleBadgeLabel() : roleName;
+        String roleBadgeColor = roleDisplay != null ? roleDisplay.roleBadgeColor() : null;
         return new UserSummaryResponse(
             user.getId(),
             user.getDisplayName(),
@@ -485,6 +489,8 @@ public class ProjectService {
             user.getTeamId(),
             teamName,
             roleName,
+            roleBadgeLabel,
+            roleBadgeColor,
             userService.isAdminTeam(user),
             activeProjectCount,
             user.getRecommendedCount(),

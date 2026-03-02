@@ -30,7 +30,7 @@ public class AuthSessionRetentionService {
     public void cleanupAuthData() {
         Instant now = Instant.now();
         authSessionRepository.deleteByExpiresAtBefore(now.minusSeconds(60));
-        authSessionRepository.deleteByRevokedAtBeforeAndRevokedAtIsNotNull(
+        authSessionRepository.deleteByRevokedAtBefore(
             now.minusSeconds(properties.getRevokedRetentionSeconds())
         );
         authSecurityEventRepository.deleteByCreatedAtBefore(now.minusSeconds(AUTH_SECURITY_EVENT_RETENTION_SECONDS));

@@ -50,6 +50,8 @@ type DashboardPageProps = {
 const MAX_PROJECT_TITLE_LENGTH = 32
 const STATUS_COLORS = ['#a855f7', '#38bdf8', '#22c55e', '#f97316', '#64748b']
 const TEAM_COLORS = ['#38bdf8', '#a855f7', '#f97316', '#22c55e', '#facc15', '#e879f9']
+const DEFAULT_ROLE_BADGE_COLOR = '#6366F1'
+const DEFAULT_TEAM_BADGE_COLOR = '#3B82F6'
 type DashboardChartId = 'projectsByStatus' | 'projectsByTeam' | 'workloadByTeam' | 'assignmentCoverage'
 const DASHBOARD_CHART_ORDER_DEFAULT: DashboardChartId[] = [
   'projectsByStatus',
@@ -145,6 +147,93 @@ function formatProjectTitle(value?: string | null) {
   return value.length > MAX_PROJECT_TITLE_LENGTH
     ? value.slice(0, MAX_PROJECT_TITLE_LENGTH) + '...'
     : value
+}
+
+function formatMemberEmailForUi(value?: string | null) {
+  const email = value?.trim() ?? ''
+  if (!email) return ''
+  const at = email.indexOf('@')
+  if (at <= 0) return email
+  const local = email.slice(0, at)
+  const domain = email.slice(at + 1)
+  const plus = local.indexOf('+')
+  if (plus <= 0) return email
+  // Demo users are seeded with plus aliases to keep per-workspace uniqueness.
+  // Keep email readable in UI by hiding alias suffix.
+  return `${local.slice(0, plus)}@${domain}`
+}
+
+function roleBadgeLabel(user: UserSummary): string | null {
+  const label = user.roleBadgeLabel?.trim()
+  if (label) return label
+  const roleName = user.roleName?.trim()
+  return roleName || null
+}
+
+type IdentityBadgeDrawerItem = {
+  id: string
+  label: string
+  color: string
+  kind: 'team' | 'role'
+}
+
+function buildTeamBadgeItems(user: UserSummary, teamById: Map<string, { name?: string | null; color?: string | null }>): IdentityBadgeDrawerItem[] {
+  const fromApi = (user.teamBadges ?? [])
+    .filter((badge) => badge && badge.id)
+    .map((badge, index) => ({
+      id: badge?.id ?? `team-${index}`,
+      label: badge?.label?.trim() || 'Team',
+      color: badge?.color?.trim() || DEFAULT_TEAM_BADGE_COLOR,
+      kind: 'team' as const,
+      priority: badge?.priority ?? index,
+    }))
+    .sort((a, b) => a.priority - b.priority)
+  if (fromApi.length > 0) {
+    return fromApi.map((item) => ({ id: item.id, label: item.label, color: item.color, kind: item.kind }))
+  }
+  const fallbackTeamId = user.teamId?.trim()
+  const fallbackTeamName = user.teamName?.trim() || user.team?.trim() || (fallbackTeamId ? teamById.get(fallbackTeamId)?.name : '') || 'No team'
+  const fallbackTeamColor = (fallbackTeamId ? teamById.get(fallbackTeamId)?.color : null) || DEFAULT_TEAM_BADGE_COLOR
+  return [
+    {
+      id: fallbackTeamId || 'team-fallback',
+      label: fallbackTeamName,
+      color: fallbackTeamColor || DEFAULT_TEAM_BADGE_COLOR,
+      kind: 'team',
+    },
+  ]
+}
+
+function buildRoleBadgeItems(user: UserSummary): IdentityBadgeDrawerItem[] {
+  const fromApi = (user.roleBadges ?? [])
+    .filter((badge) => badge && badge.id)
+    .map((badge, index) => ({
+      id: badge?.id ?? `role-${index}`,
+      label: badge?.label?.trim() || 'Role',
+      color: badge?.color?.trim() || DEFAULT_ROLE_BADGE_COLOR,
+      kind: 'role' as const,
+      priority: badge?.priority ?? index,
+    }))
+    .sort((a, b) => a.priority - b.priority)
+  if (fromApi.length > 0) {
+    return fromApi.map((item) => ({ id: item.id, label: item.label, color: item.color, kind: item.kind }))
+  }
+  const fallbackLabel = roleBadgeLabel(user)
+  if (!fallbackLabel) {
+    return []
+  }
+  return [
+    {
+      id: `role-${fallbackLabel.toLowerCase()}`,
+      label: fallbackLabel,
+      color: user.roleBadgeColor?.trim() || DEFAULT_ROLE_BADGE_COLOR,
+      kind: 'role',
+    },
+  ]
+}
+
+function buildIdentityDrawerItems(user: UserSummary, teamById: Map<string, { name?: string | null; color?: string | null }>): IdentityBadgeDrawerItem[] {
+  return [...buildTeamBadgeItems(user, teamById), ...buildRoleBadgeItems(user)]
 }
 
 function readSummaryHistory(workspaceId: string): WorkspaceSummarySnapshot[] {
@@ -309,7 +398,7 @@ export function DashboardPage({
   requireTeamOnProjectCreate = false,
 }: DashboardPageProps) {
   const navigate = useNavigate()
-  const { teams } = useTeams()
+  const { teams, teamById } = useTeams()
   const { activeWorkspaceId, activeWorkspace } = useWorkspace()
   const mentionOptions = useMentionOptions(users)
   const [showCreate, setShowCreate] = useState(false)
@@ -353,6 +442,7 @@ export function DashboardPage({
     startY: number
     startHeight: number
   } | null>(null)
+  const [expandedIdentityUsers, setExpandedIdentityUsers] = useState<Set<string>>(new Set())
   const chartRefs = useRef<Record<DashboardChartId, HTMLDivElement | null>>({
     projectsByStatus: null,
     projectsByTeam: null,
@@ -1221,6 +1311,21 @@ export function DashboardPage({
     })
   }, [availablePeople, availableSearch])
 
+  const toggleIdentityBadges = useCallback((userId?: string | null) => {
+    if (!userId) {
+      return
+    }
+    setExpandedIdentityUsers((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }, [])
+
   const addMember = (userId?: string | null) => {
     if (!draftProject || !userId) return
     if (draftProject.memberIds?.includes(userId)) return
@@ -1561,25 +1666,66 @@ export function DashboardPage({
                           {filteredAssigned.length === 0 ? (
                             <p className="muted">No members yet.</p>
                           ) : (
-                            filteredAssigned.map((member, index) => (
-                            <div key={member.id ?? member.email ?? 'member-' + index} className="row space">
-                              <div className="member-meta">
-                                <strong className="truncate" title={member.displayName ?? ''}>
-                                  {member.displayName ?? '-'}
-                                </strong>
-                                <span className="muted truncate" title={member.email ?? ''}>
-                                  {member.email ?? ''}
-                                </span>
-                              </div>
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary"
-                                  onClick={() => removeMember(member.id)}
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))
+                            filteredAssigned.map((member, index) => {
+                              const badgeItems = buildIdentityDrawerItems(member, teamById)
+                              const isExpanded = Boolean(member.id && expandedIdentityUsers.has(member.id))
+                              return (
+                                <div key={member.id ?? member.email ?? 'member-' + index} className="row space">
+                                  <div className="member-meta">
+                                    {isExpanded && badgeItems.length > 0 ? (
+                                      <div className="member-badge-labels">
+                                        {badgeItems.map((badge) => (
+                                          <span
+                                            key={`assigned-label-${member.id ?? index}-${badge.kind}-${badge.id}`}
+                                            className={`member-badge-label member-badge-label-${badge.kind}`}
+                                            style={{
+                                              borderColor: `${badge.color}99`,
+                                              color: badge.color,
+                                              backgroundColor: `${badge.color}20`,
+                                            }}
+                                          >
+                                            {badge.label}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                    <strong className="truncate" title={member.displayName ?? ''}>
+                                      {member.displayName ?? '-'}
+                                    </strong>
+                                    <span className="muted truncate member-email" title={member.email ?? ''}>
+                                      {formatMemberEmailForUi(member.email)}
+                                    </span>
+                                    {badgeItems.length > 0 ? (
+                                      <div
+                                        className={`member-identity-drawer${isExpanded ? ' is-expanded' : ''}`}
+                                        onClick={() => toggleIdentityBadges(member.id)}
+                                        title={isExpanded ? 'Hide labels' : 'Show labels'}
+                                      >
+                                        {badgeItems.map((badge) => (
+                                          <span
+                                            key={`assigned-badge-${member.id ?? index}-${badge.kind}-${badge.id}`}
+                                            className={`member-drawer-dot member-drawer-dot-${badge.kind}`}
+                                            style={{
+                                              borderColor: badge.color,
+                                              borderBottomColor: badge.color,
+                                              backgroundColor: `${badge.color}30`,
+                                            }}
+                                            title={badge.label}
+                                          />
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => removeMember(member.id)}
+                                  >
+                                    x
+                                  </button>
+                                </div>
+                              )
+                            })
                           )}
                         </div>
                       </div>
@@ -1597,25 +1743,66 @@ export function DashboardPage({
                           {filteredAvailable.length === 0 ? (
                             <p className="muted">No available people.</p>
                           ) : (
-                            filteredAvailable.map((member, index) => (
-                            <div key={member.id ?? member.email ?? 'member-' + index} className="row space">
-                              <div className="member-meta">
-                                <strong className="truncate" title={member.displayName ?? ''}>
-                                  {member.displayName ?? '-'}
-                                </strong>
-                                <span className="muted truncate" title={member.email ?? ''}>
-                                  {member.email ?? ''}
-                                </span>
-                              </div>
-                                <button
-                                  type="button"
-                                  className="btn btn-primary"
-                                  onClick={() => addMember(member.id)}
-                                >
-                                  Add
-                                </button>
-                              </div>
-                            ))
+                            filteredAvailable.map((member, index) => {
+                              const badgeItems = buildIdentityDrawerItems(member, teamById)
+                              const isExpanded = Boolean(member.id && expandedIdentityUsers.has(member.id))
+                              return (
+                                <div key={member.id ?? member.email ?? 'member-' + index} className="row space">
+                                  <div className="member-meta">
+                                    {isExpanded && badgeItems.length > 0 ? (
+                                      <div className="member-badge-labels">
+                                        {badgeItems.map((badge) => (
+                                          <span
+                                            key={`available-label-${member.id ?? index}-${badge.kind}-${badge.id}`}
+                                            className={`member-badge-label member-badge-label-${badge.kind}`}
+                                            style={{
+                                              borderColor: `${badge.color}99`,
+                                              color: badge.color,
+                                              backgroundColor: `${badge.color}20`,
+                                            }}
+                                          >
+                                            {badge.label}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                    <strong className="truncate" title={member.displayName ?? ''}>
+                                      {member.displayName ?? '-'}
+                                    </strong>
+                                    <span className="muted truncate member-email" title={member.email ?? ''}>
+                                      {formatMemberEmailForUi(member.email)}
+                                    </span>
+                                    {badgeItems.length > 0 ? (
+                                      <div
+                                        className={`member-identity-drawer${isExpanded ? ' is-expanded' : ''}`}
+                                        onClick={() => toggleIdentityBadges(member.id)}
+                                        title={isExpanded ? 'Hide labels' : 'Show labels'}
+                                      >
+                                        {badgeItems.map((badge) => (
+                                          <span
+                                            key={`available-badge-${member.id ?? index}-${badge.kind}-${badge.id}`}
+                                            className={`member-drawer-dot member-drawer-dot-${badge.kind}`}
+                                            style={{
+                                              borderColor: badge.color,
+                                              borderBottomColor: badge.color,
+                                              backgroundColor: `${badge.color}30`,
+                                            }}
+                                            title={badge.label}
+                                          />
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    onClick={() => addMember(member.id)}
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                              )
+                            })
                           )}
                         </div>
                       </div>

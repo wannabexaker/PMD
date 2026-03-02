@@ -6,6 +6,8 @@ import com.pmd.auth.security.UserPrincipal;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
 import com.pmd.workspace.dto.WorkspaceCreateRequest;
+import com.pmd.workspace.dto.WorkspaceDeletePreviewResponse;
+import com.pmd.workspace.dto.WorkspaceDeleteRequest;
 import com.pmd.workspace.dto.WorkspaceInviteCreateRequest;
 import com.pmd.workspace.dto.WorkspaceInviteResolveRequest;
 import com.pmd.workspace.dto.WorkspaceInviteResolveResponse;
@@ -208,7 +210,13 @@ public class WorkspaceController {
                                             @Valid @RequestBody WorkspaceRoleRequest request,
                                             Authentication authentication) {
         User requester = getRequester(authentication);
-        WorkspaceRole role = workspaceService.createRole(id, request.getName(), request.getPermissions(), requester);
+        WorkspaceRole role = workspaceService.createRole(
+            id,
+            request.getName(),
+            request.getPermissions(),
+            request.getBadge(),
+            requester
+        );
         workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
             id,
             "ROLE",
@@ -233,7 +241,14 @@ public class WorkspaceController {
                                             @RequestBody WorkspaceRoleRequest request,
                                             Authentication authentication) {
         User requester = getRequester(authentication);
-        WorkspaceRole role = workspaceService.updateRole(id, roleId, request.getName(), request.getPermissions(), requester);
+        WorkspaceRole role = workspaceService.updateRole(
+            id,
+            roleId,
+            request.getName(),
+            request.getPermissions(),
+            request.getBadge(),
+            requester
+        );
         workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
             id,
             "ROLE",
@@ -394,6 +409,58 @@ public class WorkspaceController {
         return toResponse(membership);
     }
 
+    @GetMapping("/{id}/delete/preview")
+    public WorkspaceDeletePreviewResponse getDeletePreview(@PathVariable String id, Authentication authentication) {
+        User requester = getRequester(authentication);
+        return workspaceService.getWorkspaceDeletePreview(id, requester);
+    }
+
+    @PostMapping("/{id}/delete/request")
+    public WorkspaceDeletePreviewResponse requestDeleteWorkspace(@PathVariable String id,
+                                                                 @Valid @RequestBody WorkspaceDeleteRequest request,
+                                                                 Authentication authentication) {
+        User requester = getRequester(authentication);
+        WorkspaceDeletePreviewResponse response = workspaceService.requestWorkspaceDeletion(id, request.getConfirmName(), requester);
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            id,
+            "WORKSPACE",
+            "REQUEST_DELETE",
+            "SUCCESS",
+            requester,
+            null,
+            null,
+            null,
+            null,
+            "WORKSPACE",
+            id,
+            response.getWorkspaceName(),
+            "Workspace deletion requested"
+        ));
+        return response;
+    }
+
+    @PostMapping("/{id}/delete/cancel")
+    public WorkspaceDeletePreviewResponse cancelDeleteWorkspace(@PathVariable String id, Authentication authentication) {
+        User requester = getRequester(authentication);
+        WorkspaceDeletePreviewResponse response = workspaceService.cancelWorkspaceDeletion(id, requester);
+        workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
+            id,
+            "WORKSPACE",
+            "CANCEL_DELETE",
+            "SUCCESS",
+            requester,
+            null,
+            null,
+            null,
+            null,
+            "WORKSPACE",
+            id,
+            response.getWorkspaceName(),
+            "Workspace deletion canceled"
+        ));
+        return response;
+    }
+
     @PostMapping("/demo")
     public WorkspaceResponse demoWorkspace(Authentication authentication) {
         User requester = getRequester(authentication);
@@ -486,7 +553,10 @@ public class WorkspaceController {
             membership.workspace().getMaxProjects(),
             membership.workspace().getMaxMembers(),
             membership.workspace().getMaxTeams(),
-            membership.workspace().getMaxStorageMb()
+            membership.workspace().getMaxStorageMb(),
+            membership.workspace().getDeletionRequestedAt(),
+            membership.workspace().getDeletionScheduledAt(),
+            membership.workspace().getDeletionRequestedByUserId()
         );
     }
 
@@ -529,6 +599,7 @@ public class WorkspaceController {
             role.getName(),
             role.isSystem(),
             role.getPermissions(),
+            role.getBadge(),
             role.getCreatedAt()
         );
     }

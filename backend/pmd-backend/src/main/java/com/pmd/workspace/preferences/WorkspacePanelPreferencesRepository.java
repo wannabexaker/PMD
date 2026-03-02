@@ -7,4 +7,6 @@ public interface WorkspacePanelPreferencesRepository
     extends MongoRepository<WorkspacePanelPreferences, String> {
 
     Optional<WorkspacePanelPreferences> findByWorkspaceIdAndUserId(String workspaceId, String userId);
+
+    long deleteByWorkspaceId(String workspaceId);
 }

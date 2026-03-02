@@ -23,4 +23,6 @@ public interface MentionAuditEventRepository extends MongoRepository<MentionAudi
     List<MentionAuditEvent> findTop100ByWorkspaceIdOrderByCreatedAtDesc(String workspaceId);
 
     List<MentionAuditEvent> findTop100ByWorkspaceIdAndActorUserIdOrderByCreatedAtDesc(String workspaceId, String actorUserId);
+
+    long deleteByWorkspaceId(String workspaceId);
 }

@@ -1,6 +1,7 @@
 package com.pmd.workspace.dto;
 
 import com.pmd.workspace.model.WorkspaceRolePermissions;
+import com.pmd.workspace.model.WorkspaceRoleBadge;
 import java.time.Instant;
 
 public class WorkspaceRoleResponse {
@@ -10,18 +11,20 @@ public class WorkspaceRoleResponse {
     private String name;
     private boolean system;
     private WorkspaceRolePermissions permissions;
+    private WorkspaceRoleBadge badge;
     private Instant createdAt;
 
     public WorkspaceRoleResponse() {
     }
 
     public WorkspaceRoleResponse(String id, String workspaceId, String name, boolean system,
-                                 WorkspaceRolePermissions permissions, Instant createdAt) {
+                                 WorkspaceRolePermissions permissions, WorkspaceRoleBadge badge, Instant createdAt) {
         this.id = id;
         this.workspaceId = workspaceId;
         this.name = name;
         this.system = system;
         this.permissions = permissions;
+        this.badge = badge;
         this.createdAt = createdAt;
     }
 
@@ -63,6 +66,14 @@ public class WorkspaceRoleResponse {
 
     public void setPermissions(WorkspaceRolePermissions permissions) {
         this.permissions = permissions;
+    }
+
+    public WorkspaceRoleBadge getBadge() {
+        return badge;
+    }
+
+    public void setBadge(WorkspaceRoleBadge badge) {
+        this.badge = badge;
     }
 
     public Instant getCreatedAt() {

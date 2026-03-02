@@ -367,7 +367,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
               aria-label="Close avatar editor"
               onClick={() => setAvatarEditorOpen(false)}
             >
-              ×
+              X
             </button>
             <div className="workspace-profile-avatar-panel profile-avatar-editor-panel">
               <div className="workspace-profile-avatar-preview">
@@ -398,7 +398,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                     }}
                     disabled={avatarUploading || avatarSaving}
                   >
-                    ×
+                    X
                   </button>
                 ) : null}
               </div>
@@ -448,24 +448,43 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                     PMD images
                   </button>
                 </div>
-                {pmdImagesOpen ? (
-                  <div className="pmd-images-grid" role="list" aria-label="PMD profile images">
-                    {pmdImages.map((fileName) => (
-                      <button
-                        key={fileName}
-                        type="button"
-                        className="pmd-image-thumb"
-                        title={fileName}
-                        onClick={() => {
-                          setAvatarUrlDraft(`/profile-pictures/${fileName}`)
-                          setPmdImagesOpen(false)
-                        }}
-                      >
-                        <img src={`/profile-pictures/${fileName}`} alt={fileName} loading="lazy" />
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                {pmdImagesOpen ? <p className="muted">Select from PMD images window.</p> : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {pmdImagesOpen ? (
+        <div className="modal-overlay profile-avatar-context-overlay" onClick={() => setPmdImagesOpen(false)}>
+          <div className="modal pmd-images-picker-modal" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="avatar-editor-close"
+              aria-label="Close PMD images"
+              onClick={() => setPmdImagesOpen(false)}
+            >
+              X
+            </button>
+            <div className="pmd-images-picker-header">
+              <h4>PMD images</h4>
+              <p className="muted">{pmdImages.length} images</p>
+            </div>
+            <div className="pmd-images-picker-grid">
+              <div className="pmd-images-grid" role="list" aria-label="PMD profile images">
+                {pmdImages.map((fileName) => (
+                  <button
+                    key={fileName}
+                    type="button"
+                    className="pmd-image-thumb"
+                    title={fileName}
+                    onClick={() => {
+                      setAvatarUrlDraft(`/profile-pictures/${fileName}`)
+                      setPmdImagesOpen(false)
+                    }}
+                  >
+                    <img src={`/profile-pictures/${fileName}`} alt={fileName} loading="lazy" />
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -490,7 +509,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                 setAvatarCropSourceUrl(null)
               }}
             >
-              ×
+              X
             </button>
             <div className="avatar-crop-body">
               <h4>Adjust thumbnail</h4>
@@ -711,3 +730,4 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
     </div>
   )
 }
+

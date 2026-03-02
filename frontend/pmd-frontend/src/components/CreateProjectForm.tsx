@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createProject } from '../api/projects'
+import { getErrorMessage } from '../api/errors'
 import type { CreateProjectPayload, Project, ProjectStatus, User, UserSummary } from '../types'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
@@ -200,12 +201,18 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
                 disabled={creatingTeam || !newTeamName.trim()}
                 onClick={async () => {
                   setCreatingTeam(true)
-                  const created = await createTeam(newTeamName)
-                  setCreatingTeam(false)
-                  if (created?.id) {
-                    setForm((prev) => ({ ...prev, teamId: created.id as string }))
-                    setNewTeamName('')
-                    setShowNewTeam(false)
+                  try {
+                    const created = await createTeam(newTeamName)
+                    if (created?.id) {
+                      setForm((prev) => ({ ...prev, teamId: created.id as string }))
+                      setNewTeamName('')
+                      setShowNewTeam(false)
+                      setError(null)
+                    }
+                  } catch (err) {
+                    setError(getErrorMessage(err, 'Failed to create team.'))
+                  } finally {
+                    setCreatingTeam(false)
                   }
                 }}
               >

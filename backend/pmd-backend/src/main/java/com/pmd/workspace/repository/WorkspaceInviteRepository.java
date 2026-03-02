@@ -10,4 +10,5 @@ public interface WorkspaceInviteRepository extends MongoRepository<WorkspaceInvi
     Optional<WorkspaceInvite> findByCode(String code);
     List<WorkspaceInvite> findByWorkspaceId(String workspaceId);
     long countByWorkspaceId(String workspaceId);
+    long deleteByWorkspaceId(String workspaceId);
 }

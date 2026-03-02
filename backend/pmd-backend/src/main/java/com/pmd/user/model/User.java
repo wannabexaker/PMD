@@ -31,6 +31,8 @@ public class User {
     @Indexed
     private String teamId;
 
+    private List<String> teamIds = new ArrayList<>();
+
     private boolean isAdmin;
 
     private String bio;
@@ -146,6 +148,14 @@ public class User {
 
     public void setTeamId(String teamId) {
         this.teamId = teamId;
+    }
+
+    public List<String> getTeamIds() {
+        return teamIds;
+    }
+
+    public void setTeamIds(List<String> teamIds) {
+        this.teamIds = teamIds;
     }
 
     public boolean isAdmin() {

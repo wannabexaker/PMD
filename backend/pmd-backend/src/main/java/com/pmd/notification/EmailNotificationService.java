@@ -11,6 +11,7 @@ import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.workspace.model.Workspace;
 import com.pmd.workspace.model.WorkspaceInvite;
+import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -254,6 +255,40 @@ public class EmailNotificationService {
         }
         EmailContent content = templateBuilder.buildSimpleEmail("Daily digest: workspace joins", body.toString());
         sendEmail(recipient.getEmail(), content, "workspace invite accepted digest");
+    }
+
+    public void sendWorkspaceDeletionScheduled(User recipient, Workspace workspace, User requestedBy, Instant scheduledAt) {
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+            return;
+        }
+        String workspaceName = safe(workspace != null ? workspace.getName() : "Workspace");
+        String subject = "Workspace scheduled for deletion: " + workspaceName;
+        StringBuilder text = new StringBuilder();
+        text.append("Workspace ").append(workspaceName).append(" is scheduled for deletion.");
+        if (scheduledAt != null) {
+            text.append("\nScheduled deletion time: ").append(scheduledAt);
+        }
+        if (requestedBy != null) {
+            text.append("\nRequested by: ").append(safe(requestedBy.getDisplayName()));
+        }
+        text.append("\nIf this is unexpected, contact your workspace owner/admin immediately.");
+        EmailContent content = templateBuilder.buildSimpleEmail(subject, text.toString());
+        sendEmail(recipient.getEmail(), content, "workspace deletion scheduled");
+    }
+
+    public void sendWorkspaceDeletionCanceled(User recipient, Workspace workspace, User canceledBy) {
+        if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+            return;
+        }
+        String workspaceName = safe(workspace != null ? workspace.getName() : "Workspace");
+        String subject = "Workspace deletion canceled: " + workspaceName;
+        StringBuilder text = new StringBuilder();
+        text.append("Scheduled deletion for workspace ").append(workspaceName).append(" was canceled.");
+        if (canceledBy != null) {
+            text.append("\nCanceled by: ").append(safe(canceledBy.getDisplayName()));
+        }
+        EmailContent content = templateBuilder.buildSimpleEmail(subject, text.toString());
+        sendEmail(recipient.getEmail(), content, "workspace deletion canceled");
     }
 
     private void sendEmail(String to, EmailContent content, String label) {

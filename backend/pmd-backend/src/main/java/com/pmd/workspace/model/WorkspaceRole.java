@@ -20,11 +20,13 @@ public class WorkspaceRole {
 
     private WorkspaceRolePermissions permissions;
 
+    private WorkspaceRoleBadge badge;
+
     private Instant createdAt;
 
     private String createdByUserId;
 
-    private int schemaVersion = 1;
+    private int schemaVersion = 2;
 
     public WorkspaceRole() {
     }
@@ -67,6 +69,14 @@ public class WorkspaceRole {
 
     public void setPermissions(WorkspaceRolePermissions permissions) {
         this.permissions = permissions;
+    }
+
+    public WorkspaceRoleBadge getBadge() {
+        return badge;
+    }
+
+    public void setBadge(WorkspaceRoleBadge badge) {
+        this.badge = badge;
     }
 
     public Instant getCreatedAt() {

@@ -1,7 +1,13 @@
 package com.pmd.workspace.service;
 
+import com.pmd.audit.repository.WorkspaceAuditEventRepository;
+import com.pmd.mention.repository.MentionAuditEventRepository;
+import com.pmd.mention.repository.MentionRestrictionRepository;
+import com.pmd.notification.repository.WorkspaceInviteAcceptedDigestRepository;
+import com.pmd.notification.repository.WorkspaceJoinRequestEmailThrottleRepository;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
+import com.pmd.workspace.dto.WorkspaceDeletePreviewResponse;
 import com.pmd.workspace.model.Workspace;
 import com.pmd.workspace.model.WorkspaceInvite;
 import com.pmd.workspace.model.WorkspaceJoinRequest;
@@ -11,12 +17,14 @@ import com.pmd.workspace.model.WorkspaceMemberRole;
 import com.pmd.workspace.model.WorkspaceMemberStatus;
 import com.pmd.workspace.model.WorkspacePermission;
 import com.pmd.workspace.model.WorkspaceRole;
+import com.pmd.workspace.model.WorkspaceRoleBadge;
 import com.pmd.workspace.model.WorkspaceRolePermissions;
 import com.pmd.workspace.repository.WorkspaceInviteRepository;
 import com.pmd.workspace.repository.WorkspaceJoinRequestRepository;
 import com.pmd.workspace.repository.WorkspaceMemberRepository;
 import com.pmd.workspace.repository.WorkspaceRepository;
 import com.pmd.workspace.repository.WorkspaceRoleRepository;
+import com.pmd.workspace.preferences.WorkspacePanelPreferencesRepository;
 import com.pmd.team.repository.TeamRepository;
 import com.pmd.project.repository.ProjectRepository;
 import com.pmd.team.dto.TeamRequest;
@@ -25,17 +33,22 @@ import com.pmd.workspace.dto.WorkspaceCreateRequest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Objects;
+import java.util.LinkedHashSet;
 import java.util.stream.Stream;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -45,9 +58,21 @@ public class WorkspaceService {
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
     private static final Pattern TRIM_DASH = Pattern.compile("(^-+|-+$)");
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final Pattern HEX_COLOR_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static final int MAX_CUSTOM_ROLES_PER_WORKSPACE = 10;
     private static final int MAX_INVITE_QUESTION_LENGTH = 280;
     private static final int MAX_INVITE_ANSWER_LENGTH = 560;
+    private static final int MAX_ROLE_BADGE_LABEL_LENGTH = 24;
+    private static final long WORKSPACE_DELETE_GRACE_MINUTES = 30;
+    private static final int DEMO_NUMBER_MAX = 9999;
+    private static final String DEMO_WORKSPACE_NAME_PREFIX = "Demo Workspace";
+    private static final String DEFAULT_ROLE_BADGE_COLOR = "#6366F1";
+    private static final Map<String, String> SYSTEM_ROLE_BADGE_COLORS = Map.of(
+        "owner", "#DC2626",
+        "manager", "#EA580C",
+        "member", "#2563EB",
+        "viewer", "#4B5563"
+    );
 
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
@@ -56,10 +81,17 @@ public class WorkspaceService {
     private final WorkspaceRoleRepository workspaceRoleRepository;
     private final TeamRepository teamRepository;
     private final ProjectRepository projectRepository;
+    private final WorkspaceAuditEventRepository workspaceAuditEventRepository;
+    private final MentionAuditEventRepository mentionAuditEventRepository;
+    private final MentionRestrictionRepository mentionRestrictionRepository;
+    private final WorkspacePanelPreferencesRepository workspacePanelPreferencesRepository;
+    private final WorkspaceInviteAcceptedDigestRepository workspaceInviteAcceptedDigestRepository;
+    private final WorkspaceJoinRequestEmailThrottleRepository workspaceJoinRequestEmailThrottleRepository;
     private final TeamService teamService;
     private final DemoWorkspaceSeeder demoWorkspaceSeeder;
     private final WorkspaceInviteNotificationService workspaceInviteNotificationService;
     private final UserService userService;
+    private static final Logger logger = LoggerFactory.getLogger(WorkspaceService.class);
 
     public WorkspaceService(WorkspaceRepository workspaceRepository,
                             WorkspaceMemberRepository workspaceMemberRepository,
@@ -68,6 +100,12 @@ public class WorkspaceService {
                             WorkspaceRoleRepository workspaceRoleRepository,
                             TeamRepository teamRepository,
                             ProjectRepository projectRepository,
+                            WorkspaceAuditEventRepository workspaceAuditEventRepository,
+                            MentionAuditEventRepository mentionAuditEventRepository,
+                            MentionRestrictionRepository mentionRestrictionRepository,
+                            WorkspacePanelPreferencesRepository workspacePanelPreferencesRepository,
+                            WorkspaceInviteAcceptedDigestRepository workspaceInviteAcceptedDigestRepository,
+                            WorkspaceJoinRequestEmailThrottleRepository workspaceJoinRequestEmailThrottleRepository,
                             TeamService teamService,
                             DemoWorkspaceSeeder demoWorkspaceSeeder,
                             WorkspaceInviteNotificationService workspaceInviteNotificationService,
@@ -79,6 +117,12 @@ public class WorkspaceService {
         this.workspaceRoleRepository = workspaceRoleRepository;
         this.teamRepository = teamRepository;
         this.projectRepository = projectRepository;
+        this.workspaceAuditEventRepository = workspaceAuditEventRepository;
+        this.mentionAuditEventRepository = mentionAuditEventRepository;
+        this.mentionRestrictionRepository = mentionRestrictionRepository;
+        this.workspacePanelPreferencesRepository = workspacePanelPreferencesRepository;
+        this.workspaceInviteAcceptedDigestRepository = workspaceInviteAcceptedDigestRepository;
+        this.workspaceJoinRequestEmailThrottleRepository = workspaceJoinRequestEmailThrottleRepository;
         this.teamService = teamService;
         this.demoWorkspaceSeeder = demoWorkspaceSeeder;
         this.workspaceInviteNotificationService = workspaceInviteNotificationService;
@@ -122,13 +166,7 @@ public class WorkspaceService {
         WorkspaceMember member = new WorkspaceMember();
         member.setWorkspaceId(saved.getId());
         member.setUserId(creator != null ? creator.getId() : null);
-        member.setRole(WorkspaceMemberRole.OWNER);
-        if (ownerRole != null) {
-            member.setRoleId(ownerRole.getId());
-            member.setDisplayRoleName(ownerRole.getName());
-        } else {
-            member.setDisplayRoleName("Owner");
-        }
+        setMemberPrimaryRole(member, ownerRole, "Owner");
         member.setStatus(WorkspaceMemberStatus.ACTIVE);
         member.setCreatedAt(now);
         member.setJoinedAt(now);
@@ -159,6 +197,100 @@ public class WorkspaceService {
             .toList();
     }
 
+    public WorkspaceDeletePreviewResponse getWorkspaceDeletePreview(String workspaceId, User requester) {
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
+        requireWorkspaceDeletePermission(workspace, requester);
+
+        List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceId(workspaceId);
+        long activeMembers = members.stream()
+            .filter(member -> member.getStatus() == WorkspaceMemberStatus.ACTIVE)
+            .count();
+        long totalMembers = members.size();
+        long projectCount = projectRepository.countByWorkspaceId(workspaceId);
+        long teamCount = teamRepository.countByWorkspaceId(workspaceId);
+        long pendingJoinRequests = workspaceJoinRequestRepository.countByWorkspaceIdAndStatus(
+            workspaceId,
+            WorkspaceJoinRequestStatus.PENDING
+        );
+        long activeInvites = countActiveInvites(workspaceId, Instant.now());
+        boolean deletionPending = workspace.getDeletionScheduledAt() != null;
+
+        return new WorkspaceDeletePreviewResponse(
+            workspace.getId(),
+            workspace.getName(),
+            activeMembers,
+            totalMembers,
+            projectCount,
+            teamCount,
+            pendingJoinRequests,
+            activeInvites,
+            deletionPending,
+            workspace.getDeletionRequestedAt(),
+            workspace.getDeletionScheduledAt(),
+            WORKSPACE_DELETE_GRACE_MINUTES
+        );
+    }
+
+    public WorkspaceDeletePreviewResponse requestWorkspaceDeletion(String workspaceId, String confirmName, User requester) {
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
+        requireWorkspaceDeletePermission(workspace, requester);
+
+        String expectedName = workspace.getName() != null ? workspace.getName().trim() : "";
+        String normalizedConfirmName = confirmName != null ? confirmName.trim() : "";
+        if (expectedName.isBlank() || !expectedName.equals(normalizedConfirmName)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace name confirmation does not match");
+        }
+
+        if (workspace.getDeletionScheduledAt() == null) {
+            Instant now = Instant.now();
+            Instant scheduledAt = now.plus(WORKSPACE_DELETE_GRACE_MINUTES, ChronoUnit.MINUTES);
+            workspace.setDeletionRequestedAt(now);
+            workspace.setDeletionScheduledAt(scheduledAt);
+            workspace.setDeletionRequestedByUserId(requester != null ? requester.getId() : null);
+            workspaceRepository.save(workspace);
+            workspaceInviteNotificationService.notifyWorkspaceDeletionScheduled(workspace, requester, scheduledAt);
+        }
+
+        return getWorkspaceDeletePreview(workspaceId, requester);
+    }
+
+    public WorkspaceDeletePreviewResponse cancelWorkspaceDeletion(String workspaceId, User requester) {
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
+        requireWorkspaceDeletePermission(workspace, requester);
+
+        boolean hadPendingDeletion = workspace.getDeletionScheduledAt() != null;
+        workspace.setDeletionRequestedAt(null);
+        workspace.setDeletionScheduledAt(null);
+        workspace.setDeletionRequestedByUserId(null);
+        workspaceRepository.save(workspace);
+        if (hadPendingDeletion) {
+            workspaceInviteNotificationService.notifyWorkspaceDeletionCanceled(workspace, requester);
+        }
+        return getWorkspaceDeletePreview(workspaceId, requester);
+    }
+
+    @Scheduled(cron = "0 */1 * * * *")
+    public void processScheduledWorkspaceDeletions() {
+        Instant now = Instant.now();
+        List<Workspace> due = workspaceRepository.findByDeletionScheduledAtNotNullAndDeletionScheduledAtLessThanEqual(now);
+        if (due.isEmpty()) {
+            return;
+        }
+        for (Workspace workspace : due) {
+            if (workspace == null || workspace.getId() == null) {
+                continue;
+            }
+            try {
+                purgeWorkspaceData(workspace);
+            } catch (RuntimeException ex) {
+                logger.error("Failed to finalize scheduled workspace deletion for workspaceId={}", workspace.getId(), ex);
+            }
+        }
+    }
+
     public WorkspaceMembership joinWorkspace(String inviteInput, String inviteAnswer, User user) {
         WorkspaceInvite invite = resolveInvite(inviteInput);
         Instant now = Instant.now();
@@ -186,13 +318,7 @@ public class WorkspaceService {
         member.setWorkspaceId(workspace.getId());
         member.setUserId(user.getId());
         member.setInvitedByUserId(invite.getCreatedByUserId());
-        member.setRole(WorkspaceMemberRole.MEMBER);
-        if (memberRole != null) {
-            member.setRoleId(memberRole.getId());
-            member.setDisplayRoleName(memberRole.getName());
-        } else {
-            member.setDisplayRoleName("Member");
-        }
+        setMemberPrimaryRole(member, memberRole, "Member");
 
         if (workspace.isRequireApproval()) {
             member.setStatus(WorkspaceMemberStatus.PENDING);
@@ -279,12 +405,32 @@ public class WorkspaceService {
 
     public List<WorkspaceRole> listRoles(String workspaceId, User requester) {
         requireActiveMembership(workspaceId, requester);
-        return workspaceRoleRepository.findByWorkspaceId(workspaceId).stream()
+        List<WorkspaceRole> roles = workspaceRoleRepository.findByWorkspaceId(workspaceId);
+        roles.forEach(role -> {
+            boolean changed = false;
+            if (role.getBadge() == null) {
+                role.setBadge(defaultRoleBadge(role.getName()));
+                changed = true;
+            }
+            if (role.getSchemaVersion() < 2) {
+                role.setSchemaVersion(2);
+                changed = true;
+            }
+            if (changed) {
+                workspaceRoleRepository.save(role);
+            }
+        });
+        return roles.stream()
             .sorted(Comparator.comparing(WorkspaceRole::getName, String.CASE_INSENSITIVE_ORDER))
             .toList();
     }
 
     public WorkspaceRole createRole(String workspaceId, String name, WorkspaceRolePermissions permissions, User requester) {
+        return createRole(workspaceId, name, permissions, null, requester);
+    }
+
+    public WorkspaceRole createRole(String workspaceId, String name, WorkspaceRolePermissions permissions,
+                                    WorkspaceRoleBadge badge, User requester) {
         requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
         String trimmed = name != null ? name.trim() : "";
         if (trimmed.isEmpty()) {
@@ -305,19 +451,27 @@ public class WorkspaceService {
         role.setName(trimmed);
         role.setSystem(false);
         role.setPermissions(permissions != null ? permissions : WorkspaceRolePermissions.memberDefaults());
+        role.setBadge(normalizeRoleBadge(badge, trimmed));
         role.setCreatedAt(Instant.now());
         role.setCreatedByUserId(requester != null ? requester.getId() : null);
+        role.setSchemaVersion(2);
         return workspaceRoleRepository.save(role);
     }
 
     public WorkspaceRole updateRole(String workspaceId, String roleId, String name,
                                     WorkspaceRolePermissions permissions, User requester) {
+        return updateRole(workspaceId, roleId, name, permissions, null, requester);
+    }
+
+    public WorkspaceRole updateRole(String workspaceId, String roleId, String name,
+                                    WorkspaceRolePermissions permissions, WorkspaceRoleBadge badge, User requester) {
         requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
         WorkspaceRole role = workspaceRoleRepository.findById(roleId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
         if (!workspaceId.equals(role.getWorkspaceId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found");
         }
+        String effectiveName = role.getName();
         if (name != null) {
             String trimmed = name.trim();
             if (trimmed.isEmpty()) {
@@ -328,10 +482,15 @@ public class WorkspaceService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Role name already exists");
             }
             role.setName(trimmed);
+            effectiveName = trimmed;
         }
         if (permissions != null) {
             role.setPermissions(permissions);
         }
+        if (badge != null || role.getBadge() == null) {
+            role.setBadge(normalizeRoleBadge(badge != null ? badge : role.getBadge(), effectiveName));
+        }
+        role.setSchemaVersion(Math.max(role.getSchemaVersion(), 2));
         return workspaceRoleRepository.save(role);
     }
 
@@ -344,9 +503,7 @@ public class WorkspaceService {
         }
         WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
-        member.setRoleId(role.getId());
-        member.setDisplayRoleName(role.getName());
-        member.setRole(mapRoleEnum(role.getName()));
+        setMemberPrimaryRole(member, role, role.getName());
         return workspaceMemberRepository.save(member);
     }
 
@@ -390,14 +547,8 @@ public class WorkspaceService {
         joiner.setWorkspaceId(workspaceId);
         joiner.setUserId(request.getUserId());
         if (joiner.getRoleId() == null) {
-            joiner.setRole(WorkspaceMemberRole.MEMBER);
             WorkspaceRole memberRole = ensureDefaultRoles(workspaceId, requester).get("member");
-            if (memberRole != null) {
-                joiner.setRoleId(memberRole.getId());
-                joiner.setDisplayRoleName(memberRole.getName());
-            } else {
-                joiner.setDisplayRoleName("Member");
-            }
+            setMemberPrimaryRole(joiner, memberRole, "Member");
         }
         enforceMemberActivationLimit(workspaceId);
         joiner.setStatus(WorkspaceMemberStatus.ACTIVE);
@@ -569,13 +720,16 @@ public class WorkspaceService {
         Workspace workspace = workspaceRepository.findBySlug(slug).orElse(null);
         if (workspace == null) {
             Workspace created = new Workspace();
-            created.setName("Demo Workspace");
+            created.setName(generateUniqueDemoWorkspaceName());
             created.setSlug(slug);
             created.setCreatedAt(Instant.now());
             created.setCreatedByUserId(user.getId());
             created.setDemo(true);
             created.setRequireApproval(true);
             workspace = workspaceRepository.save(created);
+        } else if (workspace.isDemo() && (workspace.getName() == null || workspace.getName().trim().equalsIgnoreCase(DEMO_WORKSPACE_NAME_PREFIX))) {
+            workspace.setName(generateUniqueDemoWorkspaceName());
+            workspace = workspaceRepository.save(workspace);
         }
         Workspace finalWorkspace = workspace;
         Map<String, WorkspaceRole> roles = ensureDefaultRoles(finalWorkspace.getId(), user);
@@ -586,13 +740,7 @@ public class WorkspaceService {
                 WorkspaceMember created = new WorkspaceMember();
                 created.setWorkspaceId(finalWorkspace.getId());
                 created.setUserId(user.getId());
-                created.setRole(WorkspaceMemberRole.OWNER);
-                if (ownerRole != null) {
-                    created.setRoleId(ownerRole.getId());
-                    created.setDisplayRoleName(ownerRole.getName());
-                } else {
-                    created.setDisplayRoleName("Owner");
-                }
+                setMemberPrimaryRole(created, ownerRole, "Owner");
                 created.setStatus(WorkspaceMemberStatus.ACTIVE);
                 created.setCreatedAt(Instant.now());
                 created.setJoinedAt(Instant.now());
@@ -627,8 +775,8 @@ public class WorkspaceService {
             WorkspaceMember adminMember = new WorkspaceMember();
             adminMember.setWorkspaceId(workspaceId);
             adminMember.setUserId(user.getId());
+            setMemberPrimaryRole(adminMember, null, "Platform Admin");
             adminMember.setRole(WorkspaceMemberRole.OWNER);
-            adminMember.setDisplayRoleName("Platform Admin");
             adminMember.setStatus(WorkspaceMemberStatus.ACTIVE);
             return adminMember;
         }
@@ -710,9 +858,45 @@ public class WorkspaceService {
         role.setName(name);
         role.setSystem(true);
         role.setPermissions(permissions);
+        role.setBadge(defaultRoleBadge(name));
         role.setCreatedAt(Instant.now());
         role.setCreatedByUserId(creator != null ? creator.getId() : null);
+        role.setSchemaVersion(2);
         return workspaceRoleRepository.save(role);
+    }
+
+    private WorkspaceRoleBadge normalizeRoleBadge(WorkspaceRoleBadge badge, String roleName) {
+        WorkspaceRoleBadge defaults = defaultRoleBadge(roleName);
+        String rawLabel = badge != null ? badge.getLabel() : null;
+        String rawColor = badge != null ? badge.getColor() : null;
+        String label = rawLabel != null ? rawLabel.trim() : "";
+        if (label.isBlank()) {
+            label = defaults.getLabel();
+        }
+        if (label.length() > MAX_ROLE_BADGE_LABEL_LENGTH) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Role badge label must be at most " + MAX_ROLE_BADGE_LABEL_LENGTH + " characters"
+            );
+        }
+        String color = rawColor != null ? rawColor.trim() : defaults.getColor();
+        if (color.isBlank()) {
+            color = defaults.getColor();
+        }
+        if (!HEX_COLOR_PATTERN.matcher(color).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role badge color must be a valid hex color");
+        }
+        return new WorkspaceRoleBadge(label, color.toUpperCase(Locale.ROOT));
+    }
+
+    private WorkspaceRoleBadge defaultRoleBadge(String roleName) {
+        String normalizedName = roleName != null ? roleName.trim() : "";
+        String displayName = normalizedName.isBlank() ? "Role" : normalizedName;
+        String color = SYSTEM_ROLE_BADGE_COLORS.getOrDefault(
+            normalizedName.toLowerCase(Locale.ROOT),
+            DEFAULT_ROLE_BADGE_COLOR
+        );
+        return new WorkspaceRoleBadge(displayName, color);
     }
 
     private void createInitialTeams(String workspaceId, User creator,
@@ -742,6 +926,65 @@ public class WorkspaceService {
         }
     }
 
+    private void requireWorkspaceDeletePermission(Workspace workspace, User requester) {
+        if (workspace == null || workspace.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found");
+        }
+        if (requester == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        if (requester.isAdmin()) {
+            return;
+        }
+        WorkspaceMember member = requireWorkspacePermission(
+            requester,
+            workspace.getId(),
+            WorkspacePermission.MANAGE_WORKSPACE_SETTINGS
+        );
+        if (workspace.getCreatedByUserId() != null && Objects.equals(workspace.getCreatedByUserId(), requester.getId())) {
+            return;
+        }
+        if (member.getRole() == WorkspaceMemberRole.OWNER) {
+            return;
+        }
+        if (member.getRoleId() != null) {
+            WorkspaceRole role = workspaceRoleRepository.findById(member.getRoleId()).orElse(null);
+            if (role != null
+                && Objects.equals(role.getWorkspaceId(), workspace.getId())
+                && "owner".equalsIgnoreCase(role.getName())) {
+                return;
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only workspace owner can delete workspace");
+    }
+
+    private long countActiveInvites(String workspaceId, Instant now) {
+        return workspaceInviteRepository.findByWorkspaceId(workspaceId).stream()
+            .filter(invite -> !invite.isRevoked())
+            .filter(invite -> invite.getExpiresAt() == null || !invite.getExpiresAt().isBefore(now))
+            .filter(invite -> invite.getMaxUses() == null || invite.getUsesCount() < invite.getMaxUses())
+            .count();
+    }
+
+    private void purgeWorkspaceData(Workspace workspace) {
+        String workspaceId = workspace.getId();
+        logger.info("Finalizing scheduled deletion for workspaceId={} workspaceName={}", workspaceId, workspace.getName());
+
+        projectRepository.deleteByWorkspaceId(workspaceId);
+        teamRepository.deleteByWorkspaceId(workspaceId);
+        workspaceInviteRepository.deleteByWorkspaceId(workspaceId);
+        workspaceJoinRequestRepository.deleteByWorkspaceId(workspaceId);
+        workspaceRoleRepository.deleteByWorkspaceId(workspaceId);
+        workspaceMemberRepository.deleteByWorkspaceId(workspaceId);
+        workspaceAuditEventRepository.deleteByWorkspaceId(workspaceId);
+        workspacePanelPreferencesRepository.deleteByWorkspaceId(workspaceId);
+        mentionAuditEventRepository.deleteByWorkspaceId(workspaceId);
+        mentionRestrictionRepository.deleteByWorkspaceId(workspaceId);
+        workspaceInviteAcceptedDigestRepository.deleteByWorkspaceId(workspaceId);
+        workspaceJoinRequestEmailThrottleRepository.deleteByWorkspaceId(workspaceId);
+        workspaceRepository.deleteById(workspaceId);
+    }
+
     private void validateInvite(WorkspaceInvite invite) {
         if (invite.isRevoked()) {
             throw new ResponseStatusException(HttpStatus.GONE, "Invite revoked");
@@ -761,6 +1004,43 @@ public class WorkspaceService {
             invite.setRevoked(true);
         }
         workspaceInviteRepository.save(invite);
+    }
+
+    private void setMemberPrimaryRole(WorkspaceMember member, WorkspaceRole role, String fallbackRoleName) {
+        if (member == null) {
+            return;
+        }
+        String effectiveRoleName = fallbackRoleName != null ? fallbackRoleName.trim() : "Member";
+        String roleId = null;
+        if (role != null) {
+            roleId = role.getId();
+            if (role.getName() != null && !role.getName().isBlank()) {
+                effectiveRoleName = role.getName().trim();
+            }
+        }
+        List<String> orderedRoleIds = member.getRoleIds() != null
+            ? member.getRoleIds().stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .toList()
+            : List.of();
+        List<String> mutableRoleIds = new ArrayList<>(orderedRoleIds);
+        if (roleId != null && !roleId.isBlank()) {
+            final String selectedRoleId = roleId;
+            mutableRoleIds.removeIf(existing -> existing.equals(selectedRoleId));
+            mutableRoleIds.add(0, selectedRoleId);
+            member.setRoleId(selectedRoleId);
+        } else if (!mutableRoleIds.isEmpty()) {
+            member.setRoleId(mutableRoleIds.get(0));
+        } else {
+            member.setRoleId(null);
+        }
+        member.setRoleIds(mutableRoleIds);
+        member.setDisplayRoleName(effectiveRoleName);
+        member.setRole(mapRoleEnum(effectiveRoleName));
     }
 
     private WorkspaceMemberRole mapRoleEnum(String roleName) {
@@ -916,6 +1196,17 @@ public class WorkspaceService {
             }
         }
         throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to generate unique invite code");
+    }
+
+    private String generateUniqueDemoWorkspaceName() {
+        for (int i = 0; i < 80; i++) {
+            int number = ThreadLocalRandom.current().nextInt(1, DEMO_NUMBER_MAX + 1);
+            String candidate = String.format("%s %04d", DEMO_WORKSPACE_NAME_PREFIX, number);
+            if (!workspaceRepository.existsByNameIgnoreCase(candidate)) {
+                return candidate;
+            }
+        }
+        return DEMO_WORKSPACE_NAME_PREFIX + " " + Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36).toUpperCase(Locale.ROOT);
     }
 
     private void clearDuplicatePendingRequests(String workspaceId, String userId, String keepRequestId, String decidedByUserId) {

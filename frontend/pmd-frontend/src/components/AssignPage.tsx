@@ -27,6 +27,91 @@ type AssignPageProps = {
 }
 
 const MAX_PROJECT_TITLE_LENGTH = 32
+const DEFAULT_ROLE_BADGE_COLOR = '#6366F1'
+const DEFAULT_TEAM_BADGE_COLOR = '#3B82F6'
+
+function formatMemberEmailForUi(value?: string | null) {
+  if (!value) return '-'
+  const [localRaw = '', domainRaw = ''] = value.split('@')
+  if (!localRaw || !domainRaw) return value
+  const plusIndex = localRaw.indexOf('+')
+  if (plusIndex <= 0) return value
+  return `${localRaw.slice(0, plusIndex)}@${domainRaw}`
+}
+
+function roleBadgeLabel(user: UserSummary): string | null {
+  const label = user.roleBadgeLabel?.trim()
+  if (label) return label
+  const roleName = user.roleName?.trim()
+  if (roleName) return roleName
+  return null
+}
+
+type IdentityBadgeDrawerItem = {
+  id: string
+  label: string
+  color: string
+  kind: 'team' | 'role'
+}
+
+function buildTeamBadgeItems(user: UserSummary, teamById: Map<string, { name?: string | null; color?: string | null }>): IdentityBadgeDrawerItem[] {
+  const fromApi = (user.teamBadges ?? [])
+    .filter((badge) => badge && badge.id)
+    .map((badge, index) => ({
+      id: badge?.id ?? `team-${index}`,
+      label: badge?.label?.trim() || 'Team',
+      color: badge?.color?.trim() || DEFAULT_TEAM_BADGE_COLOR,
+      kind: 'team' as const,
+      priority: badge?.priority ?? index,
+    }))
+    .sort((a, b) => a.priority - b.priority)
+  if (fromApi.length > 0) {
+    return fromApi.map((item) => ({ id: item.id, label: item.label, color: item.color, kind: item.kind }))
+  }
+  const fallbackTeamId = user.teamId?.trim()
+  const fallbackTeamName = user.teamName?.trim() || user.team?.trim() || (fallbackTeamId ? teamById.get(fallbackTeamId)?.name : '') || 'No team'
+  const fallbackTeamColor = (fallbackTeamId ? teamById.get(fallbackTeamId)?.color : null) || DEFAULT_TEAM_BADGE_COLOR
+  return [
+    {
+      id: fallbackTeamId || 'team-fallback',
+      label: fallbackTeamName,
+      color: fallbackTeamColor || DEFAULT_TEAM_BADGE_COLOR,
+      kind: 'team',
+    },
+  ]
+}
+
+function buildRoleBadgeItems(user: UserSummary): IdentityBadgeDrawerItem[] {
+  const fromApi = (user.roleBadges ?? [])
+    .filter((badge) => badge && badge.id)
+    .map((badge, index) => ({
+      id: badge?.id ?? `role-${index}`,
+      label: badge?.label?.trim() || 'Role',
+      color: badge?.color?.trim() || DEFAULT_ROLE_BADGE_COLOR,
+      kind: 'role' as const,
+      priority: badge?.priority ?? index,
+    }))
+    .sort((a, b) => a.priority - b.priority)
+  if (fromApi.length > 0) {
+    return fromApi.map((item) => ({ id: item.id, label: item.label, color: item.color, kind: item.kind }))
+  }
+  const fallbackLabel = roleBadgeLabel(user)
+  if (!fallbackLabel) {
+    return []
+  }
+  return [
+    {
+      id: `role-${fallbackLabel.toLowerCase()}`,
+      label: fallbackLabel,
+      color: user.roleBadgeColor?.trim() || DEFAULT_ROLE_BADGE_COLOR,
+      kind: 'role',
+    },
+  ]
+}
+
+function buildIdentityDrawerItems(user: UserSummary, teamById: Map<string, { name?: string | null; color?: string | null }>): IdentityBadgeDrawerItem[] {
+  return [...buildTeamBadgeItems(user, teamById), ...buildRoleBadgeItems(user)]
+}
 
 function formatProjectTitle(value?: string | null) {
   if (!value) return '-'
@@ -69,7 +154,23 @@ export function AssignPage({
   const [recommendersById, setRecommendersById] = useState<Record<string, UserSummary[]>>({})
   const [recommendersLoadingId, setRecommendersLoadingId] = useState<string | null>(null)
   const [showCreateProject, setShowCreateProject] = useState(false)
+  const [expandedIdentityUsers, setExpandedIdentityUsers] = useState<Set<string>>(new Set())
   const currentUserId = currentUser?.id ?? ''
+
+  const toggleIdentityBadges = useCallback((userId?: string | null) => {
+    if (!userId) {
+      return
+    }
+    setExpandedIdentityUsers((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }, [])
 
   const usersById = useMemo(() => {
     const map = new Map<string, UserSummary>()
@@ -784,6 +885,8 @@ export function AssignPage({
                   const recommenders = user.id ? recommendersById[user.id] ?? [] : []
                   const tooltipOpen = Boolean(user.id && tooltipUserId === user.id)
                   const tooltipLoading = Boolean(user.id && recommendersLoadingId === user.id)
+                  const badgeItems = buildIdentityDrawerItems(user, teamById)
+                  const isExpanded = Boolean(user.id && expandedIdentityUsers.has(user.id))
                   return (
                     <div
                       key={user.id ?? user.email ?? 'user-' + index}
@@ -798,14 +901,45 @@ export function AssignPage({
                           {user.displayName ?? '-'}
                         </strong>
                         <span className="muted truncate" title={user.email ?? ''}>
-                          {user.email ?? ''}
+                          {formatMemberEmailForUi(user.email)}
                         </span>
-                        <span
-                          className="muted truncate"
-                          title={teamById.get(user.teamId ?? '')?.name ?? 'No team'}
-                        >
-                          {teamById.get(user.teamId ?? '')?.name ?? 'No team'}
-                        </span>
+                        {isExpanded && badgeItems.length > 0 ? (
+                          <div className="member-badge-labels">
+                            {badgeItems.map((badge) => (
+                              <span
+                                key={`assign-available-label-${user.id ?? index}-${badge.kind}-${badge.id}`}
+                                className={`member-badge-label member-badge-label-${badge.kind}`}
+                                style={{
+                                  borderColor: `${badge.color}99`,
+                                  color: badge.color,
+                                  backgroundColor: `${badge.color}20`,
+                                }}
+                              >
+                                {badge.label}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {badgeItems.length > 0 ? (
+                          <div
+                            className={`member-identity-drawer${isExpanded ? ' is-expanded' : ''}`}
+                            onClick={() => toggleIdentityBadges(user.id)}
+                            title={isExpanded ? 'Hide labels' : 'Show labels'}
+                          >
+                            {badgeItems.map((badge) => (
+                              <span
+                                key={`assign-available-badge-${user.id ?? index}-${badge.kind}-${badge.id}`}
+                                className={`member-drawer-dot member-drawer-dot-${badge.kind}`}
+                                style={{
+                                  borderColor: badge.color,
+                                  borderBottomColor: badge.color,
+                                  backgroundColor: `${badge.color}30`,
+                                }}
+                                title={badge.label}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="people-card-actions">
                         <div
@@ -952,32 +1086,73 @@ export function AssignPage({
                   <p className="muted">Drop people here or click add.</p>
                 ) : (
                   <div className="member-chips">
-                    {selectedMembers.map((member, index) => (
-                      <span
-                        key={member.id ?? member.email ?? 'member-' + index}
-                        className="chip"
-                        draggable={canAssign}
-                        onDragStart={(event) => handleDragStart(event, member.id)}
-                        onDragEnd={handleDragEnd}
-                      >
-                        <strong className="chip-name" title={member.email ?? ''}>
-                          <span
-                            className="truncate"
-                            title={`${member.displayName ?? ''}${member.email ? ` - ${member.email}` : ''}`}
-                          >
-                            {member.displayName ?? '-'}
-                          </span>
-                        </strong>
-                        <button
-                          type="button"
-                          className="chip-remove"
-                          onClick={() => handleRemoveMember(member.id)}
-                          aria-label={`Remove ${member.displayName ?? 'member'}`}
+                    {selectedMembers.map((member, index) => {
+                      const badgeItems = buildIdentityDrawerItems(member, teamById)
+                      const isExpanded = Boolean(member.id && expandedIdentityUsers.has(member.id))
+                      return (
+                        <span
+                          key={member.id ?? member.email ?? 'member-' + index}
+                          className="chip"
+                          draggable={canAssign}
+                          onDragStart={(event) => handleDragStart(event, member.id)}
+                          onDragEnd={handleDragEnd}
                         >
-                          x
-                        </button>
-                      </span>
-                    ))}
+                          <strong className="chip-name" title={member.email ?? ''}>
+                            <span
+                              className="truncate"
+                              title={`${member.displayName ?? ''}${member.email ? ` - ${member.email}` : ''}`}
+                            >
+                              {member.displayName ?? '-'}
+                            </span>
+                          </strong>
+                          {isExpanded && badgeItems.length > 0 ? (
+                            <span className="member-badge-labels">
+                              {badgeItems.map((badge) => (
+                                <span
+                                  key={`assign-chip-label-${member.id ?? index}-${badge.kind}-${badge.id}`}
+                                  className={`member-badge-label member-badge-label-${badge.kind}`}
+                                  style={{
+                                    borderColor: `${badge.color}99`,
+                                    color: badge.color,
+                                    backgroundColor: `${badge.color}20`,
+                                  }}
+                                >
+                                  {badge.label}
+                                </span>
+                              ))}
+                            </span>
+                          ) : null}
+                          {badgeItems.length > 0 ? (
+                            <span
+                              className={`member-identity-drawer${isExpanded ? ' is-expanded' : ''}`}
+                              onClick={() => toggleIdentityBadges(member.id)}
+                              title={isExpanded ? 'Hide labels' : 'Show labels'}
+                            >
+                              {badgeItems.map((badge) => (
+                                <span
+                                  key={`assign-chip-badge-${member.id ?? index}-${badge.kind}-${badge.id}`}
+                                  className={`member-drawer-dot member-drawer-dot-${badge.kind}`}
+                                  style={{
+                                    borderColor: badge.color,
+                                    borderBottomColor: badge.color,
+                                    backgroundColor: `${badge.color}30`,
+                                  }}
+                                  title={badge.label}
+                                />
+                              ))}
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="chip-remove"
+                            onClick={() => handleRemoveMember(member.id)}
+                            aria-label={`Remove ${member.displayName ?? 'member'}`}
+                          >
+                            x
+                          </button>
+                        </span>
+                      )
+                    })}
                   </div>
                 )}
               </div>

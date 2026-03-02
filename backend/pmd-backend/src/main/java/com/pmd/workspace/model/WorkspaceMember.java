@@ -1,6 +1,8 @@
 package com.pmd.workspace.model;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -18,6 +20,8 @@ public class WorkspaceMember {
     private String userId;
 
     private String roleId;
+
+    private List<String> roleIds = new ArrayList<>();
 
     private String displayRoleName;
 
@@ -74,6 +78,14 @@ public class WorkspaceMember {
 
     public void setRoleId(String roleId) {
         this.roleId = roleId;
+    }
+
+    public List<String> getRoleIds() {
+        return roleIds;
+    }
+
+    public void setRoleIds(List<String> roleIds) {
+        this.roleIds = roleIds;
     }
 
     public String getDisplayRoleName() {

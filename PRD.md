@@ -7,6 +7,21 @@ This file is the single source of truth for PMD requirements, roadmap, TODOs, an
 
 ## 2026-02-20 - Global scrollbar visual unification
 
+## 2026-02-27 - Settings action controls + PMD image picker usability
+
+- [x] Settings action controls are now more compact:
+  - reduced `Edit`/`Delete` control sizes globally in settings cards (`team-edit-trigger`, `settings-icon-action`)
+  - kept destructive action semantics with red `X` delete icon + hover tooltip.
+- [x] Improved PMD image selection UX (Profile + Workspace):
+  - replaced inline image grids with a dedicated, scrollable PMD images modal
+  - added image count header and viewport-safe modal sizing
+  - selecting an image closes the picker and applies URL immediately to draft.
+- [x] Fixed profile avatar editor glyph rendering:
+  - replaced broken close/delete symbols with proper `×`.
+- [x] Validation:
+  - frontend lint pass
+  - frontend build pass.
+
 ## 2026-02-26 - First-run onboarding tour
 
 - [x] Added first-run guided onboarding for authenticated users (one-time per user/browser).
@@ -20,6 +35,34 @@ This file is the single source of truth for PMD requirements, roadmap, TODOs, an
   - Dashboard area
 - [x] Added spotlight overlay + step controls (`Back`, `Next`, `Skip`, `Finish`) with route-aware steps (`/settings`, `/dashboard`).
 - [x] Added stable DOM tour anchors via `data-tour` attributes across App, Settings, and Dashboard.
+
+## 2026-02-26 - Mobile/tablet UX hardening (global layouts + popup safety)
+
+- [x] Added tablet/mobile layout hardening for core application shells:
+  - topbar now wraps safely without horizontal overflow on narrower viewports
+  - dashboard / assign / people / settings layouts collapse to single-column earlier for better control usability.
+- [x] Added viewport-safe popup behavior for mobile/tablet:
+  - contextual popovers (invite menu, project menu, settings order/grid bounds, avatar menu) now render as fixed in-viewport panels on small screens
+  - password requirements popover also uses fixed in-viewport placement on small screens.
+- [x] Modal/overlay usability improved on small screens:
+  - profile/workspace/editor overlays now use viewport-constrained width/height with scrollable overlay containers so opened windows remain visible and reachable.
+- [x] Validation:
+  - frontend lint pass
+  - frontend build pass.
+
+## 2026-02-26 - Dashboard member identity cleanup + badges
+
+- [x] Dashboard member lists (`Members in this project`, `Assign people`) now show:
+  - team badge (with team color triangle)
+  - role badge (label + role color)
+  - cleaned email display without demo alias suffix.
+- [x] Added UI email formatting for demo plus-alias emails:
+  - demo seeding uses plus-addressed emails for workspace-level uniqueness (e.g. `user+workspaceId@pmd.local`)
+  - UI now displays readable form (`user@pmd.local`) while keeping full value in tooltip/title.
+- [x] Added member badge row styling for compact, readable identity display.
+- [x] Validation:
+  - frontend lint pass
+  - frontend build pass.
 
 ## 2026-02-26 - Invite/join notification matrix hardening (no-noise)
 
@@ -3826,3 +3869,211 @@ Implemented
   - Full emails remain visible to self and to roles with workspace-settings-level permissions (owner/manager/admin paths).
 - Validation:
   - Backend compile/test run completed successfully after changes.
+
+# 2026-02-26 - Backend integrity pass (role-summary cleanup + session retention fix)
+
+- Session retention runtime fix:
+  - Replaced derived repository method
+    `deleteByRevokedAtBeforeAndRevokedAtIsNotNull(...)`
+    with `deleteByRevokedAtBefore(...)` to avoid duplicate `revokedAt` criteria generation in Spring Data Mongo.
+  - Updated `AuthSessionRetentionService` cleanup job accordingly.
+- Role summary pipeline cleanup:
+  - Added `UserService.findWorkspaceRoleDisplays(...)` to centralize role display + badge resolution.
+  - Removed scattered/duplicated per-controller role/badge reconstruction logic.
+  - Updated:
+    - `UserController`
+    - `PersonRecommendationController`
+    - `ProjectService`
+    to consume one consistent role-display contract.
+- Backend hygiene:
+  - Removed obsolete `findWorkspaceRoleNames(...)` usage path (role display now normalized via service-level map).
+  - Minor import cleanup in controllers.
+- Validation:
+  - `./mvnw -q -DskipTests compile` passed.
+  - `./mvnw -q -DskipTests test-compile` passed.
+  - `./mvnw -q -Dtest=ProjectServiceTest test` passed.
+  - Full backend suite `./mvnw -q test` passed with Mongo dependency up (`docker compose -f docker-compose.deps.yml up -d`).
+
+# 2026-02-26 - Profile picture context editor UX cleanup
+
+- Refined profile picture context window (`My Profile`) to remove glitchy/overcrowded action layout.
+- Added clear modal header and stronger visual structure:
+  - `Profile picture` title + concise helper text.
+  - stable preview block on the left
+  - controls grouped on the right.
+- Reorganized actions into predictable rows:
+  - primary: `Upload image`, `Save picture`
+  - secondary: `Adjust crop`, `PMD images`
+- Fixed mojibake close/delete button text rendering (`×`) in the profile editor.
+- Added responsive behavior for narrow screens (single-column stacking for editor actions).
+- Validation:
+  - frontend lint passed (`npm run lint`)
+  - frontend build passed (`npm run build`)
+
+# 2026-02-27 - Workspace deletion flow (scheduled + confirmed)
+
+- Added production-safe **Delete Workspace** flow with explicit confirmation:
+  - New backend endpoints:
+    - `GET /api/workspaces/{id}/delete/preview`
+    - `POST /api/workspaces/{id}/delete/request`
+    - `POST /api/workspaces/{id}/delete/cancel`
+  - Name-confirmation is required before scheduling deletion.
+- Added grace-period deletion model:
+  - Workspace deletion is scheduled (default 30 minutes), not immediate.
+  - Members are notified by email when deletion is scheduled/canceled.
+  - A scheduled backend worker finalizes deletion after grace period.
+- Added deletion preview impact data in UI:
+  - Active/total members, projects, teams, pending requests, active invites.
+  - Clear pending-deletion state and scheduled timestamp visibility.
+- Data purge coverage:
+  - On finalization, workspace-scoped entities are removed in one controlled flow
+    (projects, teams, invites, join requests, roles, members, audit/preferences + mention-related records).
+- Added workspace-level index for scheduled delete scanning:
+  - `workspaces.deletionScheduledAt` is now indexed for efficient scheduler queries.
+- Validation/status:
+  - backend compile/test passed
+  - frontend lint/build passed
+
+# 2026-02-27 - Workspace invite UX + settings grid stability pass
+
+- Workspace invite improvements:
+  - Added a default join question seed:
+    - `why do you want to join our workspace?`
+  - Invite question now starts prefilled and resets to this default after invite creation.
+  - Reduced invite field text verbosity:
+    - `Invite email (optional direct invite)` -> `Direct invite email (optional)`
+  - Join question input now uses the default prompt as placeholder for better clarity.
+- Settings grid stability hardening:
+  - Replaced delayed-first-fit behavior with pre-paint grid fitting (`useLayoutEffect`) to reduce visible jump/flicker.
+  - Removed duplicated auto-fit trigger path that caused extra refits and visual movement.
+  - Centralized panel fitting logic in `fitPanelsNow(...)` and reused it from scheduled panel-fit calls.
+- Validation/status:
+  - frontend lint passed (`npm run lint`)
+  - frontend build passed (`npm run build`)
+
+# 2026-02-27 - Assign people identity badges parity
+
+- Added team/role badge parity in `Assign` page so people identity is consistent with `People` and `Dashboard`:
+  - Available people cards now show:
+    - team badge with team color triangle
+    - role badge with role badge color/label
+  - Assigned people chips now also show compact team + role badges.
+- Added demo-email display cleanup on Assign cards (`name+seed@...` -> `name@...`) for cleaner UX.
+- Styling updates:
+  - compact badge layout for chips (`member-chip-badges`) with safe wrapping.
+- Validation:
+  - frontend lint passed
+  - frontend build passed
+
+# 2026-02-27 - Profile/workspace picture editor polish
+
+- Fixed broken close/delete glyph rendering in picture editors:
+  - Replaced non-ASCII close/delete glyphs with plain `X` in profile and workspace picture context windows.
+- Improved PMD image selection UX:
+  - PMD image list now opens in a dedicated picker modal (scrollable grid) instead of being cramped inside editor layout.
+  - Added picker header + image count + explicit close button for cleaner flow.
+- Enhanced picture preview smoothness:
+  - Refined stacked-card preview motion, easing curves, and hover depth transitions.
+  - Added smoother thumbnail hover zoom for PMD images.
+- Validation:
+  - frontend lint passed
+  - frontend build passed
+
+# 2026-02-27 - Settings action icon consistency
+
+- Normalized workspace row action icons (Edit / Close) to the same visual size:
+  - Replaced mixed text glyphs with fixed-size inline SVG icons.
+  - Added shared icon sizing rules (`settings-icon-glyph`) so Edit and X render with identical dimensions.
+- Validation:
+  - frontend lint passed
+
+# 2026-02-27 - Workspace badge symbols
+
+- Added visual symbols for workspace badges in Settings -> Workspaces:
+  - `Demo` badge now includes a compact icon.
+  - `Creator` badge now includes a compact icon.
+- Badge styling updated to keep icons small, readable, and aligned with existing pill UI.
+- Validation:
+  - frontend lint passed
+
+# 2026-02-27 - Team/role create color toggles and random unique picker
+
+- Settings -> Team actions:
+  - Team color palette is now behind a triangle toggle (collapsed by default).
+  - Added dice button for random color selection.
+  - Random picks prioritize colors not already used by existing teams/roles in the workspace.
+- Settings -> Role actions (Create role):
+  - Added badge color selection with triangle toggle + palette.
+  - Added dice button for random role badge color with the same unique-first logic.
+  - Role creation now submits selected badge color in `createRole(..., { badge: { color } })`.
+- Visual updates:
+  - Added compact selected-color preview swatch next to color controls.
+- Validation:
+  - frontend lint passed
+
+# 2026-02-27 - Workspace switch warp effect + anti-spam guard
+
+- Added a short workspace-switch transition effect ("wormhole"-style ring pulse) on each workspace change.
+- Added anti-spam/cooldown guard for workspace switching in `WorkspaceContext`:
+  - ignores rapid repeated switches within `700ms`.
+  - still allows normal switching and does not affect pending workspace blocking logic.
+- Kept effect non-blocking (`pointer-events: none`) to avoid interfering with user actions.
+- Validation:
+  - frontend lint passed
+
+# 2026-02-27 - Settings icon-only action polish (Teams/Roles/Workspaces)
+
+- Replaced remaining text-style action glyph behavior with consistent small SVG icons:
+  - unified `Edit` pencil icon geometry to match `X` close/delete visual weight.
+  - kept fixed icon button sizing across Settings action controls.
+- Applied same icon sizing pattern across Teams/Roles/Workspaces action rows for full visual uniformity.
+- Preserved symbolized workspace status pills (`Demo` / `Creator`) and role system/demo badge icon behavior.
+- Finalized team/role edit color flows with consistent `toggle + dice + color preview + palette` pattern in both inline and overlay editors.
+- Cleaned role color picker rendering so the palette container only mounts when expanded (no empty layout artifacts).
+- Validation:
+  - frontend lint passed
+
+# 2026-02-27 - Workspace switch micro-indicator (cooldown feedback)
+
+- Added a workspace switch cooldown indicator in topbar:
+  - shows `switching…` next to workspace select while switch cooldown is active.
+  - powered from `WorkspaceContext` cooldown state so feedback is accurate and centralized.
+- Kept behavior non-blocking and compact for professional UX in busy workspace switching scenarios.
+- Validation:
+  - frontend lint passed
+
+# 2026-03-02 - Demo workspace consistency + active-membership visibility
+
+- Demo workspace naming:
+  - new demo workspace names are now generated with unique random numbering (`Demo Workspace 0001..9999`).
+  - legacy plain `Demo Workspace` entries auto-upgrade to numbered names on next demo workspace open.
+- Demo invite code range:
+  - demo invite generator expanded from `0001..1000` to `0001..9999` (`PMD-DEMO-####`), still uniqueness-checked.
+- Pending join isolation hardening:
+  - user listings for workspace-scoped UIs now resolve from `ACTIVE` workspace memberships only.
+  - pending members are excluded from assignable/visible user sets until approval.
+  - workspace role badge assignment resolution now also uses `ACTIVE` memberships only.
+- Settings UX:
+  - moved `Reset demo` action out of generic Workspace actions and into demo workspace edit panel (inline + tabs overlay).
+  - refined `Edit` icon geometry to visually match `X` icon weight for cleaner icon-only actions.
+- Validation:
+  - frontend lint passed
+  - backend compile passed (`-DskipTests compile`)
+
+# 2026-03-02 - Demo seed normalization pass (10 users + stable pending request)
+
+- Demo seed users standardized to **10 active known members** for the demo workspace dataset.
+- Added two additional active seed users to complete the fixed 10-user baseline:
+  - Iris Morgan (Network Engineering)
+  - Leo Bennett (Project Management)
+- Pending join-request seed behavior hardened:
+  - keeps one dedicated pending demo user (`Ivan Petrov`) in `PENDING` state.
+  - if that user is already active, pending seed is skipped (no invalid overwrite).
+  - ensures pending request payload always contains join question + answer demo data.
+  - keeps membership status pending and clears joined timestamp to avoid accidental active visibility.
+- This keeps demo data practical for testing:
+  - 10 active users
+  - 10 projects
+  - 1 predictable pending approval case
+- Validation:
+  - backend compile passed (`./mvnw -q -DskipTests compile`)

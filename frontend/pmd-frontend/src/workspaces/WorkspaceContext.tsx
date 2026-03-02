@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Workspace } from '../types'
 import { useAuth } from '../auth/authUtils'
@@ -15,6 +15,7 @@ import {
 const ACTIVE_WORKSPACE_KEY = 'pmd.activeWorkspaceId'
 const LEGACY_WORKSPACE_KEY = 'pmd:lastWorkspaceId'
 const LEGACY_WORKSPACE_KEY_ALT = 'pmd_active_workspace_id'
+const WORKSPACE_SWITCH_COOLDOWN_MS = 700
 
 type WorkspaceContextValue = {
   workspaces: Workspace[]
@@ -22,6 +23,7 @@ type WorkspaceContextValue = {
   error: string | null
   activeWorkspaceId: string | null
   activeWorkspace: Workspace | null
+  workspaceSwitchCooldownActive: boolean
   setActiveWorkspaceId: (id: string | null) => void
   refresh: () => Promise<void>
   createWorkspace: (name: string, initialTeams?: string[]) => Promise<Workspace | null>
@@ -71,20 +73,46 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(() => loadStoredWorkspaceId())
+  const [workspaceSwitchCooldownActive, setWorkspaceSwitchCooldownActive] = useState(false)
+  const lastWorkspaceSwitchAtRef = useRef(0)
+  const cooldownTimerRef = useRef<number | null>(null)
+
+  const armWorkspaceSwitchCooldown = useCallback((durationMs: number) => {
+    if (cooldownTimerRef.current) {
+      window.clearTimeout(cooldownTimerRef.current)
+      cooldownTimerRef.current = null
+    }
+    setWorkspaceSwitchCooldownActive(true)
+    cooldownTimerRef.current = window.setTimeout(() => {
+      setWorkspaceSwitchCooldownActive(false)
+      cooldownTimerRef.current = null
+    }, Math.max(0, durationMs))
+  }, [])
 
   const setActiveWorkspaceId = useCallback((id: string | null) => {
+    if (id === activeWorkspaceId) {
+      return
+    }
     if (!id) {
       setActiveWorkspaceIdState(null)
       persistWorkspaceId(null)
+      return
+    }
+    const now = Date.now()
+    const elapsed = now - lastWorkspaceSwitchAtRef.current
+    if (elapsed < WORKSPACE_SWITCH_COOLDOWN_MS) {
+      armWorkspaceSwitchCooldown(WORKSPACE_SWITCH_COOLDOWN_MS - elapsed)
       return
     }
     const workspace = workspaces.find((item) => item.id === id)
     if (workspace && workspace.status === 'PENDING') {
       return
     }
+    lastWorkspaceSwitchAtRef.current = now
+    armWorkspaceSwitchCooldown(WORKSPACE_SWITCH_COOLDOWN_MS)
     setActiveWorkspaceIdState(id)
     persistWorkspaceId(id)
-  }, [workspaces])
+  }, [activeWorkspaceId, armWorkspaceSwitchCooldown, workspaces])
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -209,11 +237,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [activeWorkspaceId])
 
   useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) {
+        window.clearTimeout(cooldownTimerRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     if (!user) {
       setWorkspaces([])
       setError(null)
       setLoading(false)
       setActiveWorkspaceIdState(null)
+      setWorkspaceSwitchCooldownActive(false)
       return
     }
     refresh()
@@ -231,6 +268,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       error,
       activeWorkspaceId,
       activeWorkspace,
+      workspaceSwitchCooldownActive,
       setActiveWorkspaceId,
       refresh,
       createWorkspace,
@@ -244,6 +282,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       error,
       activeWorkspaceId,
       activeWorkspace,
+      workspaceSwitchCooldownActive,
       setActiveWorkspaceId,
       refresh,
       createWorkspace,

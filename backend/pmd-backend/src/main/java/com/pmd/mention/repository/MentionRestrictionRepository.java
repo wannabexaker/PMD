@@ -10,5 +10,6 @@ public interface MentionRestrictionRepository extends MongoRepository<MentionRes
     Optional<MentionRestriction> findByWorkspaceIdAndUserId(String workspaceId, String userId);
 
     List<MentionRestriction> findByWorkspaceId(String workspaceId);
-}
 
+    long deleteByWorkspaceId(String workspaceId);
+}

@@ -57,7 +57,7 @@ public class TeamController {
                                    @Valid @RequestBody TeamRequest request,
                                    Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_TEAMS);
+        requireManageTeamsPermission(requester, workspaceId, "create teams");
         workspaceService.enforceTeamCreationLimit(workspaceId);
         Team team = teamService.createTeam(request, requester, workspaceId);
         workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
@@ -84,7 +84,7 @@ public class TeamController {
                                    @RequestBody TeamUpdateRequest request,
                                    Authentication authentication) {
         User requester = getRequester(authentication);
-        workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_TEAMS);
+        requireManageTeamsPermission(requester, workspaceId, "update teams");
         Team team = teamService.updateTeam(workspaceId, id, request.getName(), request.getIsActive(), request.getColor());
         workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
             workspaceId,
@@ -122,5 +122,19 @@ public class TeamController {
             return userService.findById(principal.getId());
         }
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+    }
+
+    private void requireManageTeamsPermission(User requester, String workspaceId, String action) {
+        try {
+            workspaceService.requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_TEAMS);
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().value() == HttpStatus.FORBIDDEN.value()) {
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You do not have permission to " + action + " in this workspace."
+                );
+            }
+            throw ex;
+        }
     }
 }

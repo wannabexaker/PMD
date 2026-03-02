@@ -36,6 +36,11 @@ export type Team = {
   createdBy?: string | null
 }
 
+export type RoleBadge = {
+  label?: string | null
+  color?: string | null
+}
+
 export type Person = {
   id?: string | null
   displayName?: string | null
@@ -52,10 +57,21 @@ export type UserSummary = {
   teamId?: string | null
   teamName?: string | null
   roleName?: string | null
+  roleBadgeLabel?: string | null
+  roleBadgeColor?: string | null
+  teamBadges?: IdentityBadge[] | null
+  roleBadges?: IdentityBadge[] | null
   isAdmin?: boolean | null
   activeProjectCount?: number | null
   recommendedCount?: number | null
   recommendedByMe?: boolean | null
+}
+
+export type IdentityBadge = {
+  id?: string | null
+  label?: string | null
+  color?: string | null
+  priority?: number | null
 }
 
 export type PeoplePageWidgetsConfig = {
@@ -149,6 +165,24 @@ export type Workspace = {
   createdAt?: string | null
   demo?: boolean | null
   requireApproval?: boolean | null
+  deletionRequestedAt?: string | null
+  deletionScheduledAt?: string | null
+  deletionRequestedByUserId?: string | null
+}
+
+export type WorkspaceDeletePreview = {
+  workspaceId?: string | null
+  workspaceName?: string | null
+  activeMembers?: number | null
+  totalMembers?: number | null
+  projectCount?: number | null
+  teamCount?: number | null
+  pendingJoinRequests?: number | null
+  activeInvites?: number | null
+  deletionPending?: boolean | null
+  deletionRequestedAt?: string | null
+  deletionScheduledAt?: string | null
+  gracePeriodMinutes?: number | null
 }
 
 export type WorkspaceRole = {
@@ -157,6 +191,7 @@ export type WorkspaceRole = {
   name?: string | null
   system?: boolean | null
   permissions?: WorkspacePermissions | null
+  badge?: RoleBadge | null
   createdAt?: string | null
 }
 

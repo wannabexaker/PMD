@@ -25,6 +25,9 @@ public class WorkspaceResponse {
     private Integer maxMembers;
     private Integer maxTeams;
     private Integer maxStorageMb;
+    private Instant deletionRequestedAt;
+    private Instant deletionScheduledAt;
+    private String deletionRequestedByUserId;
 
     public WorkspaceResponse() {
     }
@@ -33,7 +36,8 @@ public class WorkspaceResponse {
                              String roleId, String roleName, WorkspaceRolePermissions permissions,
                              WorkspaceMemberStatus status, Instant createdAt, boolean demo,
                              boolean requireApproval, String description, String language, String avatarUrl,
-                             Integer maxProjects, Integer maxMembers, Integer maxTeams, Integer maxStorageMb) {
+                             Integer maxProjects, Integer maxMembers, Integer maxTeams, Integer maxStorageMb,
+                             Instant deletionRequestedAt, Instant deletionScheduledAt, String deletionRequestedByUserId) {
         this.id = id;
         this.name = name;
         this.slug = slug;
@@ -52,6 +56,9 @@ public class WorkspaceResponse {
         this.maxMembers = maxMembers;
         this.maxTeams = maxTeams;
         this.maxStorageMb = maxStorageMb;
+        this.deletionRequestedAt = deletionRequestedAt;
+        this.deletionScheduledAt = deletionScheduledAt;
+        this.deletionRequestedByUserId = deletionRequestedByUserId;
     }
 
     public String getId() {
@@ -196,5 +203,29 @@ public class WorkspaceResponse {
 
     public void setMaxStorageMb(Integer maxStorageMb) {
         this.maxStorageMb = maxStorageMb;
+    }
+
+    public Instant getDeletionRequestedAt() {
+        return deletionRequestedAt;
+    }
+
+    public void setDeletionRequestedAt(Instant deletionRequestedAt) {
+        this.deletionRequestedAt = deletionRequestedAt;
+    }
+
+    public Instant getDeletionScheduledAt() {
+        return deletionScheduledAt;
+    }
+
+    public void setDeletionScheduledAt(Instant deletionScheduledAt) {
+        this.deletionScheduledAt = deletionScheduledAt;
+    }
+
+    public String getDeletionRequestedByUserId() {
+        return deletionRequestedByUserId;
+    }
+
+    public void setDeletionRequestedByUserId(String deletionRequestedByUserId) {
+        this.deletionRequestedByUserId = deletionRequestedByUserId;
     }
 }

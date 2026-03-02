@@ -6,14 +6,19 @@ import com.pmd.auth.policy.AccessPolicy;
 import com.pmd.project.model.ProjectStatus;
 import com.pmd.workspace.model.WorkspaceMember;
 import com.pmd.workspace.model.WorkspaceMemberRole;
+import com.pmd.workspace.model.WorkspaceMemberStatus;
+import com.pmd.workspace.model.WorkspaceRole;
 import com.pmd.workspace.repository.WorkspaceMemberRepository;
+import com.pmd.workspace.repository.WorkspaceRoleRepository;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,13 +36,16 @@ public class UserService {
     private final AccessPolicy accessPolicy;
     private final MongoTemplate mongoTemplate;
     private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final WorkspaceRoleRepository workspaceRoleRepository;
 
     public UserService(UserRepository userRepository, AccessPolicy accessPolicy, MongoTemplate mongoTemplate,
-                       WorkspaceMemberRepository workspaceMemberRepository) {
+                       WorkspaceMemberRepository workspaceMemberRepository,
+                       WorkspaceRoleRepository workspaceRoleRepository) {
         this.userRepository = userRepository;
         this.accessPolicy = accessPolicy;
         this.mongoTemplate = mongoTemplate;
         this.workspaceMemberRepository = workspaceMemberRepository;
+        this.workspaceRoleRepository = workspaceRoleRepository;
     }
 
     public User findById(String id) {
@@ -78,6 +86,16 @@ public class UserService {
         if (user.getRecommendedByUserIds() == null) {
             user.setRecommendedByUserIds(new java.util.ArrayList<>());
         }
+        List<String> normalizedTeamIds = normalizeIds(user.getTeamIds());
+        String primaryTeamId = user.getTeamId() != null ? user.getTeamId().trim() : "";
+        if (!primaryTeamId.isBlank()) {
+            normalizedTeamIds.remove(primaryTeamId);
+            normalizedTeamIds.add(0, primaryTeamId);
+        } else if (!normalizedTeamIds.isEmpty()) {
+            primaryTeamId = normalizedTeamIds.get(0);
+        }
+        user.setTeamIds(normalizedTeamIds);
+        user.setTeamId(primaryTeamId.isBlank() ? null : primaryTeamId);
         user.setRecommendedCount(user.getRecommendedByUserIds().size());
         if (user.getPeoplePageWidgets() == null) {
             user.setPeoplePageWidgets(com.pmd.user.model.PeoplePageWidgets.defaults());
@@ -106,8 +124,13 @@ public class UserService {
                 if (normalizedTeamId.isEmpty()) {
                     return true;
                 }
-                String userTeamId = user.getTeamId() != null ? user.getTeamId().trim() : "";
-                return userTeamId.equals(normalizedTeamId);
+                if (user.getTeamId() != null && normalizedTeamId.equals(user.getTeamId().trim())) {
+                    return true;
+                }
+                return user.getTeamIds() != null && user.getTeamIds().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .anyMatch(normalizedTeamId::equals);
             })
             .toList();
     }
@@ -116,7 +139,9 @@ public class UserService {
         if (workspaceId == null || workspaceId.isBlank()) {
             return List.of();
         }
-        List<String> userIds = workspaceMemberRepository.findByWorkspaceId(workspaceId).stream()
+        List<String> userIds = workspaceMemberRepository
+            .findByWorkspaceIdAndStatus(workspaceId, WorkspaceMemberStatus.ACTIVE)
+            .stream()
             .map(member -> member.getUserId())
             .filter(Objects::nonNull)
             .distinct()
@@ -182,7 +207,7 @@ public class UserService {
             .collect(Collectors.toMap(ActiveCountResult::getId, ActiveCountResult::getCount));
     }
 
-    public Map<String, String> findWorkspaceRoleNames(String workspaceId, List<User> users) {
+    private Map<String, List<String>> findWorkspaceRoleAssignments(String workspaceId, List<User> users) {
         if (workspaceId == null || workspaceId.isBlank() || users == null || users.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -194,24 +219,85 @@ public class UserService {
         if (userIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        Map<String, String> roleNames = new HashMap<>();
-        workspaceMemberRepository.findByWorkspaceId(workspaceId).forEach(member -> {
+        Map<String, List<String>> assignments = new HashMap<>();
+        workspaceMemberRepository.findByWorkspaceIdAndStatus(workspaceId, WorkspaceMemberStatus.ACTIVE).forEach(member -> {
             if (member.getUserId() == null || !userIds.contains(member.getUserId())) {
                 return;
             }
-            String display = member.getDisplayRoleName();
-            if (display == null && member.getRole() != null) {
-                display = switch (member.getRole()) {
-                    case OWNER -> "Owner";
-                    case ADMIN -> "Manager";
-                    case MEMBER -> "Member";
-                };
+            List<String> orderedRoleIds = normalizeIds(member.getRoleIds());
+            String primaryRoleId = member.getRoleId() != null ? member.getRoleId().trim() : "";
+            if (!primaryRoleId.isBlank()) {
+                orderedRoleIds.remove(primaryRoleId);
+                orderedRoleIds.add(0, primaryRoleId);
             }
-            if (display != null) {
-                roleNames.put(member.getUserId(), display);
+            if (!orderedRoleIds.isEmpty()) {
+                assignments.put(member.getUserId(), orderedRoleIds);
             }
         });
-        return roleNames;
+        return assignments;
+    }
+
+    public Map<String, WorkspaceRoleDisplay> findWorkspaceRoleDisplays(String workspaceId, List<User> users) {
+        Map<String, List<WorkspaceRoleBadgeEntry>> entriesByUser = findWorkspaceRoleBadgeEntries(workspaceId, users);
+        if (entriesByUser.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, WorkspaceRoleDisplay> displays = new HashMap<>();
+        entriesByUser.forEach((userId, entries) -> {
+            if (entries == null || entries.isEmpty()) {
+                return;
+            }
+            WorkspaceRoleBadgeEntry primary = entries.get(0);
+            displays.put(userId, new WorkspaceRoleDisplay(
+                primary.roleName(),
+                primary.roleBadgeLabel(),
+                primary.roleBadgeColor()
+            ));
+        });
+        return displays;
+    }
+
+    public Map<String, List<WorkspaceRoleBadgeEntry>> findWorkspaceRoleBadgeEntries(String workspaceId, List<User> users) {
+        Map<String, List<String>> assignments = findWorkspaceRoleAssignments(workspaceId, users);
+        if (assignments.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<String> roleIds = assignments.values().stream()
+            .flatMap(List::stream)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        Map<String, WorkspaceRole> rolesById = roleIds.isEmpty()
+            ? Collections.emptyMap()
+            : workspaceRoleRepository.findAllById(roleIds).stream()
+                .filter(role -> workspaceId.equals(role.getWorkspaceId()))
+                .collect(Collectors.toMap(WorkspaceRole::getId, role -> role, (first, second) -> first));
+
+        Map<String, List<WorkspaceRoleBadgeEntry>> displays = new HashMap<>();
+        assignments.forEach((userId, orderedRoleIds) -> {
+            List<WorkspaceRoleBadgeEntry> userEntries = new ArrayList<>();
+            for (String roleId : orderedRoleIds) {
+                WorkspaceRole role = rolesById.get(roleId);
+                if (role == null) {
+                    continue;
+                }
+                String roleName = role.getName();
+                String badgeLabel = roleName;
+                String badgeColor = null;
+                if (role.getBadge() != null) {
+                    String configuredLabel = role.getBadge().getLabel();
+                    if (configuredLabel != null && !configuredLabel.isBlank()) {
+                        badgeLabel = configuredLabel;
+                    }
+                    badgeColor = role.getBadge().getColor();
+                }
+                userEntries.add(new WorkspaceRoleBadgeEntry(role.getId(), roleName, badgeLabel, badgeColor));
+            }
+            if (!userEntries.isEmpty()) {
+                displays.put(userId, userEntries);
+            }
+        });
+        return displays;
     }
 
     public User ensureAdminSeedUser(String email, String passwordHash, String firstName, String lastName, String bio) {
@@ -287,5 +373,25 @@ public class UserService {
         public long getCount() {
             return count;
         }
+    }
+
+    public record WorkspaceRoleDisplay(String roleName, String roleBadgeLabel, String roleBadgeColor) {
+    }
+
+    public record WorkspaceRoleBadgeEntry(String roleId, String roleName, String roleBadgeLabel, String roleBadgeColor) {
+    }
+
+    private List<String> normalizeIds(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return values.stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(value -> !value.isBlank())
+            .collect(Collectors.collectingAndThen(
+                Collectors.toCollection(LinkedHashSet::new),
+                ArrayList::new
+            ));
     }
 }

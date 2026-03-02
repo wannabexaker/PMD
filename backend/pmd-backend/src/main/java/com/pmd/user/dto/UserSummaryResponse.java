@@ -1,5 +1,8 @@
 package com.pmd.user.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class UserSummaryResponse {
 
     private String id;
@@ -15,6 +18,10 @@ public class UserSummaryResponse {
     private String teamName;
 
     private String roleName;
+    private String roleBadgeLabel;
+    private String roleBadgeColor;
+    private List<UserIdentityBadgeResponse> teamBadges = new ArrayList<>();
+    private List<UserIdentityBadgeResponse> roleBadges = new ArrayList<>();
 
     private boolean isAdmin;
 
@@ -28,8 +35,9 @@ public class UserSummaryResponse {
     }
 
     public UserSummaryResponse(String id, String displayName, String email, String team,
-                               String teamId, String teamName, String roleName, boolean isAdmin,
-                               long activeProjectCount, int recommendedCount, boolean recommendedByMe) {
+                               String teamId, String teamName, String roleName, String roleBadgeLabel,
+                               String roleBadgeColor, boolean isAdmin, long activeProjectCount,
+                               int recommendedCount, boolean recommendedByMe) {
         this.id = id;
         this.displayName = displayName;
         this.email = email;
@@ -37,6 +45,8 @@ public class UserSummaryResponse {
         this.teamId = teamId;
         this.teamName = teamName;
         this.roleName = roleName;
+        this.roleBadgeLabel = roleBadgeLabel;
+        this.roleBadgeColor = roleBadgeColor;
         this.isAdmin = isAdmin;
         this.activeProjectCount = activeProjectCount;
         this.recommendedCount = recommendedCount;
@@ -99,6 +109,22 @@ public class UserSummaryResponse {
         this.roleName = roleName;
     }
 
+    public String getRoleBadgeLabel() {
+        return roleBadgeLabel;
+    }
+
+    public void setRoleBadgeLabel(String roleBadgeLabel) {
+        this.roleBadgeLabel = roleBadgeLabel;
+    }
+
+    public String getRoleBadgeColor() {
+        return roleBadgeColor;
+    }
+
+    public void setRoleBadgeColor(String roleBadgeColor) {
+        this.roleBadgeColor = roleBadgeColor;
+    }
+
     public boolean isAdmin() {
         return isAdmin;
     }
@@ -129,5 +155,21 @@ public class UserSummaryResponse {
 
     public void setRecommendedByMe(boolean recommendedByMe) {
         this.recommendedByMe = recommendedByMe;
+    }
+
+    public List<UserIdentityBadgeResponse> getTeamBadges() {
+        return teamBadges;
+    }
+
+    public void setTeamBadges(List<UserIdentityBadgeResponse> teamBadges) {
+        this.teamBadges = teamBadges;
+    }
+
+    public List<UserIdentityBadgeResponse> getRoleBadges() {
+        return roleBadges;
+    }
+
+    public void setRoleBadges(List<UserIdentityBadgeResponse> roleBadges) {
+        this.roleBadges = roleBadges;
     }
 }
