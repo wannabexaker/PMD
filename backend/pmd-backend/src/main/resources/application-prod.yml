@@ -1,0 +1,43 @@
+spring:
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI}
+
+pmd:
+  auth:
+    session:
+      secure-cookie: ${PMD_AUTH_SESSION_COOKIE_SECURE:true}
+      same-site: ${PMD_AUTH_SESSION_COOKIE_SAME_SITE:Strict}
+      remember-ttl-seconds: ${PMD_AUTH_SESSION_REMEMBER_TTL_SECONDS:2592000}
+      session-ttl-seconds: ${PMD_AUTH_SESSION_TTL_SECONDS:43200}
+      inactivity-ttl-seconds: ${PMD_AUTH_SESSION_INACTIVITY_TTL_SECONDS:259200}
+      require-verified-email: ${PMD_AUTH_REQUIRE_VERIFIED_EMAIL:true}
+  security:
+    trust-proxy-headers: ${PMD_SECURITY_TRUST_PROXY_HEADERS:true}
+    allowed-origins: ${PMD_ALLOWED_ORIGINS}
+    allowed-origin-patterns: ${PMD_ALLOWED_ORIGIN_PATTERNS:}
+    auth-rate-limit:
+      ip-per-10-min: ${PMD_AUTH_RATE_LIMIT_IP_PER_10_MIN:25}
+      user-per-10-min: ${PMD_AUTH_RATE_LIMIT_USER_PER_10_MIN:8}
+      lock-minutes: ${PMD_AUTH_RATE_LIMIT_LOCK_MINUTES:20}
+    rate-limit:
+      per-minute: ${PMD_RATE_LIMIT_PER_MINUTE:120}
+      per-hour: ${PMD_RATE_LIMIT_PER_HOUR:1800}
+
+server:
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info

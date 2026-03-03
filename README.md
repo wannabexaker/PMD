@@ -98,12 +98,16 @@ Use this sequence before tagging/pushing a release:
 
 ### Production compose note
 
-`docker-compose.prod.yml` requires `PMD_JWT_SECRET` to be set (it now fails fast if missing).
-Before running production compose, create a `.env` file (or export env vars) and set a long random value:
+`docker-compose.prod.yml` is now fail-fast and requires these vars at minimum:
 
-```
-PMD_JWT_SECRET=your-long-random-secret-at-least-32-characters
-```
+- `PMD_JWT_SECRET`
+- `PMD_ALLOWED_ORIGINS`
+- `MONGO_INITDB_ROOT_USERNAME`
+- `MONGO_INITDB_ROOT_PASSWORD`
+- `PMD_MONGO_APP_USER`
+- `PMD_MONGO_APP_PASSWORD`
+
+Use `.env.production.example` as the template for production values.
 
 ### Auth/session security model (current)
 
@@ -199,6 +203,9 @@ Always confirm the port file exists (the script waits up to 90 seconds for it) a
 | `scripts\pmd_dev_down.bat` | Stops the Maven/Node processes listed in `.pmd-dev-pids.json` and optionally the Docker deps. |
 | `scripts\pmd_up_backend_dev.bat` / `scripts\pmd_up_frontend_dev.bat` | Individually start backend or frontend windows (used by the menu). |
 | `scripts\db_backup.ps1` / `scripts\db_restore.ps1` / `scripts\db_verify_restore.ps1` | Mongo backup/restore/verify helpers for LTS ops. See `docs/db-runbook.md`. |
+| `scripts\verify-prod-surface.ps1` | Verifies prod compose does not publish backend/db ports to host. |
+| `scripts\ops\pmd-readiness-check.ps1` | Basic readiness checks (frontend/backend health + optional exposure checks). |
+| `scripts\firewall\pmd-firewall-windows.ps1` | Applies/rolls back Windows Firewall policy for PMD host exposure. |
 | `docker compose -f docker-compose.deps.yml up -d` | Starts Mongo + MailHog alone when you only need the dependencies. |
 | `docker compose -f docker-compose.local.yml --profile reviewer up -d --build` | Builds/runs the full reviewer stack (backend/frontend/Mongo/MailHog) inside Docker for parity checks. |
 | `pmd.bat docker-up` / `pmd.bat docker-down` | Starts/stops the full Docker stack; `docker-up` rebuilds images and recreates containers. |
@@ -239,3 +246,10 @@ Note: `scripts/.pmd-dev-pids.json` is a local runtime state file (ephemeral PIDs
 - `down` scripts perform deterministic cleanup (`docker compose ... down --remove-orphans`) instead of leaving partial state.
 
 The README now reflects the current hybrid flow: dynamic backend ports, the `.runtime/backend-port.txt` contract, the PMD Control entry point, and what each Docker compose file actually provides.
+
+## Production ops docs
+
+- Architecture and migration: `docs/PRODUCTION_ARCHITECTURE.md`
+- Firewall policy/run commands: `docs/FIREWALL_POLICY.md`
+- Backup/restore runbook: `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md`
+- Release gate checklist: `docs/PRODUCTION_RELEASE_CHECKLIST.md`

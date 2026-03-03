@@ -4077,3 +4077,28 @@ Implemented
   - 1 predictable pending approval case
 - Validation:
   - backend compile passed (`./mvnw -q -DskipTests compile`)
+
+# 2026-03-03 - Production security hardening baseline (Docker/Nginx/Backend/Mongo/Ops)
+
+- Added production-ready deployment baseline:
+  - `docker-compose.prod.yml` hardened so only frontend is public (`80`), backend and mongo are private/internal.
+  - MailHog isolated to debug profile (not in default production runtime).
+- Added backend production profile config:
+  - new `application-prod.yml` with strict CORS env controls, secure cookie defaults, proxy trust config, auth/rate-limit toggles.
+- Added Mongo hardening assets:
+  - init script for least-privilege app user under `scripts/mongo/init/`.
+  - production env template placeholders for mongo auth + app credentials.
+- Added reverse-proxy hardening:
+  - production `nginx.conf` includes secure headers, baseline rate limiting, safe cache rules, and proxy routing for `/api`, `/actuator`, `/uploads`.
+- Added production operations tooling/docs:
+  - architecture guide: `docs/PRODUCTION_ARCHITECTURE.md`
+  - firewall policy + Windows helper script: `docs/FIREWALL_POLICY.md`, `scripts/firewall/pmd-firewall-windows.ps1`
+  - backup/restore runbook: `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md`
+  - release checklist: `docs/PRODUCTION_RELEASE_CHECKLIST.md`
+  - readiness and attack-surface checks: `scripts/ops/pmd-readiness-check.ps1`, `scripts/verify-prod-surface.ps1`
+- Validation checkpoint:
+  - `docker compose -f docker-compose.prod.yml config` (with required env vars) -> PASS
+  - `scripts/verify-prod-surface.ps1` -> PASS (no published backend/db ports)
+  - frontend `npm run lint` -> PASS
+  - frontend `npm run build` -> PASS
+  - backend `./mvnw -q -DskipTests=false test` -> PASS

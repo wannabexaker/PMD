@@ -275,7 +275,7 @@ public class WorkspaceService {
     @Scheduled(cron = "0 */1 * * * *")
     public void processScheduledWorkspaceDeletions() {
         Instant now = Instant.now();
-        List<Workspace> due = workspaceRepository.findByDeletionScheduledAtNotNullAndDeletionScheduledAtLessThanEqual(now);
+        List<Workspace> due = workspaceRepository.findByDeletionScheduledAtLessThanEqual(now);
         if (due.isEmpty()) {
             return;
         }
