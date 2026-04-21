@@ -10,6 +10,29 @@ unchanged/
 .runtime/
 scripts/.pmd-dev-pids.json
 
+# --- env files (NEVER commit real secrets) ---
+.env
+.env.*
+!.env.example
+!.env.production.example
+!**/.env.example
+!**/.env.production.example
+
+# --- secrets / keys / certs ---
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/secrets/
+
+# --- local tooling outputs ---
+graphify-out/
+.obsidian/
+.claude/
+.cursor/
+
 # --- frontend (Vite/React/TS) ---
 frontend/**/node_modules/
 frontend/**/dist/
@@ -26,6 +49,13 @@ pnpm-debug.log*
 backend/**/target/
 backend/**/*.log
 backend/**/uploads/
+
+# --- logs / db dumps ---
+*.log
+logs/
+*.dump
+*.sqlite
+*.sqlite3
 
 # --- OS / IDE ---
 .DS_Store
