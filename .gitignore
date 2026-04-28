@@ -18,6 +18,10 @@ scripts/.pmd-dev-pids.json
 !**/.env.example
 !**/.env.production.example
 
+# --- sensitive / internal docs (do not publish) ---
+docs/release-checklist.md
+docs/FIREWALL_POLICY.md
+
 # --- secrets / keys / certs ---
 *.pem
 *.key
