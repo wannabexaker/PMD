@@ -36,6 +36,7 @@ graphify-out/
 .obsidian/
 .claude/
 .cursor/
+.github/java-upgrade/
 
 # --- frontend (Vite/React/TS) ---
 frontend/**/node_modules/
