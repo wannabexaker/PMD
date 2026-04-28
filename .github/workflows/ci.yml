@@ -20,7 +20,13 @@ jobs:
           docker compose -f docker-compose.yml config >/dev/null
           docker compose -f docker-compose.deps.yml config >/dev/null
           docker compose -f docker-compose.local.yml config >/dev/null
-          PMD_JWT_SECRET="ci-compose-validation-secret" docker compose -f docker-compose.prod.yml config >/dev/null
+          MONGO_INITDB_ROOT_USERNAME=ci-root \
+          MONGO_INITDB_ROOT_PASSWORD=ci-root-pass \
+          PMD_MONGO_APP_USER=ci-pmd \
+          PMD_MONGO_APP_PASSWORD=ci-pmd-pass \
+          PMD_ALLOWED_ORIGINS=http://ci.example.com \
+          PMD_JWT_SECRET=ci-compose-validation-secret-32bytes \
+          docker compose -f docker-compose.prod.yml config >/dev/null
 
       - name: Validate nginx config
         run: |

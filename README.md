@@ -84,7 +84,17 @@ Use this sequence before tagging/pushing a release:
    - `docker compose -f docker-compose.yml config`
    - `docker compose -f docker-compose.deps.yml config`
    - `docker compose -f docker-compose.local.yml config`
-   - `docker compose -f docker-compose.prod.yml config`
+   - `docker compose -f docker-compose.prod.yml config` — requires all prod vars; for local validation use demo values:
+     ```
+     MONGO_INITDB_ROOT_USERNAME=ci-root \
+     MONGO_INITDB_ROOT_PASSWORD=ci-root-pass \
+     PMD_MONGO_APP_USER=ci-pmd \
+     PMD_MONGO_APP_PASSWORD=ci-pmd-pass \
+     PMD_ALLOWED_ORIGINS=http://ci.example.com \
+     PMD_JWT_SECRET=ci-compose-validation-secret-32bytes \
+     docker compose -f docker-compose.prod.yml config
+     ```
+     CI uses the same demo values — they are intentionally non-secret placeholders for syntax validation only.
 2. Validate Nginx config used by the frontend image:
    - `docker run --rm -v "${PWD}/frontend/pmd-frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.27-alpine nginx -t`
 3. Ensure compose production env contains at least:
