@@ -58,6 +58,8 @@ server:
     include-exception: false
 
 management:
+  cloudfoundry:
+    enabled: false  # Security: mitigation for CVE-2026-22733 (Auth Bypass via CloudFoundry Actuator endpoints)
   endpoints:
     web:
       exposure:

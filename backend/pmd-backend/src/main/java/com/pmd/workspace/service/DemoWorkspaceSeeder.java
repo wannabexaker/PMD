@@ -3,6 +3,7 @@ package com.pmd.workspace.service;
 import com.pmd.person.model.Person;
 import com.pmd.person.repository.PersonRepository;
 import com.pmd.project.model.Project;
+import com.pmd.project.model.ProjectCommentEntity;
 import com.pmd.project.model.ProjectStatus;
 import com.pmd.project.repository.ProjectCommentRepository;
 import com.pmd.project.repository.ProjectRepository;
@@ -27,6 +28,7 @@ import com.pmd.workspace.repository.WorkspaceJoinRequestRepository;
 import com.pmd.workspace.repository.WorkspaceRepository;
 import com.pmd.workspace.repository.WorkspaceRoleRepository;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -53,30 +55,113 @@ public class DemoWorkspaceSeeder {
         "IT Support / Helpdesk"
     );
 
+    // Indices reference SEED_USERS list positions (0-based)
     private static final List<SeedUser> SEED_USERS = List.of(
-        new SeedUser("Alex", "Johnson", "Web Development", "Owner"),
-        new SeedUser("Bianca", "Lopez", "Software Engineering", "Manager"),
-        new SeedUser("Chris", "Nguyen", "Data Engineering", "Member"),
-        new SeedUser("Dana", "Rossi", "DevOps", "Member"),
-        new SeedUser("Evan", "Kim", "UX / UI Design", "Member"),
-        new SeedUser("Farah", "Patel", "Cybersecurity", "Viewer"),
-        new SeedUser("Gabe", "Williams", "QA / Testing", "Member"),
-        new SeedUser("Hana", "Sato", "IT Support / Helpdesk", "Member"),
-        new SeedUser("Iris", "Morgan", "Network Engineering", "Member"),
-        new SeedUser("Leo", "Bennett", "Project Management", "Member")
+        new SeedUser("Alex",   "Johnson",  "Web Development",       "Owner"),   // 0
+        new SeedUser("Bianca", "Lopez",    "Software Engineering",  "Manager"), // 1
+        new SeedUser("Chris",  "Nguyen",   "Data Engineering",      "Member"),  // 2
+        new SeedUser("Dana",   "Rossi",    "DevOps",                "Member"),  // 3
+        new SeedUser("Evan",   "Kim",      "UX / UI Design",        "Member"),  // 4
+        new SeedUser("Farah",  "Patel",    "Cybersecurity",         "Viewer"),  // 5
+        new SeedUser("Gabe",   "Williams", "QA / Testing",          "Member"),  // 6
+        new SeedUser("Hana",   "Sato",     "IT Support / Helpdesk", "Member"),  // 7
+        new SeedUser("Iris",   "Morgan",   "Network Engineering",   "Member"),  // 8
+        new SeedUser("Leo",    "Bennett",  "Project Management",    "Member")   // 9
     );
 
     private static final List<SeedProject> SEED_PROJECTS = List.of(
-        new SeedProject("Launchpad Revamp", "Modernize the internal project hub", ProjectStatus.IN_PROGRESS, "Web Development"),
-        new SeedProject("Data Lake Hardening", "Improve lineage and quality checks", ProjectStatus.NOT_STARTED, "Data Engineering"),
-        new SeedProject("QA Automation Sprint", "Expand automated regression suite", ProjectStatus.IN_PROGRESS, "QA / Testing"),
-        new SeedProject("DevOps Control Plane", "Standardize deployment playbooks", ProjectStatus.NOT_STARTED, "DevOps"),
-        new SeedProject("Design System Refresh", "Unify UI tokens and components", ProjectStatus.COMPLETED, "UX / UI Design"),
-        new SeedProject("Zero Trust Rollout", "Stage rollout plan for security posture", ProjectStatus.IN_PROGRESS, "Cybersecurity"),
-        new SeedProject("Network Observability", "Improve network traffic visibility", ProjectStatus.NOT_STARTED, "Network Engineering"),
-        new SeedProject("Helpdesk Knowledge Base", "Centralize support articles", ProjectStatus.IN_PROGRESS, "IT Support / Helpdesk"),
-        new SeedProject("Product Analytics Hub", "Define KPI tracking dashboards", ProjectStatus.NOT_STARTED, "Project Management"),
-        new SeedProject("Data Pipeline Optimization", "Reduce ETL latency and cost", ProjectStatus.IN_PROGRESS, "Data Engineering")
+        new SeedProject("Launchpad Revamp",
+            "Modernize the internal project hub with a new component library and improved navigation",
+            ProjectStatus.IN_PROGRESS, "Web Development",
+            List.of(0, 1, 4, 6),   // Alex, Bianca, Evan, Gabe
+            List.of(
+                new SeedComment(1, "Finished the API integration for the nav redesign — all endpoints are wired up.", 90),
+                new SeedComment(4, "New sidebar mockups are ready for review. Should save around 30% navigation time.", 60),
+                new SeedComment(0, "Pushed the initial component library update. Breaking changes are documented in CHANGELOG.", 120)
+            ),
+            75
+        ),
+        new SeedProject("Data Lake Hardening",
+            "Improve data lineage tracking and add quality gate checks across all ingestion pipelines",
+            ProjectStatus.NOT_STARTED, "Data Engineering",
+            List.of(2, 3, 9),      // Chris, Dana, Leo
+            List.of(),
+            0
+        ),
+        new SeedProject("QA Automation Sprint",
+            "Expand the automated regression suite to cover all critical user journeys end-to-end",
+            ProjectStatus.IN_PROGRESS, "QA / Testing",
+            List.of(6, 1, 2),      // Gabe, Bianca, Chris
+            List.of(
+                new SeedComment(6, "Added 47 new regression tests for the checkout and onboarding flows.", 150),
+                new SeedComment(1, "Framework upgrade is complete — all existing tests are green.", 75),
+                new SeedComment(2, "Integrated test results into the CI pipeline. Failures now block merge.", 45)
+            ),
+            60
+        ),
+        new SeedProject("DevOps Control Plane",
+            "Standardize deployment playbooks and unify infrastructure-as-code across all environments",
+            ProjectStatus.NOT_STARTED, "DevOps",
+            List.of(3, 8, 0),      // Dana, Iris, Alex
+            List.of(),
+            0
+        ),
+        new SeedProject("Design System Refresh",
+            "Unify UI tokens, typography, and component variants across the entire product surface",
+            ProjectStatus.COMPLETED, "UX / UI Design",
+            List.of(4, 0, 7),      // Evan, Alex, Hana
+            List.of(
+                new SeedComment(4, "All component variants migrated to the new token system. Storybook updated.", 180),
+                new SeedComment(0, "Final review done. Shipped to production with zero regressions.", 60)
+            ),
+            100
+        ),
+        new SeedProject("Zero Trust Rollout",
+            "Stage rollout plan for Zero Trust security posture across network and identity layers",
+            ProjectStatus.IN_PROGRESS, "Cybersecurity",
+            List.of(5, 8, 6),      // Farah, Iris, Gabe
+            List.of(
+                new SeedComment(5, "MFA enforcement complete for 80% of users. Remaining accounts flagged for manual review.", 120),
+                new SeedComment(8, "Network segmentation rules are deployed in staging — no lateral movement detected.", 90),
+                new SeedComment(6, "Ran the full penetration scan. No critical findings, two medium items logged.", 200)
+            ),
+            55
+        ),
+        new SeedProject("Network Observability",
+            "Improve real-time network traffic visibility and add anomaly detection for east-west flows",
+            ProjectStatus.NOT_STARTED, "Network Engineering",
+            List.of(8, 3, 1),      // Iris, Dana, Bianca
+            List.of(),
+            0
+        ),
+        new SeedProject("Helpdesk Knowledge Base",
+            "Centralize and restructure support articles into a self-service knowledge base portal",
+            ProjectStatus.IN_PROGRESS, "IT Support / Helpdesk",
+            List.of(7, 9, 0),      // Hana, Leo, Alex
+            List.of(
+                new SeedComment(7, "Migrated 120 legacy support articles into the new structure. Tagging is complete.", 180),
+                new SeedComment(9, "Analytics dashboard for KB views is live — top 10 articles identified for improvement.", 60)
+            ),
+            40
+        ),
+        new SeedProject("Product Analytics Hub",
+            "Define KPI tracking dashboards and establish a single source of truth for product metrics",
+            ProjectStatus.NOT_STARTED, "Project Management",
+            List.of(9, 2, 1),      // Leo, Chris, Bianca
+            List.of(),
+            0
+        ),
+        new SeedProject("Data Pipeline Optimization",
+            "Reduce ETL latency and processing cost by refactoring batch reads and adding smarter caching",
+            ProjectStatus.IN_PROGRESS, "Data Engineering",
+            List.of(2, 3, 1),      // Chris, Dana, Bianca
+            List.of(
+                new SeedComment(2, "Batch read refactor is done — end-to-end latency dropped by 40% in benchmarks.", 240),
+                new SeedComment(3, "Optimized the staging environment pipeline. Cold-start time down from 8 min to 90 sec.", 120),
+                new SeedComment(1, "Monitoring alerts and SLO dashboards are configured for all pipeline stages.", 45)
+            ),
+            65
+        )
     );
 
     private final TeamRepository teamRepository;
@@ -179,10 +264,27 @@ public class DemoWorkspaceSeeder {
             ensureMembership(workspaceId, owner, ownerRole);
         }
 
+        Instant now = Instant.now();
         for (SeedProject seedProject : SEED_PROJECTS) {
             Team team = teamByName.get(seedProject.teamName().toLowerCase(Locale.ROOT));
-            User author = demoUsers.isEmpty() ? owner : demoUsers.get(0);
-            ensureProject(seedProject, workspaceId, author, team, demoUsers);
+
+            // Pick members by index; fall back to owner if list is empty
+            List<User> projectMembers = seedProject.memberIndices().stream()
+                .filter(i -> i >= 0 && i < demoUsers.size())
+                .map(demoUsers::get)
+                .toList();
+            User author = projectMembers.isEmpty()
+                ? (owner != null ? owner : (!demoUsers.isEmpty() ? demoUsers.get(0) : null))
+                : projectMembers.get(0);
+
+            // Spread createdAt over the last 90 days
+            long daysAgo = ThreadLocalRandom.current().nextLong(10, 91);
+            Instant projectCreatedAt = now.minus(daysAgo, ChronoUnit.DAYS);
+
+            Project saved = ensureProject(seedProject, workspaceId, author, team, projectMembers, projectCreatedAt);
+            if (saved != null) {
+                seedComments(saved, seedProject, demoUsers, projectCreatedAt);
+            }
         }
 
         ensurePendingJoinRequest(workspaceId);
@@ -205,15 +307,15 @@ public class DemoWorkspaceSeeder {
         Map<String, WorkspaceRole> byName = workspaceRoleRepository.findByWorkspaceId(workspaceId).stream()
             .filter(role -> role.getName() != null)
             .collect(Collectors.toMap(role -> role.getName().toLowerCase(Locale.ROOT), role -> role, (a, b) -> a));
-        WorkspaceRole ownerRole = upsertSystemRole(workspaceId, "Owner", WorkspaceRolePermissions.ownerDefaults(), owner, byName.get("owner"));
+        WorkspaceRole ownerRole   = upsertSystemRole(workspaceId, "Owner",   WorkspaceRolePermissions.ownerDefaults(),   owner, byName.get("owner"));
         WorkspaceRole managerRole = upsertSystemRole(workspaceId, "Manager", WorkspaceRolePermissions.managerDefaults(), owner, byName.get("manager"));
-        WorkspaceRole memberRole = upsertSystemRole(workspaceId, "Member", WorkspaceRolePermissions.memberDefaults(), owner, byName.get("member"));
-        WorkspaceRole viewerRole = upsertSystemRole(workspaceId, "Viewer", WorkspaceRolePermissions.viewerDefaults(), owner, byName.get("viewer"));
+        WorkspaceRole memberRole  = upsertSystemRole(workspaceId, "Member",  WorkspaceRolePermissions.memberDefaults(),  owner, byName.get("member"));
+        WorkspaceRole viewerRole  = upsertSystemRole(workspaceId, "Viewer",  WorkspaceRolePermissions.viewerDefaults(),  owner, byName.get("viewer"));
         return Map.of(
-            "owner", ownerRole,
+            "owner",   ownerRole,
             "manager", managerRole,
-            "member", memberRole,
-            "viewer", viewerRole
+            "member",  memberRole,
+            "viewer",  viewerRole
         );
     }
 
@@ -304,7 +406,8 @@ public class DemoWorkspaceSeeder {
         personRepository.save(person);
     }
 
-    private void ensureProject(SeedProject seed, String workspaceId, User author, Team team, List<User> members) {
+    private Project ensureProject(SeedProject seed, String workspaceId, User author, Team team,
+                                  List<User> members, Instant createdAt) {
         Optional<Project> existing = projectRepository.findByWorkspaceIdAndName(workspaceId, seed.name());
         Project project = existing.orElseGet(Project::new);
         project.setName(seed.name());
@@ -312,7 +415,7 @@ public class DemoWorkspaceSeeder {
         project.setStatus(seed.status());
         project.setWorkspaceId(workspaceId);
         if (project.getCreatedAt() == null) {
-            project.setCreatedAt(Instant.now());
+            project.setCreatedAt(createdAt);
         }
         if (author != null) {
             project.setCreatedByUserId(author.getId());
@@ -329,7 +432,46 @@ public class DemoWorkspaceSeeder {
                 .toList();
             project.setMemberIds(memberIds);
         }
-        projectRepository.save(project);
+        return projectRepository.save(project);
+    }
+
+    private void seedComments(Project project, SeedProject seed, List<User> demoUsers, Instant projectCreatedAt) {
+        if (seed.comments().isEmpty()) {
+            return;
+        }
+        String projectId = project.getId();
+        if (projectId == null) {
+            return;
+        }
+        // Only seed comments when none exist yet
+        if (projectCommentRepository.findByProjectId(projectId,
+                org.springframework.data.domain.PageRequest.of(0, 1)).hasContent()) {
+            return;
+        }
+        // Space comments evenly within the days since the project was created
+        long projectAgeDays = ChronoUnit.DAYS.between(projectCreatedAt, Instant.now());
+        long commentCount = seed.comments().size();
+        for (int i = 0; i < seed.comments().size(); i++) {
+            SeedComment sc = seed.comments().get(i);
+            if (sc.userIndex() < 0 || sc.userIndex() >= demoUsers.size()) {
+                continue;
+            }
+            User author = demoUsers.get(sc.userIndex());
+            // Space comments from 1 day after project creation up to yesterday
+            long daysOffset = projectAgeDays > 0
+                ? (long) ((i + 1.0) / (commentCount + 1) * projectAgeDays)
+                : i;
+            Instant commentAt = projectCreatedAt.plus(Math.max(1, daysOffset), ChronoUnit.DAYS);
+
+            ProjectCommentEntity comment = new ProjectCommentEntity();
+            comment.setProjectId(projectId);
+            comment.setAuthorUserId(author.getId());
+            comment.setAuthorName(author.getDisplayName());
+            comment.setMessage(sc.message());
+            comment.setTimeSpentMinutes(sc.timeSpentMinutes());
+            comment.setCreatedAt(commentAt);
+            projectCommentRepository.save(comment);
+        }
     }
 
     private void ensurePendingJoinRequest(String workspaceId) {
@@ -409,9 +551,17 @@ public class DemoWorkspaceSeeder {
         return base + "+" + workspaceId + "@pmd.local";
     }
 
-    private record SeedUser(String firstName, String lastName, String teamName, String roleName) {
-    }
+    private record SeedUser(String firstName, String lastName, String teamName, String roleName) {}
 
-    private record SeedProject(String name, String description, ProjectStatus status, String teamName) {
-    }
+    private record SeedProject(
+        String name,
+        String description,
+        ProjectStatus status,
+        String teamName,
+        List<Integer> memberIndices,
+        List<SeedComment> comments,
+        int completionPercent
+    ) {}
+
+    private record SeedComment(int userIndex, String message, int timeSpentMinutes) {}
 }
