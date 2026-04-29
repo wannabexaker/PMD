@@ -292,11 +292,14 @@ public class WorkspaceService {
     }
 
     public WorkspaceMembership joinWorkspace(String inviteInput, String inviteAnswer, User user) {
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
+        }
         WorkspaceInvite invite = resolveInvite(inviteInput);
         Instant now = Instant.now();
         String normalizedInviteAnswer = normalizeInviteAnswer(inviteAnswer);
         validateInviteAnswer(invite, normalizedInviteAnswer);
-        if (invite.getInvitedEmail() != null && user != null) {
+        if (invite.getInvitedEmail() != null) {
             String email = user.getEmail();
             if (email == null || !invite.getInvitedEmail().equalsIgnoreCase(email)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invite does not match this user");

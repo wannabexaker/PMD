@@ -9,7 +9,6 @@ import com.pmd.user.service.UserService;
 import com.pmd.util.StartupMongoRetry;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;

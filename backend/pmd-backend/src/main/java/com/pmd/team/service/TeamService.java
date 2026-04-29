@@ -44,7 +44,7 @@ public class TeamService {
         Team team = teamRepository.findByIdAndWorkspaceId(id, workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
         if (!team.isActive()) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Team is inactive");
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Team is inactive");
         }
         return team;
     }

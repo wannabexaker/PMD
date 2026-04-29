@@ -4,8 +4,6 @@ import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.auth.policy.AccessPolicy;
 import com.pmd.project.model.ProjectStatus;
-import com.pmd.workspace.model.WorkspaceMember;
-import com.pmd.workspace.model.WorkspaceMemberRole;
 import com.pmd.workspace.model.WorkspaceMemberStatus;
 import com.pmd.workspace.model.WorkspaceRole;
 import com.pmd.workspace.repository.WorkspaceMemberRepository;

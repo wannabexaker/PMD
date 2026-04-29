@@ -234,6 +234,6 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
 
     private void ensureIndex(String collectionName, Index index) {
         IndexOperations indexOps = mongoTemplate.indexOps(collectionName);
-        indexOps.ensureIndex(index);
+        indexOps.createIndex(index);
     }
 }

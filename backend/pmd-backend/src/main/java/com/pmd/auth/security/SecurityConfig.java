@@ -64,7 +64,7 @@ public class SecurityConfig {
                 headers.contentTypeOptions(Customizer.withDefaults());
                 headers.frameOptions(frame -> frame.deny());
                 headers.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.SAME_ORIGIN));
-                headers.permissionsPolicy(policy -> policy.policy("camera=(), geolocation=(), microphone=()"));
+                headers.permissionsPolicyHeader(policy -> policy.policy("camera=(), geolocation=(), microphone=()"));
                 headers.contentSecurityPolicy(csp -> csp.policyDirectives(
                     "default-src 'self'; frame-ancestors 'none'; object-src 'none'"
                 ));

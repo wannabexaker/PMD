@@ -2,7 +2,6 @@ package com.pmd.auth.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -27,7 +26,7 @@ public class JwtService {
         Instant now = Instant.now();
         return Jwts.builder().subject(subject).issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(expirationSeconds)))
                 .claims(claims)
-            .signWith(secretKey, SignatureAlgorithm.HS256)
+            .signWith(secretKey, Jwts.SIG.HS256)
             .compact();
     }
 

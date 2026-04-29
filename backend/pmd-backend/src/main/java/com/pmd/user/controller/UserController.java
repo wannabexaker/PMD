@@ -61,8 +61,6 @@ public class UserController {
         List<Team> workspaceTeams = teamService.findActiveTeams(workspaceId);
         Map<String, Team> teamsById = workspaceTeams.stream()
             .collect(Collectors.toMap(Team::getId, team -> team));
-        Map<String, String> teamNames = workspaceTeams.stream()
-            .collect(Collectors.toMap(Team::getId, Team::getName));
         Map<String, UserService.WorkspaceRoleDisplay> roleDisplays =
             userService.findWorkspaceRoleDisplays(workspaceId, users);
         Map<String, List<UserService.WorkspaceRoleBadgeEntry>> roleEntriesByUser =

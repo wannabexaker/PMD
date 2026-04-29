@@ -33,7 +33,7 @@ public class UploadService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is required");
         }
         if (file.getSize() > MAX_SIZE_BYTES) {
-            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "File exceeds 2MB");
+            throw new ResponseStatusException(HttpStatus.CONTENT_TOO_LARGE, "File exceeds 2MB");
         }
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {

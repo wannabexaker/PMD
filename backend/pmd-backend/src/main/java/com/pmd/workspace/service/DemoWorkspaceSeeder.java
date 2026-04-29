@@ -271,7 +271,7 @@ public class DemoWorkspaceSeeder {
             // Pick members by index; fall back to owner if list is empty
             List<User> projectMembers = seedProject.memberIndices().stream()
                 .filter(i -> i >= 0 && i < demoUsers.size())
-                .map(demoUsers::get)
+                .flatMap(i -> java.util.stream.Stream.ofNullable(demoUsers.get(i)))
                 .toList();
             User author = projectMembers.isEmpty()
                 ? (owner != null ? owner : (!demoUsers.isEmpty() ? demoUsers.get(0) : null))

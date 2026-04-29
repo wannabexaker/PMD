@@ -65,6 +65,7 @@ public class MentionNotificationService {
         if (message == null || message.isBlank()) {
             return;
         }
+        java.util.Objects.requireNonNull(source, "source");
         Set<String> notifiedUserIds = new HashSet<>();
         List<User> workspaceUsers = userService.listUsersForWorkspace(workspaceId, true);
         Map<String, User> byId = new HashMap<>();
@@ -197,16 +198,19 @@ public class MentionNotificationService {
             }
         }
 
-        if (TEAM_MENTION.matcher(message).find() && project.getTeamId() != null) {
-            for (User user : workspaceUsers) {
-                if (user.getId() == null || user.getTeamId() == null) {
-                    continue;
-                }
-                if (!project.getTeamId().equals(user.getTeamId())) {
-                    continue;
-                }
-                if (notifiedUserIds.add(user.getId())) {
-                    emailNotificationService.sendMentionTeam(user, project, trimSnippet(message), requester, source.label());
+        if (TEAM_MENTION.matcher(message).find() && project != null) {
+            String projectTeamId = project.getTeamId();
+            if (projectTeamId != null) {
+                for (User user : workspaceUsers) {
+                    if (user.getId() == null || user.getTeamId() == null) {
+                        continue;
+                    }
+                    if (!projectTeamId.equals(user.getTeamId())) {
+                        continue;
+                    }
+                    if (notifiedUserIds.add(user.getId())) {
+                        emailNotificationService.sendMentionTeam(user, project, trimSnippet(message), requester, source.label());
+                    }
                 }
             }
         }
