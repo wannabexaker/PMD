@@ -1,265 +1,135 @@
-﻿# PMD - Project Management Dashboard
+# PMD — Project Management Dashboard
 
+Windows-native project management web app with workspace-based task tracking, multi-user auth, and a batch-script dev launcher
 
-## Product planning source
+## Overview
 
-Use `PRD.md` as the single source of truth for requirements, TODOs, and progress history.
+Full-stack application combining a React/Vite frontend, a Spring Boot REST API, and MongoDB. Designed to run on Windows with minimal setup: a double-click batch launcher (PMD Control) handles service orchestration, health checks, and dynamic port assignment. Docker provides MongoDB and MailHog for development; the same stack can run fully containerized for review or production.
 
-PMD is a Windows-friendly hybrid development playground for a lightweight project management workspace. It ships with a React/Vite frontend, a Spring Boot + MongoDB backend, and Docker helpers for MongoDB/MailHog, and the scripts (_PMD Control_) take care of wiring everything together so you can always start with a double-click.
+## Features
 
-## Recommended workflow - PMD Control
+- Workspace-based project and task management with role-based access
+- JWT access tokens (15-minute lifetime) with cookie-based rotating refresh sessions
+- `POST /api/auth/logout-all` revokes all active sessions for a user
+- CSRF double-submit protection on all cookie-auth endpoints
+- Rate limiting per IP and per user (configurable via env vars)
+- Email notifications for workspace invite, join request, and approval events — throttled and digest-grouped per user preference
+- Append-only audit log with hash-chain fields (`prevEventHash`, `eventHash`) for tamper evidence
+- Platform admin interface at `/admin` for cross-workspace governance
+- CI database gates: `DatabaseIndexGateTest` and `DatabaseContractGateTest` verify indexes and schema contract before merge
+- `docker-compose.prod.yml` fails fast if required production env vars are absent
 
-1. **Double-click `PMD.bat` (root of the repo)** to open **PMD Control**.
-2. Select **[1] Start ALL**. The batch script runs `scripts\pmd_dev_up.bat`, which:
-   - Ensures Docker (Mongo + MailHog) is running through `docker compose -f docker-compose.deps.yml up -d`.
-   - Launches the backend in the `local` profile with `SERVER_PORT=0` and `.runtime/backend-port.txt` so the chosen port is recorded.
-   - Starts the frontend (`npm run dev -- --host 0.0.0.0 --port 5173`) after reading the backend port and exporting it as `PMD_BACKEND_PORT`.
-3. When you want to stop everything, go back to PMD Control and choose **[2] Stop ALL**, or run `pmd.bat down`/`scripts\pmd_dev_down.bat` from PowerShell.
-4. Use **PMD Control** options [3]-[9] or the same verbs (`pmd.bat deps`, `pmd.bat backend`, `pmd.bat frontend`, `pmd.bat status`, `pmd.bat ops`) if you need a single service, want status, or want the animated ops cockpit in a separate PowerShell window.
+## Architecture
 
-> PMD Control verifies Docker, Java, and Node before starting anything and waits for Mongo, MailHog, and the backend health check to succeed, so the UI is ready as soon as the script prints `Ready:` with the URLs.
+The backend starts with `SERVER_PORT=0` (OS-assigned port) and writes the selected port to `.runtime/backend-port.txt`. The frontend reads this via `PMD_BACKEND_PORT` and proxies `/api`, `/actuator`, and `/uploads` to the backend. In reviewer/Docker mode, the frontend Nginx container handles that proxying instead.
 
-## Manual fallback (hybrid dev without the batch menu)
+PMD Control enforces a single active runtime mode (`dev`, `deps`, or `reviewer`) tracked in `.runtime/pmd-active-mode.json`. Starting one mode stops conflicting services from other modes.
 
-If you prefer to orchestrate things from PowerShell or want to replicate what `scripts\pmd_dev_up.bat` does, follow these steps.
+### Components
 
-### 1. Start dependencies (Mongo + MailHog)
+| Component | Role |
+|---|---|
+| `frontend/pmd-frontend/` | React 19 + Vite SPA |
+| `backend/pmd-backend/` | Spring Boot REST API |
+| `docker-compose.deps.yml` | MongoDB + MailHog for hybrid dev |
+| `docker-compose.local.yml` | Full reviewer stack — all services in Docker with Nginx proxy |
+| `docker-compose.prod.yml` | Production compose — fail-fast on missing vars |
+| `pmd.bat` | PMD Control launcher — entry point for all dev operations |
+| `scripts/pmd_dev_up.bat` | Starts deps, backend (dynamic port), and frontend; waits for health |
+| `scripts/pmd_dev_down.bat` | Stops Maven/Node processes via `.pmd-dev-pids.json` |
+| `scripts/db_backup.ps1` | MongoDB backup helper |
+| `scripts/verify-prod-surface.ps1` | Verifies prod compose does not expose internal ports to host |
+| `.runtime/` | Runtime state (port file, active mode, PID list) — gitignored |
+
+## Tech Stack
+
+| Technology | Role |
+|---|---|
+| React 19 | Frontend SPA |
+| Vite 7 | Frontend dev server and bundler |
+| TypeScript 5.9 | Frontend type safety |
+| React Router v6 | Client-side routing |
+| Spring Boot | Backend REST API |
+| MongoDB | Primary database |
+| MailHog | Local SMTP testing |
+| Docker / Docker Compose | Dependency containers and reviewer stack |
+| Nginx | Frontend reverse proxy in Docker mode |
+| Windows batch scripts | Dev orchestration (PMD Control) |
+
+## Installation
+
+```bash
+git clone https://github.com/wannabexaker/PMD
+cd PMD
+cp .env.example .env
 ```
-docker compose -f docker-compose.deps.yml up -d
+
+Edit `.env` with your local values. For production, use `.env.production.example` as the template — all six production vars are required.
+
+Docker must be running before starting any PMD mode.
+
+## Usage
+
 ```
-This brings up containers named `pmd-mongo` and `pmd-mailhog` with ports 27017, 1025, and 8025 mapped to localhost.
-
-### 2. Start the backend with a dynamic port
-Set the same environment variables that the script uses so the backend writes `.runtime\backend-port.txt`:
+pmd.bat
 ```
-cd backend/pmd-backend
-$Env:SPRING_DATA_MONGODB_URI='mongodb://localhost:27017/pmd'
-$Env:SPRING_MAIL_HOST='localhost'
-$Env:SPRING_MAIL_PORT='1025'
-$Env:SPRING_PROFILES_ACTIVE='local'
-$Env:SERVER_PORT='0'
-$Env:PMD_RUNTIME_PORT_FILE='..\..\.runtime\backend-port.txt'
-./mvnw spring-boot:run
+
+Opens PMD Control. Select `[1] Start ALL` to bring up MongoDB, MailHog, backend, and frontend. The script waits for all health checks before printing the ready URLs.
+
 ```
-When the backend starts it writes the selected port (e.g., `50321`) to `.runtime\backend-port.txt` and exposes the actuator health endpoint. Wait for that file before starting the frontend.
-
-### 3. Start the frontend pointing to the actual backend port
+pmd.bat up        # start everything (non-interactive)
+pmd.bat down      # stop everything
+pmd.bat deps      # start MongoDB + MailHog only
+pmd.bat status    # print service status
 ```
-cd frontend/pmd-frontend
-npm ci
-set PMD_BACKEND_PORT=<port-from-.runtime\backend-port.txt>
-npm run dev -- --host 0.0.0.0 --port 5173
+
+For the full Docker reviewer stack:
+
+```bash
+docker compose -f docker-compose.local.yml --profile reviewer up -d --build
 ```
-`PMD_BACKEND_PORT` is how the Vite dev server knows the backend address; the value is ordinarily read from the runtime port file by `scripts\pmd_dev_up.bat`, but you can export it manually if you start the backend yourself.
 
-Use `scripts\pmd_dev_down.bat`, `pmd.bat down`, or stop the Maven/Node processes to tear everything down. The frontend still proxies `/api` and `/actuator` to the backend port set via `PMD_BACKEND_PORT`.
+| Service | Local URL |
+|---|---|
+| Frontend | `http://localhost:5173` |
+| Backend | `http://localhost:<dynamic>` (see `.runtime/backend-port.txt`) |
+| MongoDB | `mongodb://localhost:27017/pmd` |
+| MailHog UI | `http://localhost:8025` |
 
-## Docker Compose (full stack / reviewer profile)
+## Project Structure
 
-`docker-compose.local.yml` is the reviewer/full-stack compose file. It:
+```
+PMD/
+├── frontend/
+│   └── pmd-frontend/          — React + Vite SPA
+├── backend/
+│   └── pmd-backend/           — Spring Boot API
+├── scripts/
+│   ├── pmd_dev_up.bat         — start all services
+│   ├── pmd_dev_down.bat       — stop all services
+│   ├── db_backup.ps1          — MongoDB backup
+│   ├── db_restore.ps1         — MongoDB restore
+│   └── verify-prod-surface.ps1 — prod port exposure check
+├── docs/
+│   ├── PRODUCTION_ARCHITECTURE.md
+│   ├── FIREWALL_POLICY.md
+│   ├── PRODUCTION_BACKUP_RESTORE_RUNBOOK.md
+│   └── PRODUCTION_RELEASE_CHECKLIST.md
+├── .runtime/                  — runtime state (gitignored)
+├── docker-compose.deps.yml    — MongoDB + MailHog
+├── docker-compose.local.yml   — full reviewer stack
+├── docker-compose.prod.yml    — production stack
+├── pmd.bat                    — PMD Control entry point
+├── .env.example               — dev env template
+└── .env.production.example    — production env template
+```
 
-- Builds the backend image `pmd-backend-local` from `backend/pmd-backend` and the frontend image `pmd-frontend-local` from `frontend/pmd-frontend`.
-- Runs Mongo, backend, frontend, and MailHog together with the `reviewer` profile so you can exercise the complete stack in Docker.
-- Maps ports:
-  - Backend: `${PMD_BACKEND_PORT:-8080}` -> container 8080
-  - Frontend: `${PMD_FRONTEND_PORT:-5173}` -> container 80
-  - Mongo: `${PMD_MONGO_PORT:-27017}` -> 27017
-  - MailHog UI: `${PMD_MAILHOG_UI_PORT:-8025}` -> 8025
-  - MailHog SMTP: `${PMD_SMTP_PORT:-1025}` -> 1025
+## Notes
 
-Because Mongo and MailHog are already wired into this compose file, you do **not** need `docker-compose.deps.yml` when you run `docker compose -f docker-compose.local.yml --profile reviewer up -d --build`. This compose stack should be treated as a reviewer/CI path rather than the default day-to-day flow.
+The dynamic backend port (`SERVER_PORT=0`) avoids conflicts when other services occupy common ports. The `.runtime/backend-port.txt` file is the contract between the backend and the frontend startup script; never hardcode a port in `.env` for local dev.
 
-The frontend image now serves SPA assets and reverse-proxies backend routes via Nginx:
-- `/api/*` -> backend
-- `/actuator/*` -> backend
-- `/uploads/*` -> backend
+`PMD_SECURITY_TRUST_PROXY_HEADERS` defaults to `false`. Set it to `true` only when the application runs behind a trusted reverse proxy — enabling it on an internet-facing host without a proxy leaks real client IP from spoofed headers.
 
-That means production/reviewer frontend calls stay same-origin by default (no hardcoded `localhost:8080` needed).
+Client metadata (IP, user-agent) is anonymized at storage time by default. Raw storage is opt-in via `PMD_SECURITY_CLIENT_METADATA_STORE_RAW`.
 
-### Release readiness check (Docker/Nginx)
-
-Use this sequence before tagging/pushing a release:
-
-1. Validate compose files:
-   - `docker compose -f docker-compose.yml config`
-   - `docker compose -f docker-compose.deps.yml config`
-   - `docker compose -f docker-compose.local.yml config`
-   - `docker compose -f docker-compose.prod.yml config` — requires all prod vars; for local validation use demo values:
-     ```
-     MONGO_INITDB_ROOT_USERNAME=ci-root \
-     MONGO_INITDB_ROOT_PASSWORD=ci-root-pass \
-     PMD_MONGO_APP_USER=ci-pmd \
-     PMD_MONGO_APP_PASSWORD=ci-pmd-pass \
-     PMD_ALLOWED_ORIGINS=http://ci.example.com \
-     PMD_JWT_SECRET=ci-compose-validation-secret-32bytes \
-     docker compose -f docker-compose.prod.yml config
-     ```
-     CI uses the same demo values — they are intentionally non-secret placeholders for syntax validation only.
-2. Validate Nginx config used by the frontend image:
-   - `docker run --rm -v "${PWD}/frontend/pmd-frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.27-alpine nginx -t`
-3. Ensure compose production env contains at least:
-   - `PMD_JWT_SECRET`
-   - optional `PMD_FRONTEND_PORT`
-4. Build reviewer images:
-   - `docker compose -f docker-compose.local.yml --profile reviewer build`
-5. If `pmd-mongo`/`pmd-mailhog` already exist from deps mode, stop the previous stack first:
-   - `docker compose -f docker-compose.deps.yml down`
-   - or `docker compose -f docker-compose.local.yml down`
-
-### Production compose note
-
-`docker-compose.prod.yml` is now fail-fast and requires these vars at minimum:
-
-- `PMD_JWT_SECRET`
-- `PMD_ALLOWED_ORIGINS`
-- `MONGO_INITDB_ROOT_USERNAME`
-- `MONGO_INITDB_ROOT_PASSWORD`
-- `PMD_MONGO_APP_USER`
-- `PMD_MONGO_APP_PASSWORD`
-
-Use `.env.production.example` as the template for production values.
-
-### Auth/session security model (current)
-
-- Access tokens are short-lived JWTs (`pmd.jwt.expirationSeconds`, default 900 seconds).
-- Refresh sessions are cookie-based and rotated on refresh:
-  - `POST /api/auth/login` issues JWT + refresh cookie.
-  - `POST /api/auth/refresh` rotates refresh session and returns a new JWT.
-  - `POST /api/auth/logout` revokes current refresh session.
-  - `POST /api/auth/logout-all` revokes all user sessions.
-- `Stay signed in` controls refresh-cookie lifetime:
-  - disabled: session cookie
-  - enabled: persistent cookie (default 30 days)
-- Core refresh/session env knobs:
-  - `PMD_AUTH_SESSION_COOKIE_NAME`
-  - `PMD_AUTH_SESSION_COOKIE_PATH`
-  - `PMD_AUTH_SESSION_COOKIE_SAME_SITE`
-  - `PMD_AUTH_SESSION_COOKIE_SECURE`
-  - `PMD_AUTH_SESSION_REMEMBER_TTL_SECONDS`
-  - `PMD_AUTH_SESSION_TTL_SECONDS`
-  - `PMD_AUTH_MAX_SESSIONS_PER_USER`
-  - `PMD_AUTH_RATE_LIMIT_IP_PER_10_MIN`
-  - `PMD_AUTH_RATE_LIMIT_USER_PER_10_MIN`
-  - `PMD_AUTH_RATE_LIMIT_LOCK_MINUTES`
-- CSRF protection for cookie-auth endpoints:
-  - backend enforces double-submit for refresh/logout endpoints
-  - frontend sends `X-PMD-CSRF` from `PMD_CSRF` cookie automatically
-- Additional auth env knobs:
-  - `PMD_AUTH_REQUIRE_VERIFIED_EMAIL` (deny login for unverified users when true)
-  - `PMD_AUTH_SESSION_INACTIVITY_TTL_SECONDS`
-  - `PMD_SECURITY_TRUST_PROXY_HEADERS` (default `false`; set `true` only behind trusted reverse proxy)
-  - `PMD_SECURITY_CLIENT_METADATA_STORE_RAW` (default `false`; keeps anonymized IP/user-agent at rest)
-  - `PMD_SECURITY_CLIENT_METADATA_HASH_SALT` (optional salt for metadata fingerprinting)
-  - `PMD_ALLOWED_ORIGINS`
-  - `PMD_ALLOWED_ORIGIN_PATTERNS` (use this for LAN/dev clients, e.g. second PC on same network)
-  - `VITE_ALLOWED_ORIGINS` (optional dev-server CORS allowlist override)
-
-Defaults:
-- Local/dev defaults keep `PMD_AUTH_SESSION_COOKIE_SECURE=false` so refresh cookies work over HTTP.
-- Production should set `PMD_AUTH_SESSION_COOKIE_SECURE=true` and run over HTTPS.
-- Client metadata (IP/user-agent) is anonymized at storage level by default; raw storage is opt-in via env.
-- Vite dev CORS defaults already allow localhost + common private LAN ranges (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`) and `*.local`.
-
-### Workspace invite/join email notifications (no-noise)
-
-- Notification preferences now include workspace invite/join events:
-  - `Email when direct invite is created` (default ON)
-  - `Email when join request is submitted` (default ON)
-  - `Email when join request is approved/denied` (default ON)
-  - `Email when invited member joins workspace (instant)` (default OFF)
-  - `Email digest for invited members who joined` (default ON)
-- Delivery rules:
-  - Direct invite created -> only the invite recipient (or direct email target).
-  - Join request submitted -> only users who can `approveJoinRequests` in that workspace.
-  - Join request approved/denied -> only the requester.
-  - Invite accepted/member joined -> inviter only; fallback to owner/manager when inviter is unavailable.
-- Anti-noise behavior:
-  - Join-request emails are throttled to max **1 email / 10 minutes / approver / workspace**.
-  - Invite-accepted digest entries are grouped and delivered daily.
-
-## Ports & runtime facts
-
-| Service | Local access | Notes |
-| --- | --- | --- |
-| Backend | `http://localhost:<dynamic port>` | `server.port=0` and the selected port is written to `.runtime/backend-port.txt`. `PMD_RUNTIME_PORT_FILE` points to that file and `PMD_BACKEND_PORT` is the helper env var the frontend reads. |
-| Frontend | `http://localhost:5173` | Vite dev server listens on 5173 by default and proxies requests to the backend via `PMD_BACKEND_PORT`. |
-| MongoDB | `mongodb://localhost:27017/pmd` | Exposed by `docker compose -f docker-compose.deps.yml` and `docker-compose.local.yml`. |
-| MailHog UI | `http://localhost:8025` | SMTP listener is on `localhost:1025`, so update your mail config accordingly. |
-| MailHog SMTP | `localhost:1025` | The backend defaults to that SMTP host/port in both hybrid scripts and Docker compose. |
-
-## Backend port file (`.runtime/backend-port.txt`)
-
-The backend writes the actual port number to `.runtime/backend-port.txt` whenever `SERVER_PORT=0` and `PMD_RUNTIME_PORT_FILE` is set (for example, `scripts\pmd_dev_up.bat` sets these values automatically). Read it in PowerShell with `Get-Content .\.runtime\backend-port.txt` or in Command Prompt with `type .runtime\backend-port.txt`. That port is used to:
-
-1. Export `PMD_BACKEND_PORT` for the frontend so Vite can proxy `/api`.
-2. Instruct health checks (`/actuator/health`) in the dev script.
-3. Tell you where the backend actually listens after the batch scripts finish.
-
-Always confirm the port file exists (the script waits up to 90 seconds for it) and contains a number between 1 and 65535 before trusting it in other commands.
-
-## Troubleshooting
-
-- **Port conflicts**: Use `Get-NetTCPConnection -LocalPort <port>` (PowerShell) or `netstat -ano | findstr :<port>` (CMD) to find the process listening on 5173, 27017, or the backend port. When you find a stale process, `taskkill /PID <pid> /F` or `Stop-Process -Id <pid>` clears it.
-- **Port file missing**: Ensure you exported `PMD_RUNTIME_PORT_FILE` when running the backend or rerun `scripts\pmd_dev_up.bat`. `type .runtime\backend-port.txt` should print a single number; if it reports `empty` or `invalid`, the backend is still writing. Wait a few seconds and rerun the read command.
-- **Docker container name conflicts**: `docker-compose.deps.yml` relies on containers named `pmd-mongo` and `pmd-mailhog`. Remove conflicting containers with `docker rm -f pmd-mongo pmd-mailhog` or run `docker compose -f docker-compose.deps.yml down` before `up`. Compose local also uses those names, so stop the stack via `docker compose -f docker-compose.local.yml down` before restarting.
-- **Frontend can't reach backend**: Confirm `PMD_BACKEND_PORT` matches the number in `.runtime/backend-port.txt` and that the backend health check at `http://localhost:<port>/actuator/health` succeeds. The dev script will log readiness, but if you run things manually, replicate the same logging: `curl http://localhost:<port>/actuator/health` or open it in a browser.
-
-## Quick scripts cheat sheet
-
-| Script | What it does |
-| --- | --- |
-| `PMD.bat` | Windows menu; `up` starts everything, `down` stops, `deps` brings up Mongo/MailHog, `status` prints Docker/netstat info, `ops` opens `scripts/pmdops.py` in a new PowerShell. |
-| `scripts\pmd_dev_up.bat` | Starts deps, backend (dynamic port), and frontend (Vite). Logs readiness and writes `.runtime/backend-port.txt`. |
-| `scripts\pmd_dev_down.bat` | Stops the Maven/Node processes listed in `.pmd-dev-pids.json` and optionally the Docker deps. |
-| `scripts\pmd_up_backend_dev.bat` / `scripts\pmd_up_frontend_dev.bat` | Individually start backend or frontend windows (used by the menu). |
-| `scripts\db_backup.ps1` / `scripts\db_restore.ps1` / `scripts\db_verify_restore.ps1` | Mongo backup/restore/verify helpers for LTS ops. See `docs/db-runbook.md`. |
-| `scripts\verify-prod-surface.ps1` | Verifies prod compose does not publish backend/db ports to host. |
-| `scripts\ops\pmd-readiness-check.ps1` | Basic readiness checks (frontend/backend health + optional exposure checks). |
-| `scripts\firewall\pmd-firewall-windows.ps1` | Applies/rolls back Windows Firewall policy for PMD host exposure. |
-| `docker compose -f docker-compose.deps.yml up -d` | Starts Mongo + MailHog alone when you only need the dependencies. |
-| `docker compose -f docker-compose.local.yml --profile reviewer up -d --build` | Builds/runs the full reviewer stack (backend/frontend/Mongo/MailHog) inside Docker for parity checks. |
-| `pmd.bat docker-up` / `pmd.bat docker-down` | Starts/stops the full Docker stack; `docker-up` rebuilds images and recreates containers. |
-
-Note: `scripts/.pmd-dev-pids.json` is a local runtime state file (ephemeral PIDs for start/stop scripts). It is ignored by git and should not be committed.
-
-## DB quality gates (CI)
-
-- Backend CI runs DB safety checks in addition to normal tests:
-  - `DatabaseIndexGateTest` verifies critical indexes are present.
-  - `DatabaseContractGateTest` verifies core schema contract:
-    - `schemaVersion` exists on core entities.
-    - `workspaceId` exists on workspace-scoped entities.
-- New DB index/schema changes should be introduced only through `DatabaseMigrationRunner` migrations.
-
-## Audit retention & integrity
-
-- Workspace audit log now uses append-only inserts plus hash-chain fields (`prevEventHash`, `eventHash`) for tamper-evidence.
-- API errors use a standardized envelope with semantic `code` + `requestId` for traceability. Contract: `docs/error-contract.md`.
-- Retention is managed by scheduled cleanup:
-  - env: `PMD_AUDIT_RETENTION_DAYS`
-  - default: `365` days.
-
-## PMD Admin (global governance)
-
-- Platform admins (`isAdmin=true`) can use `/admin` for cross-workspace control.
-- Backend endpoints:
-  - `GET /api/admin/overview`
-  - `GET /api/admin/workspaces`
-  - `GET /api/admin/users`
-  - `GET /api/admin/audit`
-
-## Runtime guardrails
-
-- PMD now enforces a single active runtime mode: `dev`, `deps`, or `reviewer`.
-- Starting one mode automatically stops conflicting PMD-managed services from other modes.
-- PMD tracks active mode in `.runtime/pmd-active-mode.json`.
-- `down` scripts perform deterministic cleanup (`docker compose ... down --remove-orphans`) instead of leaving partial state.
-
-The README now reflects the current hybrid flow: dynamic backend ports, the `.runtime/backend-port.txt` contract, the PMD Control entry point, and what each Docker compose file actually provides.
-
-## Production ops docs
-
-- Architecture and migration: `docs/PRODUCTION_ARCHITECTURE.md`
-- Firewall policy/run commands: `docs/FIREWALL_POLICY.md`
-- Backup/restore runbook: `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md`
-- Release gate checklist: `docs/PRODUCTION_RELEASE_CHECKLIST.md`
+Production compose (`docker-compose.prod.yml`) requires all six env vars at startup and will refuse to start if any are missing. Use `scripts/verify-prod-surface.ps1` before any deployment to confirm backend and database ports are not bound to the host interface.
