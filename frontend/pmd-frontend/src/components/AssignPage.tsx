@@ -1035,6 +1035,7 @@ export function AssignPage({
                   <label className="muted">Status</label>
                   <select
                     className="status-select"
+                    aria-label="Project status"
                     value={selectedProject.status ?? 'NOT_STARTED'}
                     onChange={(event) => handleStatusChange(event.target.value as ProjectStatus)}
                     disabled={statusUpdating}

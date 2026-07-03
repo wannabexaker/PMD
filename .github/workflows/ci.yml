@@ -25,6 +25,7 @@ jobs:
           PMD_MONGO_APP_USER=ci-pmd \
           PMD_MONGO_APP_PASSWORD=ci-pmd-pass \
           PMD_ALLOWED_ORIGINS=http://ci.example.com \
+          PMD_APP_BASE_URL=http://ci.example.com \
           PMD_JWT_SECRET=ci-compose-validation-secret-32bytes \
           docker compose -f docker-compose.prod.yml config >/dev/null
 
@@ -57,6 +58,13 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Dependency audit (high)
+        run: npm audit --audit-level=high
+        continue-on-error: true
 
       - name: Build
         run: npm run build
@@ -93,7 +101,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 25
+          java-version: 21
           cache: maven
 
       - name: Ensure mvnw executable

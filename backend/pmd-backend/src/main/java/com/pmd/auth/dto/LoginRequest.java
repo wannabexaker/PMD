@@ -10,7 +10,7 @@ public class LoginRequest {
     @NotBlank
     private String password;
 
-    private boolean remember;
+    private Boolean remember;
 
     public LoginRequest() {
     }
@@ -38,10 +38,10 @@ public class LoginRequest {
     }
 
     public boolean isRemember() {
-        return remember;
+        return Boolean.TRUE.equals(remember);
     }
 
-    public void setRemember(boolean remember) {
+    public void setRemember(Boolean remember) {
         this.remember = remember;
     }
 }

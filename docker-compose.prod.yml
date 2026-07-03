@@ -32,6 +32,7 @@ services:
       SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mail}
       SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
       PMD_MAIL_FROM: ${PMD_MAIL_FROM:-no-reply@pmd.local}
+      PMD_APP_BASE_URL: ${PMD_APP_BASE_URL:?PMD_APP_BASE_URL must be set for production (public SPA origin used in email links)}
       PMD_JWT_SECRET: ${PMD_JWT_SECRET:?PMD_JWT_SECRET must be set for production compose}
       PMD_JWT_EXPIRATIONSECONDS: ${PMD_JWT_EXPIRATIONSECONDS:-900}
       PMD_AUTH_SESSION_COOKIE_SECURE: ${PMD_AUTH_SESSION_COOKIE_SECURE:-true}

@@ -1,0 +1,39 @@
+version: 2
+updates:
+  # Frontend (Vite/React) npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/frontend/pmd-frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "frontend"]
+    groups:
+      frontend-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Backend (Spring Boot) Maven dependencies
+  - package-ecosystem: "maven"
+    directory: "/backend/pmd-backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "backend"]
+
+  # GitHub Actions used by the workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "ci"]
+
+  # Base images for the container builds
+  - package-ecosystem: "docker"
+    directory: "/backend/pmd-backend"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/frontend/pmd-frontend"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
