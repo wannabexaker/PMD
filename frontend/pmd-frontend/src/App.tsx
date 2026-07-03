@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import type { LoginPayload, Project, RegisterPayload, RegisterResponse, User, UserSummary } from './types'
@@ -6,15 +6,18 @@ import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
 import { fetchMe, login, logoutSession, refreshSession, register } from './api/auth'
 import { API_BASE_URL, getAuthToken, isApiError } from './api/http'
-import { DashboardPage } from './components/DashboardPage'
-import { AssignPage } from './components/AssignPage'
-import { PeoplePage } from './components/PeoplePage'
-import { AdminPanel } from './components/AdminPanel'
-import { ConfirmEmailPage } from './components/ConfirmEmailPage'
 import { LoginForm } from './components/LoginForm'
-import { RegisterForm } from './components/RegisterForm'
-import { ProfilePanel } from './components/ProfilePanel'
-import { SettingsPage } from './components/SettingsPage'
+// Route-level code splitting: the heavy authed pages load on demand so the
+// initial bundle stays small. lazy() needs a default export, so the named
+// component exports are adapted here.
+const DashboardPage = lazy(() => import('./components/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const AssignPage = lazy(() => import('./components/AssignPage').then((m) => ({ default: m.AssignPage })))
+const PeoplePage = lazy(() => import('./components/PeoplePage').then((m) => ({ default: m.PeoplePage })))
+const AdminPanel = lazy(() => import('./components/AdminPanel').then((m) => ({ default: m.AdminPanel })))
+const ConfirmEmailPage = lazy(() => import('./components/ConfirmEmailPage').then((m) => ({ default: m.ConfirmEmailPage })))
+const RegisterForm = lazy(() => import('./components/RegisterForm').then((m) => ({ default: m.RegisterForm })))
+const ProfilePanel = lazy(() => import('./components/ProfilePanel').then((m) => ({ default: m.ProfilePanel })))
+const SettingsPage = lazy(() => import('./components/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 import { Logo } from './components/Logo'
 import { ThemeToggle } from './components/ThemeToggle'
 import { PmdLoader } from './components/common/PmdLoader'
@@ -1234,6 +1237,7 @@ function AppView({
             </div>
           </div>
         ) : null}
+        <Suspense fallback={<PmdLoader size="md" variant="panel" />}>
         <Routes>
           <Route path="/" element={<Navigate to={isAuthed ? preferredAuthedRoute : '/login'} replace />} />
           <Route
@@ -1419,6 +1423,7 @@ function AppView({
           <Route path="/confirm-email" element={<ConfirmEmailPage />} />
           <Route path="*" element={<Navigate to={isAuthed ? preferredAuthedRoute : '/login'} replace />} />
         </Routes>
+        </Suspense>
       </main>
     </>
   )
