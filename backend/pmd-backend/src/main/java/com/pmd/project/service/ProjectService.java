@@ -70,6 +70,14 @@ public class ProjectService {
         this.mentionPolicyService = mentionPolicyService;
     }
 
+    /** Resolves the (active) team when a teamId is supplied, or null for a teamless project. */
+    private Team resolveOptionalTeam(String workspaceId, String teamId) {
+        if (teamId == null || teamId.isBlank()) {
+            return null;
+        }
+        return teamService.requireActiveTeam(workspaceId, teamId);
+    }
+
     public ProjectResponse create(String workspaceId, ProjectRequest request, User requester) {
         log.debug(
             "Project create db={}, collection={}, requesterId={}, status={}, memberCount={}",
@@ -79,7 +87,8 @@ public class ProjectService {
             request.getStatus(),
             request.getMemberIds() != null ? request.getMemberIds().size() : 0
         );
-        Team team = teamService.requireActiveTeam(workspaceId, request.getTeamId());
+        Team team = resolveOptionalTeam(workspaceId, request.getTeamId());
+        String teamId = team != null ? team.getId() : null;
         Project project = new Project();
         project.setName(request.getName());
         project.setDescription(request.getDescription());
@@ -88,15 +97,15 @@ public class ProjectService {
         project.setComments(new ArrayList<>());
         project.setCreatedAt(Instant.now());
         project.setCreatedByUserId(requester.getId());
-        project.setCreatedByTeam(team.getName());
-        project.setTeamId(team.getId());
+        project.setCreatedByTeam(team != null ? team.getName() : null);
+        project.setTeamId(teamId);
         project.setWorkspaceId(workspaceId);
 
         validateAssignees(requester, project, request.getMemberIds());
         mentionPolicyService.enforcePolicy(
             workspaceId,
             null,
-            team.getId(),
+            teamId,
             requester,
             request.getName(),
             MentionNotificationService.MentionSource.PROJECT_TITLE.label()
@@ -104,7 +113,7 @@ public class ProjectService {
         mentionPolicyService.enforcePolicy(
             workspaceId,
             null,
-            team.getId(),
+            teamId,
             requester,
             request.getDescription(),
             MentionNotificationService.MentionSource.PROJECT_DESCRIPTION.label()
@@ -268,7 +277,8 @@ public class ProjectService {
 
     public ProjectResponse update(String workspaceId, String id, ProjectRequest request, String assignedByUserId,
                                   User requester) {
-        Team team = teamService.requireActiveTeam(workspaceId, request.getTeamId());
+        Team team = resolveOptionalTeam(workspaceId, request.getTeamId());
+        String teamId = team != null ? team.getId() : null;
         Project project = getByIdForUser(workspaceId, id, requester);
         ProjectStatus previousStatus = project.getStatus();
         List<String> previousMemberIds = project.getMemberIds() != null
@@ -279,7 +289,7 @@ public class ProjectService {
         mentionPolicyService.enforcePolicy(
             workspaceId,
             project.getId(),
-            team.getId(),
+            teamId,
             requester,
             request.getName(),
             MentionNotificationService.MentionSource.PROJECT_TITLE.label()
@@ -287,7 +297,7 @@ public class ProjectService {
         mentionPolicyService.enforcePolicy(
             workspaceId,
             project.getId(),
-            team.getId(),
+            teamId,
             requester,
             request.getDescription(),
             MentionNotificationService.MentionSource.PROJECT_DESCRIPTION.label()
@@ -297,7 +307,7 @@ public class ProjectService {
         project.setDescription(request.getDescription());
         project.setStatus(request.getStatus());
         project.setMemberIds(request.getMemberIds());
-        project.setTeamId(team.getId());
+        project.setTeamId(teamId);
         project.setUpdatedAt(Instant.now());
 
         Project saved = projectRepository.save(project);

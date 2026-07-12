@@ -1,6 +1,7 @@
 package com.pmd.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -100,5 +101,22 @@ class SecurityIntegrationTest {
     void actuatorHealthIsPublic() throws Exception {
         mockMvc.perform(get("/actuator/health"))
             .andExpect(isNotAuthBlocked());
+    }
+
+    @Test
+    void malformedJsonBodyReturns400NotServerError() throws Exception {
+        // HttpMessageNotReadableException (also thrown for invalid enum values)
+        // must map to 400, not fall through to the catch-all 500.
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{ this is not valid json"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unsupportedHttpMethodReturns405NotServerError() throws Exception {
+        // /api/auth/me has no DELETE handler -> 405, not 500.
+        mockMvc.perform(delete("/api/auth/me").header("Authorization", "Bearer " + userToken))
+            .andExpect(status().isMethodNotAllowed());
     }
 }
