@@ -1,4 +1,3 @@
-import type { UiPreferences } from '../ui/uiPreferences'
 import { useToast } from '../shared/ui/toast/ToastProvider'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
@@ -68,6 +67,7 @@ import type {
   ComingSoonSectionId,
 } from './settings/settingsConfig'
 import { NotificationMailSettings } from './settings/NotificationMailSettings'
+import { SettingsPreferencesPanel } from './settings/SettingsPreferencesPanel'
 
 export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const {
@@ -1951,166 +1951,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           <div className={`settings-card-body roles-layout${settingsViewMode === 'tabs' ? ' roles-layout-tabs' : ''}`}>
             <div className="workspace-group roles-list-group">
               <div className="settings-tab-two-col">
-                <div className="settings-tab-main">
-                  <div className="form-field">
-                    <label htmlFor="prefDefaultLanding">Default landing page</label>
-                    <select
-                      id="prefDefaultLanding"
-                      value={preferences.defaultLandingPage}
-                      onChange={(event) =>
-                        onChange({
-                          ...preferences,
-                          defaultLandingPage: event.target.value as typeof preferences.defaultLandingPage,
-                        })
-                      }
-                    >
-                      <option value="dashboard">Dashboard</option>
-                      <option value="assign">Assign</option>
-                      <option value="people">People</option>
-                      <option value="settings">Settings</option>
-                      <option value="lastVisited">Last visited route</option>
-                    </select>
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="prefSettingsDefaultView">Default settings view</label>
-                    <select
-                      id="prefSettingsDefaultView"
-                      value={preferences.settingsDefaultView}
-                      onChange={(event) => {
-                        const nextView = (event.target.value === 'tabs' ? 'tabs' : 'grid') as UiPreferences['settingsDefaultView']
-                        onChange({
-                          ...preferences,
-                          settingsDefaultView: nextView,
-                        })
-                        setSettingsViewMode(nextView)
-                      }}
-                    >
-                      <option value="grid">Grid view</option>
-                      <option value="tabs">Tab view</option>
-                    </select>
-                  </div>
-                  <div className="form-field">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={preferences.rememberDashboardProject}
-                        onChange={(event) =>
-                          onChange({
-                            ...preferences,
-                            rememberDashboardProject: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>Remember selected project on Dashboard</span>
-                    </label>
-                  </div>
-                  <div className="form-field">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={preferences.rememberAssignProject}
-                        onChange={(event) =>
-                          onChange({
-                            ...preferences,
-                            rememberAssignProject: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>Remember selected project on Assign</span>
-                    </label>
-                  </div>
-                  <div className="form-field">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={preferences.rememberPeopleSelection}
-                        onChange={(event) =>
-                          onChange({
-                            ...preferences,
-                            rememberPeopleSelection: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>Remember selections on People</span>
-                    </label>
-                  </div>
-                  <div className="form-field">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={preferences.confirmDestructiveActions}
-                        onChange={(event) =>
-                          onChange({
-                            ...preferences,
-                            confirmDestructiveActions: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>Confirm destructive actions</span>
-                    </label>
-                  </div>
-                  <div className="form-field">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={preferences.keyboardShortcutsEnabled}
-                        onChange={(event) =>
-                          onChange({
-                            ...preferences,
-                            keyboardShortcutsEnabled: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>Enable keyboard shortcuts</span>
-                    </label>
-                  </div>
-                  <div className="form-field">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={preferences.requireTeamOnProjectCreate}
-                        onChange={(event) =>
-                          onChange({
-                            ...preferences,
-                            requireTeamOnProjectCreate: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>Require team when creating project</span>
-                    </label>
-                  </div>
-                  <div className="form-field">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={preferences.settingsGridResizeEnabled}
-                        onChange={(event) =>
-                          onChange({
-                            ...preferences,
-                            settingsGridResizeEnabled: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>Enable settings grid panel resize</span>
-                    </label>
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="prefDateTimeFormat">Date/time format</label>
-                    <select
-                      id="prefDateTimeFormat"
-                      value={preferences.dateTimeFormat}
-                      onChange={(event) =>
-                        onChange({
-                          ...preferences,
-                          dateTimeFormat: event.target.value as typeof preferences.dateTimeFormat,
-                        })
-                      }
-                    >
-                      <option value="24h">24-hour</option>
-                      <option value="12h">12-hour</option>
-                    </select>
-                  </div>
-                </div>
+                <SettingsPreferencesPanel
+                  preferences={preferences}
+                  onChange={onChange}
+                  onSettingsViewModeChange={setSettingsViewMode}
+                />
                 <div className="settings-tab-side">
                   <button
                     type="button"
