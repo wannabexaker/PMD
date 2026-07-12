@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.pmd.auth.security.JwtService;
@@ -118,5 +119,15 @@ class SecurityIntegrationTest {
         // /api/auth/me has no DELETE handler -> 405, not 500.
         mockMvc.perform(delete("/api/auth/me").header("Authorization", "Bearer " + userToken))
             .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void userResponseSerializesAdminFlagAsIsAdmin() throws Exception {
+        // The frontend reads user.isAdmin; the boolean getter would otherwise
+        // serialize as "admin" (Jackson default) and break admin nav/routing.
+        mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + userToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.isAdmin").exists())
+            .andExpect(jsonPath("$.admin").doesNotExist());
     }
 }

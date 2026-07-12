@@ -1,5 +1,6 @@
 package com.pmd.user.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -125,6 +126,7 @@ public class UserSummaryResponse {
         this.roleBadgeColor = roleBadgeColor;
     }
 
+    @JsonProperty("isAdmin")
     public boolean isAdmin() {
         return isAdmin;
     }
