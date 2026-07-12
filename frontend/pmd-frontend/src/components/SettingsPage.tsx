@@ -67,6 +67,7 @@ import type {
   SavedCropState,
   ComingSoonSectionId,
 } from './settings/settingsConfig'
+import { NotificationMailSettings } from './settings/NotificationMailSettings'
 
 export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const {
@@ -260,62 +261,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     () => roles.find((role) => role.id === editingRoleId) ?? null,
     [roles, editingRoleId]
   )
-  const sortedNotificationRows = useMemo(() => {
-    if (!notificationPreferences) return []
-    const rows: Array<{ key: keyof NotificationPreferences; label: string; checked: boolean }> = [
-      { key: 'emailOnAssign', label: 'Email when assigned', checked: notificationPreferences.emailOnAssign },
-      { key: 'emailOnMentionUser', label: 'Email on @mention', checked: notificationPreferences.emailOnMentionUser },
-      { key: 'emailOnMentionTeam', label: 'Email on @teammention', checked: notificationPreferences.emailOnMentionTeam },
-      { key: 'emailOnMentionComment', label: 'Email mention from comments', checked: notificationPreferences.emailOnMentionComment },
-      {
-        key: 'emailOnMentionDescription',
-        label: 'Email mention from project descriptions',
-        checked: notificationPreferences.emailOnMentionDescription,
-      },
-      {
-        key: 'emailOnMentionProjectTitle',
-        label: 'Email mention from project titles',
-        checked: notificationPreferences.emailOnMentionProjectTitle,
-      },
-      {
-        key: 'emailOnProjectMembershipChange',
-        label: 'Email when added/removed from a project',
-        checked: notificationPreferences.emailOnProjectMembershipChange,
-      },
-      {
-        key: 'emailOnProjectStatusChange',
-        label: 'Email when project status changes',
-        checked: notificationPreferences.emailOnProjectStatusChange,
-      },
-      { key: 'emailOnOverdueReminder', label: 'Email overdue reminders', checked: notificationPreferences.emailOnOverdueReminder },
-      {
-        key: 'emailOnWorkspaceInviteCreated',
-        label: 'Email when direct invite is created',
-        checked: notificationPreferences.emailOnWorkspaceInviteCreated,
-      },
-      {
-        key: 'emailOnWorkspaceJoinRequestSubmitted',
-        label: 'Email when join request is submitted',
-        checked: notificationPreferences.emailOnWorkspaceJoinRequestSubmitted,
-      },
-      {
-        key: 'emailOnWorkspaceJoinRequestDecision',
-        label: 'Email when join request is approved/denied',
-        checked: notificationPreferences.emailOnWorkspaceJoinRequestDecision,
-      },
-      {
-        key: 'emailOnWorkspaceInviteAccepted',
-        label: 'Email when invited member joins workspace (instant)',
-        checked: notificationPreferences.emailOnWorkspaceInviteAccepted,
-      },
-      {
-        key: 'emailOnWorkspaceInviteAcceptedDigest',
-        label: 'Email digest for invited members who joined',
-        checked: notificationPreferences.emailOnWorkspaceInviteAcceptedDigest,
-      },
-    ]
-    return rows.sort((a, b) => a.label.localeCompare(b.label))
-  }, [notificationPreferences])
 
   const toggleComingSoon = useCallback((section: ComingSoonSectionId) => {
     setComingSoonExpanded((prev) => ({ ...prev, [section]: !prev[section] }))
@@ -3654,45 +3599,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               </div>
               {notificationPreferences ? (
                 <div className="settings-tab-two-col">
-                  <div className="settings-tab-main workspace-actions">
-                    {sortedNotificationRows.map((row) => (
-                      <label key={`notification-row-${row.key}`} className="checkbox-row">
-                        <input
-                          type="checkbox"
-                          checked={row.checked}
-                          onChange={(event) => handleNotificationToggle(row.key, event.target.checked)}
-                          disabled={notificationBusy}
-                        />
-                        <span>{row.label}</span>
-                      </label>
-                    ))}
-                    <div className="workspace-divider" />
-                    <div className="form-field">
-                      <label>Browser notifications</label>
-                      <div className="workspace-row">
-                        <input
-                          value={
-                            browserPermission === 'unsupported'
-                              ? 'Unsupported'
-                              : browserPermission === 'granted'
-                                ? 'Enabled'
-                                : browserPermission === 'denied'
-                                  ? 'Blocked'
-                                  : 'Not enabled'
-                          }
-                          readOnly
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={handleEnableBrowserNotifications}
-                          disabled={browserPermission === 'unsupported' || browserPermission === 'granted'}
-                        >
-                          Enable
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <NotificationMailSettings
+                    preferences={notificationPreferences}
+                    busy={notificationBusy}
+                    browserPermission={browserPermission}
+                    onToggle={handleNotificationToggle}
+                    onEnableBrowser={handleEnableBrowserNotifications}
+                  />
                   <div className="settings-tab-side">
                     <button
                       type="button"
