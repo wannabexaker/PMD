@@ -578,7 +578,9 @@ public class WorkspaceController {
     }
 
     private WorkspaceJoinRequestResponse toJoinRequestResponse(com.pmd.workspace.model.WorkspaceJoinRequest request) {
-        User user = userService.findById(request.getUserId());
+        // Non-throwing: a join request whose requester was deleted must not 404 the
+        // whole pending-requests list — it renders with a null name/email instead.
+        User user = userService.findByIdOrNull(request.getUserId());
         return new WorkspaceJoinRequestResponse(
             request.getId(),
             request.getWorkspaceId(),
