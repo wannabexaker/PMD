@@ -7,11 +7,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import com.pmd.security.RequestIdFilter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +57,35 @@ public class ApiExceptionHandler {
             resolveRequestId(request),
             fieldErrors
         ));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        // Malformed JSON or an invalid value for a typed field (e.g. an unknown
+        // enum constant) — a client error, not a server fault.
+        return respond(HttpStatus.BAD_REQUEST, "Malformed or invalid request body", request);
+    }
+
+    @ExceptionHandler({ MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class })
+    public ResponseEntity<Map<String, Object>> handleBadParams(Exception ex, HttpServletRequest request) {
+        return respond(HttpStatus.BAD_REQUEST, "Invalid or missing request parameter", request);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        return respond(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method not supported for this endpoint", request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
+        return respond(HttpStatus.NOT_FOUND, "Resource not found", request);
+    }
+
+    // These Spring MVC exceptions carry a correct HTTP status; without explicit
+    // handlers the catch-all below would report every one of them as 500.
+    private ResponseEntity<Map<String, Object>> respond(HttpStatus status, String message, HttpServletRequest request) {
+        return ResponseEntity.status(status).body(errorBody(
+            status, message, request.getRequestURI(), resolveRequestId(request), null));
     }
 
     @ExceptionHandler(Exception.class)

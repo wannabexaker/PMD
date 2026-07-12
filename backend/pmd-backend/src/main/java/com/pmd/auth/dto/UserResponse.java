@@ -1,5 +1,7 @@
 package com.pmd.auth.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class UserResponse {
 
     private String id;
@@ -127,6 +129,9 @@ public class UserResponse {
         this.teamName = teamName;
     }
 
+    // Serialize as "isAdmin" (not the Jackson-default "admin") to match the
+    // frontend User model, which reads user.isAdmin for admin nav/route/gating.
+    @JsonProperty("isAdmin")
     public boolean isAdmin() {
         return isAdmin;
     }

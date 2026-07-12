@@ -1,0 +1,9 @@
+# PMD is a login-gated application; keep authenticated areas out of search indexes.
+User-agent: *
+Disallow: /admin
+Disallow: /settings
+Disallow: /profile
+Disallow: /assign
+Disallow: /people
+Disallow: /dashboard
+Allow: /

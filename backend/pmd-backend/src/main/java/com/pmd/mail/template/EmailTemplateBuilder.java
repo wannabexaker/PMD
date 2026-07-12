@@ -4,16 +4,31 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class EmailTemplateBuilder {
 
     private static final String APP_NAME = "PMD";
-    private static final String APP_URL = "http://localhost:5173/dashboard";
     private static final String FOOTER = "(c) 2026 PMD. All rights reserved.";
     private static final String DISMISS = "If you did not request this, you can ignore this email.";
     private static final String AUTO = "This is an automated message from PMD.";
+
+    // Public base URL of the SPA, used to build clickable links in emails.
+    // Configured per-environment (defaults to the local dev frontend); MUST be
+    // set to the real origin in production or confirm/CTA links break.
+    private final String appBaseUrl;
+    private final String appUrl;
+
+    public EmailTemplateBuilder(@Value("${pmd.app.base-url:http://localhost:5173}") String appBaseUrl) {
+        String normalized = (appBaseUrl == null || appBaseUrl.isBlank()) ? "http://localhost:5173" : appBaseUrl.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        this.appBaseUrl = normalized;
+        this.appUrl = normalized + "/dashboard";
+    }
 
     public EmailContent buildAssignmentEmail(AssignmentEmailModel model) {
         String title = "You were assigned to a project";
@@ -35,7 +50,7 @@ public class EmailTemplateBuilder {
                 row("Description", description),
                 row("Date", assignedAt)
             ),
-            APP_URL
+            appUrl
         ));
 
         String text = """
@@ -59,7 +74,7 @@ public class EmailTemplateBuilder {
             formatNameEmail(model.getAssignedToName(), model.getAssignedToEmail()),
             description,
             assignedAt,
-            APP_URL,
+            appUrl,
             AUTO,
             DISMISS
         );
@@ -71,7 +86,7 @@ public class EmailTemplateBuilder {
         String title = "Confirm your PMD account";
         String createdAt = formatInstant(model.getCreatedAt());
         String team = model.getTeam() != null && !model.getTeam().isBlank() ? model.getTeam() : "(pending)";
-        String confirmUrl = "http://localhost:5173/confirm-email?token=" + safe(model.getToken());
+        String confirmUrl = appBaseUrl + "/confirm-email?token=" + safe(model.getToken());
         String html = wrapHtml(title, """
             <p>Welcome to PMD!</p>
             <p>Please confirm your email to activate your account.</p>

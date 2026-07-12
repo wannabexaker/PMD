@@ -1,0 +1,264 @@
+:root {
+  font-family: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --motion-fast: 140ms;
+  --motion-medium: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --hover-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  --hover-glow: 0 0 0 1px color-mix(in srgb, var(--primary) 50%, transparent);
+  --z-topbar: 100;
+  --z-tooltip: 300;
+  --z-popover: 500;
+  --z-drawer-overlay: 700;
+  --z-drawer: 710;
+  --z-modal: 900;
+  --z-image-modal: 950;
+}
+
+/* Global scrollbars: Windows-style, subtle by default, clearer on hover/drag */
+:root {
+  --scrollbar-size-idle: 6px;
+  --scrollbar-size-hover: 11px;
+  --scrollbar-thumb-idle: color-mix(in srgb, var(--text) 50%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 66%, transparent);
+  --scrollbar-thumb-active: color-mix(in srgb, var(--primary) 78%, transparent);
+  --scrollbar-track: transparent;
+}
+
+/* Firefox fallback */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb-idle) var(--scrollbar-track);
+}
+
+*:hover {
+  scrollbar-color: var(--scrollbar-thumb-hover) var(--scrollbar-track);
+}
+
+/* Chromium / WebKit */
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size-idle);
+  height: var(--scrollbar-size-idle);
+  transition: width 160ms ease, height 160ms ease;
+}
+
+*:hover::-webkit-scrollbar,
+*::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:active {
+  width: var(--scrollbar-size-hover);
+  height: var(--scrollbar-size-hover);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-idle);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+*:hover::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-active);
+}
+
+/* Scrollbar buttons (arrows) where supported */
+*::-webkit-scrollbar-button {
+  display: block;
+  height: var(--scrollbar-size-hover);
+  background: transparent;
+}
+
+*:hover::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button:hover {
+  background:
+    linear-gradient(135deg, transparent 45%, color-mix(in srgb, var(--text) 35%, transparent) 46% 54%, transparent 55%)
+    center / 8px 8px no-repeat;
+  opacity: 0.9;
+}
+body[data-theme='dark'] {
+  --bg: radial-gradient(circle at top, #1e293b 0%, #0f172a 45%, #0b1120 100%);
+  --surface: #111827;
+  --surface2: #0b1220;
+  --text: #e5e7eb;
+  --muted: #a1a1aa;
+  --border: #1f2937;
+  --primary: #a855f7;
+  --primaryText: #140a26;
+  --danger: #ef4444;
+  --dangerText: #fff1f2;
+  --btnDisabledBg: #2a2f38;
+  --btnDisabledText: #9ca3af;
+  --shadow: 0 18px 38px rgba(0, 0, 0, 0.45);
+}
+
+body[data-theme='light'] {
+  --bg: linear-gradient(135deg, #f7f6f2 0%, #eef2f5 100%);
+  --surface: #ffffff;
+  --surface2: #f8fafc;
+  --text: #1f2933;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --primary: #7c3aed;
+  --primaryText: #ffffff;
+  --danger: #dc2626;
+  --dangerText: #ffffff;
+  --btnDisabledBg: #e5e7eb;
+  --btnDisabledText: #9ca3af;
+  --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+body[data-theme='light'] .card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-color: color-mix(in srgb, var(--primary) 14%, var(--border));
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+body[data-theme='light'] .muted {
+  color: #475569;
+}
+
+body[data-theme='light'] .status-COMPLETED {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(22, 163, 74, 0.38);
+}
+
+body[data-theme='light'] .status-CANCELED {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(220, 38, 38, 0.34);
+}
+
+body[data-theme='light'] .assigned-pill {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.14);
+}
+
+body[data-theme='light'] .assign-page .project-card .meta .muted,
+body[data-theme='light'] .people-card-main .muted,
+body[data-theme='light'] .people-directory .people-card .muted {
+  color: #475569;
+}
+
+body[data-theme='light'] .people-card-star {
+  background: #ffffff;
+}
+
+body[data-theme='light'] .assign-page .project-card strong,
+body[data-theme='light'] .people-directory .people-card strong,
+body[data-theme='light'] .people-card-main strong {
+  color: #0f172a;
+}
+
+body[data-theme='light'] .assign-page .project-card {
+  color: #0f172a;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.container.container-full {
+  max-width: none;
+  width: 100%;
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+  height: 56px;
+  padding: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-inner {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0 28px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 0.85rem;
+}
+
+.brand-link {
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.brand-link:hover {
+  transform: translateY(-1px);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--primary) 38%, transparent));
+}
+
+.brand-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-identities {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.identity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 2px 8px 2px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  min-width: 0;
+}
+

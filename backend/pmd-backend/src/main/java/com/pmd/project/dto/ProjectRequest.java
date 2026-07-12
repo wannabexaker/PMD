@@ -15,7 +15,8 @@ public class ProjectRequest {
     @NotNull
     private ProjectStatus status;
 
-    @NotBlank
+    // Optional: a project may have no team. The frontend only requires a team
+    // when the "Require team when creating project" preference is enabled.
     private String teamId;
 
     private List<String> memberIds;

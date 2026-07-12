@@ -228,7 +228,14 @@ public class AuthController {
         }
         user.setBio(request.getBio());
         if (request.getAvatarUrl() != null) {
-            user.setAvatarUrl(request.getAvatarUrl().trim());
+            String avatar = request.getAvatarUrl().trim();
+            // Only allow an uploaded/relative path or an http(s) URL — never a
+            // dangerous scheme such as javascript: or data:.
+            if (!avatar.isEmpty() && !avatar.startsWith("/")
+                && !avatar.startsWith("http://") && !avatar.startsWith("https://")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid avatar URL");
+            }
+            user.setAvatarUrl(avatar);
         }
         user.setDisplayName(buildDisplayName(user));
 

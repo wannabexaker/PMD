@@ -18,6 +18,10 @@ const TOKEN_EXP_KEY = 'pmd_token_exp'
 let memoryToken: string | null = null
 let memoryTokenExp = 0
 let refreshHandler: (() => Promise<string | null>) | null = null
+// Ensures only ONE refresh runs at a time. Concurrent 401s share this promise
+// instead of each firing their own /api/auth/refresh — parallel refreshes would
+// rotate the session against each other and spuriously log the user out.
+let refreshInFlight: Promise<string | null> | null = null
 
 type JsonValue = unknown
 
@@ -78,6 +82,20 @@ export function clearAuthToken() {
 
 export function registerAuthRefreshHandler(handler: (() => Promise<string | null>) | null) {
   refreshHandler = handler
+}
+
+// De-duplicates concurrent refreshes: the first 401 starts the refresh, any
+// others awaiting in the same window reuse the same in-flight promise.
+function runSingleFlightRefresh(): Promise<string | null> {
+  if (!refreshHandler) {
+    return Promise.resolve(null)
+  }
+  if (!refreshInFlight) {
+    refreshInFlight = refreshHandler().finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
 }
 
 function decodeJwtExpMs(token: string): number {
@@ -143,7 +161,7 @@ export async function requestJson<T>(path: string, options?: RequestInit): Promi
   const isAuthEndpoint = path.startsWith('/api/auth/login') || path.startsWith('/api/auth/register') || path.startsWith('/api/auth/refresh') || path.startsWith('/api/auth/confirm')
   if (response.status === 401 && refreshHandler && !isAuthEndpoint) {
     try {
-      const refreshedToken = await refreshHandler()
+      const refreshedToken = await runSingleFlightRefresh()
       if (refreshedToken) {
         response = await doFetch(path, options, refreshedToken)
       }

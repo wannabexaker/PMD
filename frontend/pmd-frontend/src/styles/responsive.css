@@ -1,0 +1,368 @@
+/* Mobile + tablet UX hardening
+   - Prevent cramped multi-column layouts on smaller devices.
+   - Keep contextual windows visible inside viewport.
+   - Avoid horizontal overflow in topbar identities/actions. */
+@media (max-width: 1100px) {
+  .topbar {
+    height: auto;
+  }
+
+  .topbar-inner {
+    height: auto;
+    min-height: 56px;
+    padding: 8px 14px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .topbar-identities {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .workspace-identity,
+  .user-identity {
+    max-width: 100%;
+  }
+
+  .workspace-switcher {
+    max-width: min(70vw, 320px);
+  }
+
+  .dashboard-split,
+  .assign-layout,
+  .people-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-header-compact {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .dashboard-header-compact .controls-bar {
+    justify-self: start;
+  }
+
+  .dashboard-top-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .assign-panel {
+    max-height: none;
+    min-height: 0;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-page-panel {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .container {
+    padding: 16px;
+  }
+
+  .container.container-full {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .row.space {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .details-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .details-header-side {
+    justify-items: start;
+  }
+
+  .details-created-by {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .member-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .assign-layout,
+  .people-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .assign-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .assign-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-split {
+    grid-template-columns: 1fr;
+  }
+
+  .members-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .members-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .member-row {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .topbar-inner {
+    padding: 0 16px;
+  }
+
+  .topbar-actions {
+    justify-content: flex-start;
+  }
+
+  .topbar-identities {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .identity-pill {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .workspace-switcher {
+    max-width: min(86vw, 280px);
+  }
+
+  .identity-name {
+    max-width: 170px;
+  }
+
+  .form-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .form-span-2 {
+    grid-column: span 1;
+  }
+
+  .invite-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-profile-avatar-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-profile-avatar-actions-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-card .team-list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settings-card .role-list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 1100px) {
+  .workspace-profile-overlay,
+  .modal-overlay,
+  .profile-avatar-context-overlay {
+    padding: 12px;
+    align-items: start;
+    overflow-y: auto;
+  }
+
+  .workspace-inline-editor-overlay,
+  .profile-avatar-context-window,
+  .modal {
+    width: min(96vw, 640px) !important;
+    max-height: calc(100vh - 24px);
+    margin: 0;
+  }
+
+  .avatar-menu-popover,
+  .invite-menu-dropdown,
+  .settings-order-popover,
+  .settings-grid-bounds-popover,
+  .project-menu {
+    position: fixed;
+    left: 12px !important;
+    right: 12px !important;
+    top: auto !important;
+    bottom: 12px !important;
+    width: auto;
+    max-width: calc(100vw - 24px);
+    max-height: min(62vh, 420px);
+    overflow: auto;
+    z-index: calc(var(--z-popover) + 30);
+  }
+
+  .password-requirements-popover {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 12px;
+    width: auto;
+    max-width: calc(100vw - 24px);
+    max-height: min(62vh, 420px);
+    overflow: auto;
+    z-index: calc(var(--z-popover) + 30);
+  }
+}
+
+@media (max-width: 960px) {
+  .assign-panel-header {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .assign-panel-controls {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .project-grid,
+  .people-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .people-directory {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-card {
+    margin: 32px auto;
+    padding: 22px;
+  }
+
+  .auth-card .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .form-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .form-span-2 {
+    grid-column: span 1;
+  }
+}
+
+.onboarding-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal) + 30);
+  pointer-events: none;
+}
+
+.onboarding-tour-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 9, 20, 0.56);
+}
+
+.onboarding-tour-highlight {
+  position: fixed;
+  border-radius: 14px;
+  border: 2px solid color-mix(in srgb, var(--primary) 82%, white 18%);
+  box-shadow: 0 0 0 9999px rgba(4, 9, 20, 0.36);
+  pointer-events: none;
+  transition: all 180ms var(--motion-ease);
+}
+
+.onboarding-tour-card {
+  position: fixed;
+  width: min(400px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--line) 60%);
+  background: var(--surface);
+  box-shadow: var(--shadow-strong);
+  pointer-events: auto;
+  transition: top 180ms var(--motion-ease), left 180ms var(--motion-ease);
+}
+
+.onboarding-tour-description {
+  margin: 0;
+  color: color-mix(in srgb, var(--text) 88%, white 12%);
+  line-height: 1.42;
+}
+
+.onboarding-tour-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.onboarding-tour-head span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.onboarding-tour-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+
+
+
+
+
+
+
+

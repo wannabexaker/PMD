@@ -1552,6 +1552,7 @@ export function DashboardPage({
                                 <div className="project-status-wrap">
                                   <select
                                     className="status-select"
+                                    aria-label={`Status for ${project.name ?? 'project'}`}
                                     value={status}
                                     onClick={(event) => event.stopPropagation()}
                                     onChange={(event) =>
@@ -1620,6 +1621,7 @@ export function DashboardPage({
                     ) : (
                       <select
                         className="status-select"
+                        aria-label="Project status"
                         value={draftProject?.status ?? 'NOT_STARTED'}
                         onChange={(event) =>
                           draftProject &&
