@@ -24,6 +24,8 @@ scripts/.pmd-dev-pids.json
 docs/release-checklist.md
 docs/FIREWALL_POLICY.md
 docs/DEPLOY_OLAMOV.md
+docs/demo-users.txt
+PRD.md
 
 # --- secrets / keys / certs ---
 *.pem

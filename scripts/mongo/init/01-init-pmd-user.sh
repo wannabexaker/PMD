@@ -6,7 +6,12 @@ if [ -z "${PMD_MONGO_APP_DB:-}" ] || [ -z "${PMD_MONGO_APP_USER:-}" ] || [ -z "$
   exit 1
 fi
 
-mongosh --quiet --username "${MONGO_INITDB_ROOT_USERNAME}" --password "${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin <<EOF
+# mongosh ships with Mongo 5.0+; the legacy `mongo` shell ships with 4.4 (needed
+# on ARMv8.0-A hosts like the Raspberry Pi 4). Use whichever is present.
+MONGO_SHELL=mongosh
+command -v mongosh >/dev/null 2>&1 || MONGO_SHELL=mongo
+
+"$MONGO_SHELL" --quiet --username "${MONGO_INITDB_ROOT_USERNAME}" --password "${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin <<EOF
 use ${PMD_MONGO_APP_DB}
 db.createUser({
   user: "${PMD_MONGO_APP_USER}",
