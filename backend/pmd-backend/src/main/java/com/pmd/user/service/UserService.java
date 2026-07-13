@@ -51,6 +51,14 @@ public class UserService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
     }
 
+    /** Non-throwing lookup for display/enrichment paths where a missing user must not fail the request. */
+    public User findByIdOrNull(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return userRepository.findById(id).orElse(null);
+    }
+
     public User findByUsername(String username) {
         return userRepository.findByUsername(username)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));

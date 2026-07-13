@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getAdminOverview, listAdminAudit, listAdminUsers, listAdminWorkspaces } from '../api/admin'
-import type { AdminAuditRow, AdminOverview, AdminUserRow, AdminWorkspaceRow } from '../types'
 
 const SECTIONS = ['Overview', 'Workspaces', 'Users', 'Audit log'] as const
 
@@ -8,82 +8,54 @@ type Section = (typeof SECTIONS)[number]
 
 const AUDIT_CATEGORIES = ['', 'WORKSPACE', 'MEMBERSHIP', 'INVITE', 'REQUEST', 'TEAM', 'ROLE', 'PROJECT', 'GENERAL']
 
+type AuditFilters = { q: string; workspaceId: string; actorUserId: string; category: string }
+const EMPTY_AUDIT_FILTERS: AuditFilters = { q: '', workspaceId: '', actorUserId: '', category: '' }
+
 export function AdminPanel() {
   const [active, setActive] = useState<Section>('Overview')
-  const [overview, setOverview] = useState<AdminOverview | null>(null)
-  const [workspaces, setWorkspaces] = useState<AdminWorkspaceRow[]>([])
-  const [users, setUsers] = useState<AdminUserRow[]>([])
-  const [auditRows, setAuditRows] = useState<AdminAuditRow[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Draft inputs (typing) vs. applied filters (drive the query keys, set on
+  // Search/Filter click) — so keystrokes no longer refetch everything.
   const [userQuery, setUserQuery] = useState('')
   const [auditQ, setAuditQ] = useState('')
   const [auditWorkspaceId, setAuditWorkspaceId] = useState('')
   const [auditActorUserId, setAuditActorUserId] = useState('')
   const [auditCategory, setAuditCategory] = useState('')
+  const [appliedUserQuery, setAppliedUserQuery] = useState('')
+  const [appliedAuditFilters, setAppliedAuditFilters] = useState<AuditFilters>(EMPTY_AUDIT_FILTERS)
 
-  const loadAll = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const [ov, ws, us, audit] = await Promise.all([
-        getAdminOverview(),
-        listAdminWorkspaces(),
-        listAdminUsers(userQuery),
-        listAdminAudit({
-          q: auditQ,
-          workspaceId: auditWorkspaceId,
-          actorUserId: auditActorUserId,
-          category: auditCategory,
-          limit: 300,
-        }),
-      ])
-      setOverview(ov)
-      setWorkspaces(ws)
-      setUsers(us)
-      setAuditRows(audit)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load PMD admin data.')
-    } finally {
-      setLoading(false)
-    }
-  }, [auditActorUserId, auditCategory, auditQ, auditWorkspaceId, userQuery])
+  const overviewQuery = useQuery({ queryKey: ['admin', 'overview'], queryFn: getAdminOverview })
+  const workspacesQuery = useQuery({ queryKey: ['admin', 'workspaces'], queryFn: listAdminWorkspaces })
+  const usersQuery = useQuery({
+    queryKey: ['admin', 'users', appliedUserQuery],
+    queryFn: () => listAdminUsers(appliedUserQuery),
+  })
+  const auditQuery = useQuery({
+    queryKey: ['admin', 'audit', appliedAuditFilters],
+    queryFn: () => listAdminAudit({ ...appliedAuditFilters, limit: 300 }),
+  })
 
-  useEffect(() => {
-    void loadAll()
-  }, [loadAll])
+  const overview = overviewQuery.data ?? null
+  const workspaces = workspacesQuery.data ?? []
+  const users = usersQuery.data ?? []
+  const auditRows = auditQuery.data ?? []
+  const loading =
+    overviewQuery.isFetching || workspacesQuery.isFetching || usersQuery.isFetching || auditQuery.isFetching
+  const firstError =
+    overviewQuery.error ?? workspacesQuery.error ?? usersQuery.error ?? auditQuery.error
+  const error = firstError
+    ? firstError instanceof Error
+      ? firstError.message
+      : 'Failed to load PMD admin data.'
+    : null
 
-  const refreshUsers = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      setUsers(await listAdminUsers(userQuery))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load users.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const refreshAudit = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      setAuditRows(
-        await listAdminAudit({
-          q: auditQ,
-          workspaceId: auditWorkspaceId,
-          actorUserId: auditActorUserId,
-          category: auditCategory,
-          limit: 300,
-        }),
-      )
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load audit logs.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const applyUserSearch = () => setAppliedUserQuery(userQuery)
+  const applyAuditFilter = () =>
+    setAppliedAuditFilters({
+      q: auditQ,
+      workspaceId: auditWorkspaceId,
+      actorUserId: auditActorUserId,
+      category: auditCategory,
+    })
 
   return (
     <section className="panel admin-panel">
@@ -183,7 +155,7 @@ export function AdminPanel() {
                   onChange={(event) => setUserQuery(event.target.value)}
                   placeholder="Search user (name/email)"
                 />
-                <button type="button" className="btn btn-secondary" onClick={() => void refreshUsers()}>
+                <button type="button" className="btn btn-secondary" onClick={applyUserSearch}>
                   Search
                 </button>
               </div>
@@ -232,7 +204,7 @@ export function AdminPanel() {
                   ))}
                 </select>
                 <input value={auditQ} onChange={(event) => setAuditQ(event.target.value)} placeholder="Search message/entity" />
-                <button type="button" className="btn btn-secondary" onClick={() => void refreshAudit()}>
+                <button type="button" className="btn btn-secondary" onClick={applyAuditFilter}>
                   Filter
                 </button>
               </div>
