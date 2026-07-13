@@ -1,0 +1,94 @@
+# PMD — Raspberry Pi 4 (architecture B): backend + MongoDB + Cloudflare Tunnel.
+#
+# The React frontend is served by Vercel (pmd.olamov.com); ONLY the API lives
+# here and is reachable exclusively through the outbound-only Cloudflare Tunnel
+# (api-pmd.olamov.com). There are NO published host ports — nothing on the Pi is
+# directly reachable from the internet, and Mongo stays on an internal network.
+#
+# Usage on the Pi:
+#   cp .env.pi.example .env.production   # then fill in the real secrets
+#   docker compose -f docker-compose.pi.yml --env-file .env.production pull
+#   docker compose -f docker-compose.pi.yml --env-file .env.production up -d
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["mongod", "--auth", "--bind_ip_all"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?set in .env.production}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?set in .env.production}
+      PMD_MONGO_APP_DB: ${PMD_MONGO_APP_DB:-pmd}
+      PMD_MONGO_APP_USER: ${PMD_MONGO_APP_USER:?set in .env.production}
+      PMD_MONGO_APP_PASSWORD: ${PMD_MONGO_APP_PASSWORD:?set in .env.production}
+    volumes:
+      - mongo_data:/data/db
+      - ./scripts/mongo/init/01-init-pmd-user.sh:/docker-entrypoint-initdb.d/01-init-pmd-user.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1 >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - data
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER:-wannabexaker}/pmd-backend:latest
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker,prod}
+      SPRING_DATA_MONGODB_URI: ${SPRING_DATA_MONGODB_URI:-mongodb://${PMD_MONGO_APP_USER}:${PMD_MONGO_APP_PASSWORD}@mongo:27017/${PMD_MONGO_APP_DB:-pmd}?authSource=${PMD_MONGO_APP_DB:-pmd}}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-localhost}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
+      PMD_MAIL_FROM: ${PMD_MAIL_FROM:-no-reply@olamov.com}
+      PMD_APP_BASE_URL: ${PMD_APP_BASE_URL:?public SPA origin, e.g. https://pmd.olamov.com}
+      PMD_JWT_SECRET: ${PMD_JWT_SECRET:?set in .env.production}
+      PMD_JWT_EXPIRATIONSECONDS: ${PMD_JWT_EXPIRATIONSECONDS:-900}
+      PMD_AUTH_SESSION_COOKIE_SECURE: ${PMD_AUTH_SESSION_COOKIE_SECURE:-true}
+      PMD_AUTH_SESSION_COOKIE_SAME_SITE: ${PMD_AUTH_SESSION_COOKIE_SAME_SITE:-Lax}
+      PMD_AUTH_REQUIRE_VERIFIED_EMAIL: ${PMD_AUTH_REQUIRE_VERIFIED_EMAIL:-false}
+      PMD_SECURITY_TRUST_PROXY_HEADERS: ${PMD_SECURITY_TRUST_PROXY_HEADERS:-true}
+      PMD_ALLOWED_ORIGINS: ${PMD_ALLOWED_ORIGINS:?e.g. https://pmd.olamov.com}
+      PMD_ALLOWED_ORIGIN_PATTERNS: ${PMD_ALLOWED_ORIGIN_PATTERNS:-}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=70}
+      SERVER_PORT: 8080
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - app
+      - data
+
+  # Outbound-only connector to the Cloudflare edge. Reaches the backend over the
+  # internal `app` network; reaches Cloudflare over `egress`. The public hostname
+  # (api-pmd.olamov.com -> http://backend:8080) is configured in the Cloudflare
+  # Zero Trust dashboard and encoded in CLOUDFLARE_TUNNEL_TOKEN.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?create a tunnel in Cloudflare Zero Trust and paste its token}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app
+      - egress
+
+volumes:
+  mongo_data:
+  uploads:
+
+networks:
+  # Non-internal: gives cloudflared outbound access to the Cloudflare edge.
+  egress:
+  # Internal: no direct internet ingress/egress for backend and mongo.
+  app:
+    internal: true
+  data:
+    internal: true

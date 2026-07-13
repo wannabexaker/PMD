@@ -1,6 +1,7 @@
 # --- PMD local-only notes (do not commit) ---
 PMD-progress-notes.md
 PMD-todo.md
+docs/notes.md
 
 # --- accidental/temp folders (do not commit) ---
 hover/
@@ -15,12 +16,14 @@ scripts/.pmd-dev-pids.json
 .env.*
 !.env.example
 !.env.production.example
+!.env.pi.example
 !**/.env.example
 !**/.env.production.example
 
 # --- sensitive / internal docs (do not publish) ---
 docs/release-checklist.md
 docs/FIREWALL_POLICY.md
+docs/DEPLOY_OLAMOV.md
 
 # --- secrets / keys / certs ---
 *.pem
