@@ -1,0 +1,9 @@
+# Deploy artifacts consumed by Linux and containers must stay LF even when the
+# repo is checked out or scp'd from Windows (CRLF breaks shell scripts and can
+# append \r to env values / compose fields).
+*.sh            text eol=lf
+scripts/**      text eol=lf
+docker-compose*.yml text eol=lf
+*.env.example   text eol=lf
+.env.pi.example text eol=lf
+Dockerfile      text eol=lf

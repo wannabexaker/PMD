@@ -11,7 +11,10 @@
 #   docker compose -f docker-compose.pi.yml --env-file .env.production up -d
 services:
   mongo:
-    image: mongo:7
+    # Pinned to 4.4.18: the Raspberry Pi 4 CPU (Cortex-A72) is ARMv8.0-A, but
+    # MongoDB >= 5.0 AND >= 4.4.19 require ARMv8.2-A ("Illegal instruction"
+    # crash otherwise). 4.4.18 is the last build that runs on the Pi 4.
+    image: mongo:4.4.18
     restart: unless-stopped
     command: ["mongod", "--auth", "--bind_ip_all"]
     environment:
@@ -24,7 +27,7 @@ services:
       - mongo_data:/data/db
       - ./scripts/mongo/init/01-init-pmd-user.sh:/docker-entrypoint-initdb.d/01-init-pmd-user.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1 >/dev/null"]
+      test: ["CMD-SHELL", "mongo --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1 >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -43,6 +46,9 @@ services:
       SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-localhost}
       SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
       PMD_MAIL_FROM: ${PMD_MAIL_FROM:-no-reply@olamov.com}
+      # Soft launch has no SMTP server, so exclude the mail check from health
+      # (otherwise /actuator/health reports DOWN on the refused SMTP connection).
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
       PMD_APP_BASE_URL: ${PMD_APP_BASE_URL:?public SPA origin, e.g. https://pmd.olamov.com}
       PMD_JWT_SECRET: ${PMD_JWT_SECRET:?set in .env.production}
       PMD_JWT_EXPIRATIONSECONDS: ${PMD_JWT_EXPIRATIONSECONDS:-900}
