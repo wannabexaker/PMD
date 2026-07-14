@@ -42,6 +42,7 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
   const { showToast } = useToast()
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileNonce, setTurnstileNonce] = useState(0)
+  const [passwordTouched, setPasswordTouched] = useState(false)
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
     password: '',
@@ -57,6 +58,9 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
   const [confirmTouched, setConfirmTouched] = useState(false)
   const [showPasswordHints, setShowPasswordHints] = useState(false)
   const passwordHintsRef = useRef<HTMLDivElement | null>(null)
+
+  // Keep the bot-check hidden until the user actually engages with the password.
+  const showTurnstile = isTurnstileEnabled && (passwordTouched || form.password.length > 0)
 
   useEffect(() => {
     if (!showSuccess) {
@@ -98,6 +102,7 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault()
     setFieldErrors({})
+    setPasswordTouched(true)
 
     const errors: Record<string, string> = {}
     if (!form.email.trim()) {
@@ -238,7 +243,10 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={handleChange}
-                  onFocus={() => setShowPasswordHints(true)}
+                  onFocus={() => {
+                    setShowPasswordHints(true)
+                    setPasswordTouched(true)
+                  }}
                   onClick={() => setShowPasswordHints(true)}
                   minLength={10}
                   required
@@ -330,8 +338,8 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
             </div>
           </div>
           <div className="form-field form-span-2">
-            {isTurnstileEnabled ? (
-              <div className="auth-turnstile">
+            {showTurnstile ? (
+              <div className="auth-turnstile auth-reveal">
                 <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />
               </div>
             ) : null}
@@ -342,7 +350,10 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
               <>
                 <div className="auth-divider"><span>or</span></div>
                 <div className="auth-google">
-                  <GoogleSignInButton onCredential={(credential) => onGoogleLogin(credential, true)} />
+                  <GoogleSignInButton
+                    label="Sign up with Google"
+                    onCredential={(credential) => onGoogleLogin(credential, true)}
+                  />
                 </div>
               </>
             ) : null}
