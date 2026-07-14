@@ -696,6 +696,8 @@ function AppView({
       } else {
         setAuthError(err instanceof Error ? err.message : 'Login failed')
       }
+      // Re-throw so LoginForm can react to the failure (e.g. reset the single-use Turnstile token).
+      throw err
     } finally {
       setAuthLoading(false)
     }

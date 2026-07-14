@@ -46,7 +46,9 @@ export function GoogleSignInButton({ onCredential }: { onCredential: (credential
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const onCredentialRef = useRef(onCredential)
-  onCredentialRef.current = onCredential
+  useEffect(() => {
+    onCredentialRef.current = onCredential
+  }, [onCredential])
 
   useEffect(() => {
     if (!isGoogleEnabled) {

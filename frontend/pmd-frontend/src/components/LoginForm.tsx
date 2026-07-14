@@ -38,11 +38,6 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
       return
     }
     showToast({ type: 'error', message: error })
-    // A failed attempt consumes the single-use Turnstile token; re-challenge for the retry.
-    if (isTurnstileEnabled) {
-      setTurnstileToken('')
-      setTurnstileNonce((nonce) => nonce + 1)
-    }
   }, [error, showToast])
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
@@ -80,7 +75,15 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
       return
     }
 
-    await onLogin({ username: form.username.trim(), password: form.password, remember: form.remember, turnstileToken })
+    try {
+      await onLogin({ username: form.username.trim(), password: form.password, remember: form.remember, turnstileToken })
+    } catch {
+      // Login failed; the single-use Turnstile token is now spent — re-challenge for the retry.
+      if (isTurnstileEnabled) {
+        setTurnstileToken('')
+        setTurnstileNonce((nonce) => nonce + 1)
+      }
+    }
   }
 
   return (
