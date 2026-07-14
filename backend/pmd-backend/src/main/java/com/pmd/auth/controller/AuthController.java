@@ -4,12 +4,15 @@ import com.pmd.auth.dto.ConfirmEmailResponse;
 import com.pmd.auth.dto.ConfirmEmailStatus;
 import com.pmd.auth.dto.LoginRequest;
 import com.pmd.auth.dto.LoginResponse;
+import com.pmd.auth.dto.GoogleLoginRequest;
 import com.pmd.auth.dto.PeoplePageWidgetsRequest;
 import com.pmd.auth.dto.RegisterRequest;
 import com.pmd.auth.dto.RegisterResponse;
 import com.pmd.auth.dto.UpdateProfileRequest;
 import com.pmd.auth.dto.UserResponse;
 import com.pmd.auth.security.JwtService;
+import com.pmd.auth.security.GoogleTokenVerifier;
+import com.pmd.auth.security.TurnstileService;
 import com.pmd.auth.service.EmailVerificationTokenService;
 import com.pmd.auth.service.AuthSessionService;
 import com.pmd.auth.service.LoginRateLimiterService;
@@ -60,6 +63,8 @@ public class AuthController {
     private final AuthSecurityEventService authSecurityEventService;
     private final WorkspaceService workspaceService;
     private final ClientMetadataService clientMetadataService;
+    private final GoogleTokenVerifier googleTokenVerifier;
+    private final TurnstileService turnstileService;
 
     public AuthController(UserService userService, PasswordEncoder passwordEncoder, JwtService jwtService,
                           WelcomeEmailService welcomeEmailService,
@@ -69,7 +74,9 @@ public class AuthController {
                           PasswordPolicyService passwordPolicyService,
                           AuthSecurityEventService authSecurityEventService,
                           WorkspaceService workspaceService,
-                          ClientMetadataService clientMetadataService) {
+                          ClientMetadataService clientMetadataService,
+                          GoogleTokenVerifier googleTokenVerifier,
+                          TurnstileService turnstileService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -81,6 +88,8 @@ public class AuthController {
         this.authSecurityEventService = authSecurityEventService;
         this.workspaceService = workspaceService;
         this.clientMetadataService = clientMetadataService;
+        this.googleTokenVerifier = googleTokenVerifier;
+        this.turnstileService = turnstileService;
     }
 
     @PostMapping("/login")
@@ -89,12 +98,18 @@ public class AuthController {
         String clientIp = clientMetadataService.resolveClientIp(httpRequest);
         String username = normalizeEmail(request.getUsername());
         loginRateLimiterService.checkAllowed(clientIp, username);
+        turnstileService.verifyOrThrow(request.getTurnstileToken(), clientIp);
         User user;
         try {
             user = userService.findByUsername(username);
         } catch (ResponseStatusException ex) {
             loginRateLimiterService.recordFailure(clientIp, username);
             authSecurityEventService.log("LOGIN", "DENY", null, username, "Unknown username", httpRequest);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+        if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
+            loginRateLimiterService.recordFailure(clientIp, username);
+            authSecurityEventService.log("LOGIN", "DENY", user.getId(), username, "Password login unavailable (Google account)", httpRequest);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
@@ -107,19 +122,14 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email verification required");
         }
         loginRateLimiterService.recordSuccess(clientIp, username);
-        String token = generateToken(user);
-        AuthSessionService.IssuedSession issuedSession = authSessionService.createSession(user, request.isRemember(), httpRequest);
-        String csrfToken = authSessionService.generateCsrfToken();
-        httpResponse.addHeader("Set-Cookie", authSessionService.buildRefreshCookie(issuedSession, httpRequest.isSecure()));
-        httpResponse.addHeader("Set-Cookie", authSessionService.buildCsrfCookie(csrfToken, httpRequest.isSecure()));
         authSecurityEventService.log("LOGIN", "ALLOW", user.getId(), username, "Login success", httpRequest);
-
-        return new LoginResponse(token, toUserResponse(user));
+        return issueSession(user, request.isRemember(), httpRequest, httpResponse);
     }
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.OK)
-    public RegisterResponse register(@Valid @RequestBody RegisterRequest request) {
+    public RegisterResponse register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
+        turnstileService.verifyOrThrow(request.getTurnstileToken(), clientMetadataService.resolveClientIp(httpRequest));
         String username = normalizeEmail(request.getEmail());
         if (userService.existsByUsername(username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User already exists");
@@ -157,6 +167,62 @@ public class AuthController {
             ? "Account created. Check your email to confirm."
             : "Account created, but verification email could not be sent. Please retry later.";
         return new RegisterResponse(true, emailSent, message);
+    }
+
+    @PostMapping("/google")
+    @ResponseStatus(HttpStatus.OK)
+    public LoginResponse google(@Valid @RequestBody GoogleLoginRequest request,
+                                HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String clientIp = clientMetadataService.resolveClientIp(httpRequest);
+        turnstileService.verifyOrThrow(request.getTurnstileToken(), clientIp);
+        GoogleTokenVerifier.GoogleUser googleUser = googleTokenVerifier.verify(request.getCredential());
+        String email = normalizeEmail(googleUser.email());
+
+        User user = userService.findByUsernameOrNull(email);
+        boolean newUser = false;
+        if (user == null) {
+            User created = new User();
+            created.setUsername(email);
+            created.setEmail(email);
+            created.setFirstName(googleUser.firstName());
+            created.setLastName(googleUser.lastName());
+            created.setGoogleId(googleUser.subject());
+            // Google has already verified ownership of this email address.
+            created.setEmailVerified(true);
+            created.setDisplayName(googleUser.name() != null && !googleUser.name().isBlank()
+                ? googleUser.name().trim() : buildDisplayName(created));
+            try {
+                user = userService.save(created);
+                newUser = true;
+            } catch (DuplicateKeyException ex) {
+                // Concurrent creation with the same email — reuse the existing row.
+                user = userService.findByUsername(email);
+            }
+        } else {
+            // Link Google to a pre-existing (e.g. password) account with the same verified email.
+            boolean changed = false;
+            if (user.getGoogleId() == null || user.getGoogleId().isBlank()) {
+                user.setGoogleId(googleUser.subject());
+                changed = true;
+            }
+            if (!user.isEmailVerified()) {
+                user.setEmailVerified(true);
+                changed = true;
+            }
+            if (changed) {
+                user = userService.save(user);
+            }
+        }
+
+        if (newUser) {
+            try {
+                workspaceService.getOrCreateDemoWorkspace(user);
+            } catch (Exception ex) {
+                logger.warn("Failed to provision demo workspace for Google user {}", user.getId(), ex);
+            }
+        }
+        authSecurityEventService.log("LOGIN_GOOGLE", "ALLOW", user.getId(), email, "Google login success", httpRequest);
+        return issueSession(user, request.isRemember(), httpRequest, httpResponse);
     }
 
     @PostMapping("/refresh")
@@ -258,6 +324,16 @@ public class AuthController {
         user.setPeoplePageWidgets(next);
         User saved = userService.save(user);
         return saved.getPeoplePageWidgets();
+    }
+
+    private LoginResponse issueSession(User user, boolean remember,
+                                       HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String token = generateToken(user);
+        AuthSessionService.IssuedSession issuedSession = authSessionService.createSession(user, remember, httpRequest);
+        String csrfToken = authSessionService.generateCsrfToken();
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildRefreshCookie(issuedSession, httpRequest.isSecure()));
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildCsrfCookie(csrfToken, httpRequest.isSecure()));
+        return new LoginResponse(token, toUserResponse(user));
     }
 
     private String generateToken(User user) {

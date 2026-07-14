@@ -64,6 +64,14 @@ public class UserService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
     }
 
+    /** Non-throwing username (email) lookup used by the find-or-link Google sign-in flow. */
+    public User findByUsernameOrNull(String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        return userRepository.findByUsername(username).orElse(null);
+    }
+
     public boolean existsByUsername(String username) {
         return userRepository.existsByUsername(username);
     }

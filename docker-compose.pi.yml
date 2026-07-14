@@ -58,6 +58,10 @@ services:
       PMD_SECURITY_TRUST_PROXY_HEADERS: ${PMD_SECURITY_TRUST_PROXY_HEADERS:-true}
       PMD_ALLOWED_ORIGINS: ${PMD_ALLOWED_ORIGINS:?e.g. https://pmd.olamov.com}
       PMD_ALLOWED_ORIGIN_PATTERNS: ${PMD_ALLOWED_ORIGIN_PATTERNS:-}
+      # Google Sign-In (public OAuth client id) + Cloudflare Turnstile secret.
+      # Both optional: empty = that feature stays disabled.
+      PMD_GOOGLE_CLIENT_ID: ${PMD_GOOGLE_CLIENT_ID:-}
+      PMD_TURNSTILE_SECRET: ${PMD_TURNSTILE_SECRET:-}
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=70}
       SERVER_PORT: 8080
     healthcheck:
