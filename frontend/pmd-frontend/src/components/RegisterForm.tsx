@@ -41,6 +41,7 @@ const COMMON_PASSWORDS = new Set([
 export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLogin }: RegisterFormProps) {
   const { showToast } = useToast()
   const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileNonce, setTurnstileNonce] = useState(0)
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
     password: '',
@@ -165,6 +166,11 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed'
       showToast({ type: 'error', message })
+      // The failed submit consumed the single-use Turnstile token; re-challenge for the retry.
+      if (isTurnstileEnabled) {
+        setTurnstileToken('')
+        setTurnstileNonce((nonce) => nonce + 1)
+      }
     }
   }
 
@@ -326,7 +332,7 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
           <div className="form-field form-span-2">
             {isTurnstileEnabled ? (
               <div className="auth-turnstile">
-                <TurnstileWidget onToken={setTurnstileToken} />
+                <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />
               </div>
             ) : null}
             <button type="submit" className="btn btn-primary full-width" disabled={loading}>

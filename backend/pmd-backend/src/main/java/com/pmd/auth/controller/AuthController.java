@@ -206,6 +206,18 @@ public class AuthController {
                 changed = true;
             }
             if (!user.isEmailVerified()) {
+                // Google has now proven ownership of this email. Where verified email is the
+                // security boundary for password login, a password previously set on this
+                // still-unverified account is untrusted (it may have been planted by someone
+                // who pre-registered the email), so invalidate it before flipping the account
+                // to verified — only the Google owner keeps access. A new password can be set
+                // later via reset. When verification is not enforced we leave the password as-is.
+                if (authSessionService.requiresVerifiedEmail()
+                        && user.getPasswordHash() != null && !user.getPasswordHash().isBlank()) {
+                    user.setPasswordHash(null);
+                    authSecurityEventService.log("GOOGLE_LINK", "ALLOW", user.getId(), email,
+                        "Cleared unverified password while linking Google account", httpRequest);
+                }
                 user.setEmailVerified(true);
                 changed = true;
             }

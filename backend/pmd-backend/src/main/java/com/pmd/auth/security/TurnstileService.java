@@ -1,10 +1,12 @@
 package com.pmd.auth.security;
 
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -27,7 +29,12 @@ public class TurnstileService {
 
     public TurnstileService(@Value("${pmd.turnstile.secret:}") String secret) {
         this.secret = secret == null ? "" : secret.trim();
-        this.restClient = RestClient.create();
+        // Bound the outbound siteverify call so a slow/hung Cloudflare response can
+        // never tie up an auth request thread indefinitely.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(5));
+        this.restClient = RestClient.builder().requestFactory(factory).build();
         if (this.secret.isEmpty()) {
             logger.info("Turnstile verification disabled (no pmd.turnstile.secret configured).");
         }

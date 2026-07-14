@@ -38,9 +38,16 @@ function loadTurnstileScript(): Promise<void> {
 /**
  * Renders a Cloudflare Turnstile widget and reports its token via onToken
  * (empty string when the token expires or errors). Renders nothing when no
- * site key is configured.
+ * site key is configured. Turnstile tokens are single-use, so bump `resetSignal`
+ * after a failed submit to force a fresh challenge for the next attempt.
  */
-export function TurnstileWidget({ onToken }: { onToken: (token: string) => void }) {
+export function TurnstileWidget({
+  onToken,
+  resetSignal = 0,
+}: {
+  onToken: (token: string) => void
+  resetSignal?: number
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetIdRef = useRef<string | null>(null)
   const onTokenRef = useRef(onToken)
@@ -78,6 +85,23 @@ export function TurnstileWidget({ onToken }: { onToken: (token: string) => void 
       }
     }
   }, [])
+
+  // A consumed (single-use) token must be discarded and re-challenged before a retry.
+  const skipFirstResetRef = useRef(true)
+  useEffect(() => {
+    if (skipFirstResetRef.current) {
+      skipFirstResetRef.current = false
+      return
+    }
+    if (widgetIdRef.current && window.turnstile) {
+      try {
+        window.turnstile.reset(widgetIdRef.current)
+        onTokenRef.current('')
+      } catch {
+        // Widget not ready; nothing to reset.
+      }
+    }
+  }, [resetSignal])
 
   if (!isTurnstileEnabled) {
     return null

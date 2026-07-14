@@ -30,6 +30,7 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileNonce, setTurnstileNonce] = useState(0)
   const { showToast } = useToast()
 
   useEffect(() => {
@@ -37,6 +38,11 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
       return
     }
     showToast({ type: 'error', message: error })
+    // A failed attempt consumes the single-use Turnstile token; re-challenge for the retry.
+    if (isTurnstileEnabled) {
+      setTurnstileToken('')
+      setTurnstileNonce((nonce) => nonce + 1)
+    }
   }, [error, showToast])
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
@@ -147,7 +153,7 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
         </div>
         {isTurnstileEnabled ? (
           <div className="auth-turnstile">
-            <TurnstileWidget onToken={setTurnstileToken} />
+            <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />
           </div>
         ) : null}
         <button type="submit" className="btn btn-primary full-width" disabled={loading}>
