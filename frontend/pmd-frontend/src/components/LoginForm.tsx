@@ -31,7 +31,11 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
   const [showPassword, setShowPassword] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileNonce, setTurnstileNonce] = useState(0)
+  const [passwordTouched, setPasswordTouched] = useState(false)
   const { showToast } = useToast()
+
+  // Keep the bot-check out of the way until the user actually starts logging in.
+  const showTurnstile = isTurnstileEnabled && (passwordTouched || form.password.length > 0)
 
   useEffect(() => {
     if (!error) {
@@ -57,6 +61,7 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault()
     setFieldErrors({})
+    setPasswordTouched(true)
 
     const errors: Record<string, string> = {}
     if (!form.username.trim()) {
@@ -129,6 +134,7 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
                 type={showPassword ? 'text' : 'password'}
                 value={form.password}
                 onChange={handleChange}
+                onFocus={() => setPasswordTouched(true)}
                 required
               />
               <button
@@ -154,8 +160,8 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
             Stay signed in
           </label>
         </div>
-        {isTurnstileEnabled ? (
-          <div className="auth-turnstile">
+        {showTurnstile ? (
+          <div className="auth-turnstile auth-reveal">
             <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />
           </div>
         ) : null}
@@ -166,7 +172,10 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
           <>
             <div className="auth-divider"><span>or</span></div>
             <div className="auth-google">
-              <GoogleSignInButton onCredential={(credential) => onGoogleLogin(credential, Boolean(form.remember))} />
+              <GoogleSignInButton
+                label="Sign in with Google"
+                onCredential={(credential) => onGoogleLogin(credential, Boolean(form.remember))}
+              />
             </div>
           </>
         ) : null}
