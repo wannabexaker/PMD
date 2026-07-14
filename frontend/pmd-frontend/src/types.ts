@@ -113,6 +113,7 @@ export type LoginPayload = {
   username: string
   password: string
   remember?: boolean
+  turnstileToken?: string
 }
 
 export type RegisterPayload = {
@@ -122,6 +123,7 @@ export type RegisterPayload = {
   firstName: string
   lastName: string
   bio?: string
+  turnstileToken?: string
 }
 
 export type UpdateProfilePayload = {

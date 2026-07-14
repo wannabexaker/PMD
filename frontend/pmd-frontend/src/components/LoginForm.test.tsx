@@ -36,6 +36,7 @@ describe('LoginForm', () => {
       username: 'user@example.com',
       password: 'secret',
       remember: false,
+      turnstileToken: '',
     })
   })
 })

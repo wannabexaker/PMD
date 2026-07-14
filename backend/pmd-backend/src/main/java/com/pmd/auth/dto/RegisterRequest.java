@@ -32,6 +32,8 @@ public class RegisterRequest {
     @Size(max = 256)
     private String bio;
 
+    private String turnstileToken;
+
     public RegisterRequest() {
     }
 
@@ -109,5 +111,13 @@ public class RegisterRequest {
 
     public void setBio(String bio) {
         this.bio = bio;
+    }
+
+    public String getTurnstileToken() {
+        return turnstileToken;
+    }
+
+    public void setTurnstileToken(String turnstileToken) {
+        this.turnstileToken = turnstileToken;
     }
 }

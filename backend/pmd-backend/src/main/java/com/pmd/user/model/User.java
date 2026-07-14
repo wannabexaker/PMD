@@ -39,6 +39,9 @@ public class User {
 
     private String avatarUrl;
 
+    /** Google account subject id, set for users who signed in with Google. */
+    private String googleId;
+
     private boolean emailVerified;
 
     private boolean mustChangePassword;
@@ -180,6 +183,14 @@ public class User {
 
     public void setAvatarUrl(String avatarUrl) {
         this.avatarUrl = avatarUrl;
+    }
+
+    public String getGoogleId() {
+        return googleId;
+    }
+
+    public void setGoogleId(String googleId) {
+        this.googleId = googleId;
     }
 
     public boolean isEmailVerified() {

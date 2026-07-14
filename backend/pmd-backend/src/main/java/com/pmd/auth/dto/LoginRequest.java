@@ -12,6 +12,8 @@ public class LoginRequest {
 
     private Boolean remember;
 
+    private String turnstileToken;
+
     public LoginRequest() {
     }
 
@@ -43,5 +45,13 @@ public class LoginRequest {
 
     public void setRemember(Boolean remember) {
         this.remember = remember;
+    }
+
+    public String getTurnstileToken() {
+        return turnstileToken;
+    }
+
+    public void setTurnstileToken(String turnstileToken) {
+        this.turnstileToken = turnstileToken;
     }
 }
