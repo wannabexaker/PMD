@@ -434,10 +434,14 @@ public class WorkspaceService {
 
     public WorkspaceRole createRole(String workspaceId, String name, WorkspaceRolePermissions permissions,
                                     WorkspaceRoleBadge badge, User requester) {
-        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
+        WorkspaceMember requesterMember = requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
         String trimmed = name != null ? name.trim() : "";
         if (trimmed.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role name is required");
+        }
+        // Privilege ceiling: a non-admin cannot create a role that grants a permission they lack.
+        if (!requester.isAdmin() && permissions != null) {
+            requireWithinCallerPrivileges(resolveMemberPermissions(workspaceId, requesterMember), permissions);
         }
         long customRoles = workspaceRoleRepository.findByWorkspaceIdAndIsSystem(workspaceId, false).size();
         if (customRoles >= MAX_CUSTOM_ROLES_PER_WORKSPACE) {
@@ -468,7 +472,7 @@ public class WorkspaceService {
 
     public WorkspaceRole updateRole(String workspaceId, String roleId, String name,
                                     WorkspaceRolePermissions permissions, WorkspaceRoleBadge badge, User requester) {
-        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
+        WorkspaceMember requesterMember = requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
         WorkspaceRole role = workspaceRoleRepository.findById(roleId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
         if (!workspaceId.equals(role.getWorkspaceId())) {
@@ -488,6 +492,15 @@ public class WorkspaceService {
             effectiveName = trimmed;
         }
         if (permissions != null) {
+            if (!requester.isAdmin()) {
+                // Built-in roles keep their permissions: editing them could escalate every member
+                // holding that role or strip control away from owners.
+                if (role.isSystem()) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Built-in role permissions cannot be changed");
+                }
+                // Privilege ceiling: cannot grant a role a permission the editor does not hold.
+                requireWithinCallerPrivileges(resolveMemberPermissions(workspaceId, requesterMember), permissions);
+            }
             role.setPermissions(permissions);
         }
         if (badge != null || role.getBadge() == null) {
@@ -498,11 +511,15 @@ public class WorkspaceService {
     }
 
     public WorkspaceMember assignMemberRole(String workspaceId, String userId, String roleId, User requester) {
-        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
+        WorkspaceMember requesterMember = requireWorkspacePermission(requester, workspaceId, WorkspacePermission.MANAGE_ROLES);
         WorkspaceRole role = workspaceRoleRepository.findById(roleId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
         if (!workspaceId.equals(role.getWorkspaceId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found");
+        }
+        // Privilege ceiling: a non-admin cannot grant a role more privileged than their own.
+        if (!requester.isAdmin()) {
+            requireWithinCallerPrivileges(resolveMemberPermissions(workspaceId, requesterMember), role.getPermissions());
         }
         WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
@@ -801,6 +818,25 @@ public class WorkspaceService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed");
         }
         return member;
+    }
+
+    /**
+     * Privilege ceiling: every permission enabled in {@code target} must also be held by
+     * {@code callerPermissions}. Prevents a delegate with MANAGE_ROLES from creating, editing,
+     * or assigning a role more powerful than their own (e.g. self-escalating to owner). Global
+     * admins are checked by the caller and bypass this.
+     */
+    private void requireWithinCallerPrivileges(WorkspaceRolePermissions callerPermissions,
+                                               WorkspaceRolePermissions target) {
+        if (target == null) {
+            return;
+        }
+        WorkspaceRolePermissions caller = callerPermissions != null ? callerPermissions : new WorkspaceRolePermissions();
+        for (WorkspacePermission permission : WorkspacePermission.values()) {
+            if (target.allows(permission) && !caller.allows(permission)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot grant a permission you do not have");
+            }
+        }
     }
 
     public WorkspaceRolePermissions resolveMemberPermissions(String workspaceId, WorkspaceMember member) {
