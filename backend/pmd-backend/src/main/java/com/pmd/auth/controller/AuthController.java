@@ -299,7 +299,17 @@ public class AuthController {
         User user = userService.findById(principal.getId());
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
-        user.setEmail(request.getEmail());
+        String newEmail = normalizeEmail(request.getEmail());
+        if (!newEmail.isBlank() && !newEmail.equals(normalizeEmail(user.getEmail()))) {
+            // Changing the contact email: reject collisions with another account's login identity and
+            // require the new address to be re-verified before it counts as confirmed.
+            User emailOwner = userService.findByUsernameOrNull(newEmail);
+            if (emailOwner != null && !emailOwner.getId().equals(user.getId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
+            }
+            user.setEmail(newEmail);
+            user.setEmailVerified(false);
+        }
         if (request.getTeamId() != null || request.getTeam() != null) {
             user.setTeamId(request.getTeamId());
             user.setTeam(request.getTeam());

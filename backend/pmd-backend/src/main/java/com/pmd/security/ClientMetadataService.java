@@ -30,14 +30,19 @@ public class ClientMetadataService {
             return null;
         }
         if (trustProxyHeaders) {
-            String forwardedFor = request.getHeader("X-Forwarded-For");
-            if (forwardedFor != null && !forwardedFor.isBlank()) {
-                return trim(forwardedFor.split(",")[0].trim(), 120);
+            // Cloudflare sets CF-Connecting-IP to the real client IP at its edge and overwrites any
+            // client-supplied value, so behind the tunnel it cannot be spoofed. Prefer it.
+            String cfConnectingIp = request.getHeader("CF-Connecting-IP");
+            if (cfConnectingIp != null && !cfConnectingIp.isBlank()) {
+                return trim(cfConnectingIp.trim(), 120);
             }
+            // X-Real-IP is set by the immediate reverse proxy (e.g. nginx) from the connection peer.
             String realIp = request.getHeader("X-Real-IP");
             if (realIp != null && !realIp.isBlank()) {
                 return trim(realIp.trim(), 120);
             }
+            // The leftmost X-Forwarded-For entry is client-supplied and spoofable, so it is
+            // deliberately NOT trusted here for rate-limiting / audit IPs.
         }
         return trim(request.getRemoteAddr(), 120);
     }
