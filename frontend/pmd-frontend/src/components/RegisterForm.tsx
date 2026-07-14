@@ -3,9 +3,13 @@ import { Logo } from './Logo'
 import type { RegisterPayload, RegisterResponse } from '../types'
 import { useToast } from '../shared/ui/toast/ToastProvider'
 import { getAuthNotification } from '../auth/authNotificationMatrix'
+import { GoogleSignInButton } from './auth/GoogleSignInButton'
+import { TurnstileWidget } from './auth/TurnstileWidget'
+import { isGoogleEnabled, isTurnstileEnabled } from '../lib/authProviders'
 
 type RegisterFormProps = {
   onRegister: (payload: RegisterPayload) => Promise<RegisterResponse>
+  onGoogleLogin?: (credential: string, remember: boolean) => Promise<void>
   loading: boolean
   onSwitchToLogin: () => void
 }
@@ -34,8 +38,9 @@ const COMMON_PASSWORDS = new Set([
   '000000',
 ])
 
-export function RegisterForm({ onRegister, loading, onSwitchToLogin }: RegisterFormProps) {
+export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLogin }: RegisterFormProps) {
   const { showToast } = useToast()
+  const [turnstileToken, setTurnstileToken] = useState('')
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
     password: '',
@@ -127,6 +132,10 @@ export function RegisterForm({ onRegister, loading, onSwitchToLogin }: RegisterF
       showToast({ type: 'error', message: getAuthNotification('register_form_invalid').message })
       return
     }
+    if (isTurnstileEnabled && !turnstileToken) {
+      showToast({ type: 'error', message: 'Please complete the verification below.' })
+      return
+    }
 
     try {
       const result = await onRegister({
@@ -136,6 +145,7 @@ export function RegisterForm({ onRegister, loading, onSwitchToLogin }: RegisterF
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         bio: form.bio?.trim() || '',
+        turnstileToken,
       })
       if (!result.accountCreated) {
         throw new Error(result.message || 'Registration failed')
@@ -314,9 +324,22 @@ export function RegisterForm({ onRegister, loading, onSwitchToLogin }: RegisterF
             </div>
           </div>
           <div className="form-field form-span-2">
+            {isTurnstileEnabled ? (
+              <div className="auth-turnstile">
+                <TurnstileWidget onToken={setTurnstileToken} />
+              </div>
+            ) : null}
             <button type="submit" className="btn btn-primary full-width" disabled={loading}>
               {loading ? 'Creating...' : 'Create account'}
             </button>
+            {isGoogleEnabled && onGoogleLogin ? (
+              <>
+                <div className="auth-divider"><span>or</span></div>
+                <div className="auth-google">
+                  <GoogleSignInButton onCredential={(credential) => onGoogleLogin(credential, true)} />
+                </div>
+              </>
+            ) : null}
           </div>
         </form>
       )}

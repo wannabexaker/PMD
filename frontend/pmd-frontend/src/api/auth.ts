@@ -13,10 +13,26 @@ import type {
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
   const response = await requestJson<AuthResponse>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username: payload.username, password: payload.password, remember: Boolean(payload.remember) }),
+    body: JSON.stringify({
+      username: payload.username,
+      password: payload.password,
+      remember: Boolean(payload.remember),
+      turnstileToken: payload.turnstileToken,
+    }),
   })
   if (response?.token) {
     setAuthToken(response.token, Boolean(payload.remember))
+  }
+  return response
+}
+
+export async function googleLogin(credential: string, remember: boolean): Promise<AuthResponse> {
+  const response = await requestJson<AuthResponse>('/api/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential, remember: Boolean(remember) }),
+  })
+  if (response?.token) {
+    setAuthToken(response.token, Boolean(remember))
   }
   return response
 }
@@ -64,6 +80,7 @@ export async function register(payload: RegisterPayload): Promise<RegisterRespon
       firstName: payload.firstName,
       lastName: payload.lastName,
       bio: payload.bio || '',
+      turnstileToken: payload.turnstileToken,
     }),
   })
 }

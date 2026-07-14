@@ -3,9 +3,13 @@ import { Logo } from './Logo'
 import type { LoginPayload } from '../types'
 import { useToast } from '../shared/ui/toast/ToastProvider'
 import { getAuthNotification } from '../auth/authNotificationMatrix'
+import { GoogleSignInButton } from './auth/GoogleSignInButton'
+import { TurnstileWidget } from './auth/TurnstileWidget'
+import { isGoogleEnabled, isTurnstileEnabled } from '../lib/authProviders'
 
 type LoginFormProps = {
   onLogin: (payload: LoginPayload) => Promise<void>
+  onGoogleLogin?: (credential: string, remember: boolean) => Promise<void>
   error: string | null
   loading: boolean
   onSwitchToRegister: () => void
@@ -21,10 +25,11 @@ function getSavedEmail() {
   }
 }
 
-export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: LoginFormProps) {
+export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRegister }: LoginFormProps) {
   const [form, setForm] = useState<LoginPayload>(() => ({ username: getSavedEmail(), password: '', remember: false }))
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState('')
   const { showToast } = useToast()
 
   useEffect(() => {
@@ -64,8 +69,12 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
       showToast({ type: 'error', message: getAuthNotification('login_form_invalid').message })
       return
     }
+    if (isTurnstileEnabled && !turnstileToken) {
+      showToast({ type: 'error', message: 'Please complete the verification below.' })
+      return
+    }
 
-    await onLogin({ username: form.username.trim(), password: form.password, remember: form.remember })
+    await onLogin({ username: form.username.trim(), password: form.password, remember: form.remember, turnstileToken })
   }
 
   return (
@@ -136,9 +145,22 @@ export function LoginForm({ onLogin, error, loading, onSwitchToRegister }: Login
             Stay signed in
           </label>
         </div>
+        {isTurnstileEnabled ? (
+          <div className="auth-turnstile">
+            <TurnstileWidget onToken={setTurnstileToken} />
+          </div>
+        ) : null}
         <button type="submit" className="btn btn-primary full-width" disabled={loading}>
           {loading ? 'Signing in...' : 'Login'}
         </button>
+        {isGoogleEnabled && onGoogleLogin ? (
+          <>
+            <div className="auth-divider"><span>or</span></div>
+            <div className="auth-google">
+              <GoogleSignInButton onCredential={(credential) => onGoogleLogin(credential, Boolean(form.remember))} />
+            </div>
+          </>
+        ) : null}
       </form>
     </section>
   )

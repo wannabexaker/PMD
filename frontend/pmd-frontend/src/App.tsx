@@ -4,7 +4,7 @@ import { AuthProvider } from './auth/AuthContext'
 import type { LoginPayload, Project, RegisterPayload, RegisterResponse, User, UserSummary } from './types'
 import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
-import { fetchMe, login, logoutSession, refreshSession, register } from './api/auth'
+import { fetchMe, googleLogin, login, logoutSession, refreshSession, register } from './api/auth'
 import { API_BASE_URL, getAuthToken, isApiError } from './api/http'
 import { LoginForm } from './components/LoginForm'
 // Route-level code splitting: the heavy authed pages load on demand so the
@@ -695,6 +695,34 @@ function AppView({
         }
       } else {
         setAuthError(err instanceof Error ? err.message : 'Login failed')
+      }
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const handleGoogleLogin = async (credential: string, remember: boolean) => {
+    setAuthError(null)
+    try {
+      setAuthLoading(true)
+      const response = await googleLogin(credential, remember)
+      setCurrentUser(response.user ?? null)
+      setDashboardSelectedProjectIdState(null)
+      setAssignSelectedProjectIdState(null)
+      clearUiSelections()
+      navigate(landingPath)
+    } catch (err) {
+      if (isApiError(err)) {
+        if (err.status === 0) {
+          const base = getAuthNotification('login_network_error').message
+          setAuthError(`${base} (${API_BASE_URL}).`)
+        } else if (err.status >= 500) {
+          setAuthError(getAuthNotification('login_server_error').message)
+        } else {
+          setAuthError(err.message || 'Google sign-in failed')
+        }
+      } else {
+        setAuthError(err instanceof Error ? err.message : 'Google sign-in failed')
       }
     } finally {
       setAuthLoading(false)
@@ -1399,6 +1427,7 @@ function AppView({
               ) : (
                 <LoginForm
                   onLogin={handleLogin}
+                  onGoogleLogin={handleGoogleLogin}
                   error={authError}
                   loading={authLoading}
                   onSwitchToRegister={() => navigate('/register')}
@@ -1414,6 +1443,7 @@ function AppView({
               ) : (
                 <RegisterForm
                   onRegister={handleRegister}
+                  onGoogleLogin={handleGoogleLogin}
                   loading={authLoading}
                   onSwitchToLogin={() => navigate('/login')}
                 />

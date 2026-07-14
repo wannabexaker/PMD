@@ -173,8 +173,8 @@ public class AuthController {
     @ResponseStatus(HttpStatus.OK)
     public LoginResponse google(@Valid @RequestBody GoogleLoginRequest request,
                                 HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        String clientIp = clientMetadataService.resolveClientIp(httpRequest);
-        turnstileService.verifyOrThrow(request.getTurnstileToken(), clientIp);
+        // No Turnstile here: obtaining a valid Google ID token already requires a
+        // real Google account and Google's own bot defenses.
         GoogleTokenVerifier.GoogleUser googleUser = googleTokenVerifier.verify(request.getCredential());
         String email = normalizeEmail(googleUser.email());
 
