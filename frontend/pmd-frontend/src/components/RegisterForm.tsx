@@ -43,6 +43,9 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileNonce, setTurnstileNonce] = useState(0)
   const [passwordTouched, setPasswordTouched] = useState(false)
+  // Acceptance of the terms — deliberately not GDPR consent: the account runs on the
+  // contract basis, so ticking this must never become the thing that legitimises processing.
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
     password: '',
@@ -136,6 +139,10 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
       setConfirmTouched(true)
       setFieldErrors(errors)
       showToast({ type: 'error', message: getAuthNotification('register_form_invalid').message })
+      return
+    }
+    if (!acceptedTerms) {
+      showToast({ type: 'error', message: 'Please accept the Terms of Use and Privacy Policy to continue.' })
       return
     }
     if (isTurnstileEnabled && !turnstileToken) {
@@ -338,6 +345,26 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
             </div>
           </div>
           <div className="form-field form-span-2">
+            {/* Opens in a new tab on purpose: reading the terms must not discard a half-filled form. */}
+            <label className="auth-consent">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(event) => setAcceptedTerms(event.target.checked)}
+                required
+              />
+              <span>
+                I have read and accept the{' '}
+                <a href="/terms" target="_blank" rel="noreferrer">
+                  Terms of Use
+                </a>{' '}
+                and the{' '}
+                <a href="/privacy" target="_blank" rel="noreferrer">
+                  Privacy Policy
+                </a>
+                .
+              </span>
+            </label>
             {showTurnstile ? (
               <div className="auth-turnstile auth-reveal">
                 <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />

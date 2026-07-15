@@ -5,10 +5,12 @@
  *   workspace-settings - workspace management, settings grid/panels, assign picker
  *   auth               - login/register cards and adjacent form styles
  *   dashboard          - dashboard, workspace summary, charts, comments, mentions, toast
+ *   legal              - privacy/terms pages rendered from Markdown
  *   responsive         - mobile + tablet UX hardening (must stay last)
  */
 @import './styles/base.css';
 @import './styles/workspace-settings.css';
 @import './styles/auth.css';
 @import './styles/dashboard.css';
+@import './styles/legal.css';
 @import './styles/responsive.css';

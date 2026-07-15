@@ -1213,3 +1213,35 @@ p.muted {
   }
 }
 
+
+/* Terms acceptance. A checkbox, not a styled div: the native control keeps keyboard
+   and screen-reader behaviour, and the browser's own required-validation blocks submit. */
+.auth-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.auth-consent input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.auth-consent a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-consent a:hover {
+  text-decoration-thickness: 2px;
+}

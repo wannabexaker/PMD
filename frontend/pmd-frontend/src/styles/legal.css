@@ -1,0 +1,144 @@
+/* Privacy policy and terms of use.
+   The body is rendered from Markdown by react-markdown, so the element names below are
+   whatever the Markdown produces — there are no class hooks to hang styles on. Everything
+   is scoped under .legal-body to keep these bare-tag rules away from the rest of the app. */
+
+.legal-page {
+  min-height: 100vh;
+  padding: 32px 20px 64px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.legal-container {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.legal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* The surrounding .panel already supplies the card (surface, border, shadow), so this
+   only sets the reading typography. Legal text is read, not skimmed: looser leading
+   than the app UI. */
+.legal-body {
+  line-height: 1.7;
+  overflow-wrap: break-word;
+}
+
+.legal-body > :first-child {
+  margin-top: 0;
+}
+
+.legal-body > :last-child {
+  margin-bottom: 0;
+}
+
+.legal-body h1,
+.legal-body h2,
+.legal-body h3 {
+  margin: 1.8em 0 0.6em;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.legal-body h1 {
+  font-size: 1.7rem;
+}
+
+.legal-body h2 {
+  font-size: 1.25rem;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--border);
+}
+
+.legal-body h3 {
+  font-size: 1.05rem;
+}
+
+.legal-body p,
+.legal-body li {
+  color: var(--text);
+}
+
+.legal-body ul,
+.legal-body ol {
+  padding-left: 1.4em;
+}
+
+.legal-body li {
+  margin: 0.35em 0;
+}
+
+.legal-body a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.legal-body strong {
+  color: var(--text);
+}
+
+.legal-body hr {
+  margin: 2em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.legal-body blockquote {
+  margin: 1.2em 0;
+  padding: 0.6em 1em;
+  border-left: 3px solid var(--primary);
+  background: var(--surface2);
+  color: var(--muted);
+}
+
+.legal-body code {
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  background: var(--surface2);
+  font-size: 0.9em;
+}
+
+/* Tables come from remark-gfm. They must scroll on their own rather than
+   forcing the page to scroll sideways on a phone. */
+.legal-table-wrap {
+  overflow-x: auto;
+  margin: 1.2em 0;
+}
+
+.legal-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.legal-body th,
+.legal-body td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-body th {
+  background: var(--surface2);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .legal-page {
+    padding: 20px 12px 48px;
+  }
+
+  .legal-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

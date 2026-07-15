@@ -15,6 +15,9 @@ const AssignPage = lazy(() => import('./components/AssignPage').then((m) => ({ d
 const PeoplePage = lazy(() => import('./components/PeoplePage').then((m) => ({ default: m.PeoplePage })))
 const AdminPanel = lazy(() => import('./components/AdminPanel').then((m) => ({ default: m.AdminPanel })))
 const ConfirmEmailPage = lazy(() => import('./components/ConfirmEmailPage').then((m) => ({ default: m.ConfirmEmailPage })))
+// Split out: these carry the full legal texts, which nobody should pay for on first load.
+const PrivacyPage = lazy(() => import('./components/legal/PrivacyPage').then((m) => ({ default: m.PrivacyPage })))
+const TermsPage = lazy(() => import('./components/legal/TermsPage').then((m) => ({ default: m.TermsPage })))
 const RegisterForm = lazy(() => import('./components/RegisterForm').then((m) => ({ default: m.RegisterForm })))
 const ProfilePanel = lazy(() => import('./components/ProfilePanel').then((m) => ({ default: m.ProfilePanel })))
 const SettingsPage = lazy(() => import('./components/SettingsPage').then((m) => ({ default: m.SettingsPage })))
@@ -1453,6 +1456,9 @@ function AppView({
             }
           />
           <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+          {/* Public: a privacy notice behind a login would not be a notice. */}
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="*" element={<Navigate to={isAuthed ? preferredAuthedRoute : '/login'} replace />} />
         </Routes>
         </Suspense>
