@@ -29,11 +29,18 @@ The short version:
 - Your full IP address is never written to the database. It is reduced before storage.
 - Your workspaces are separate. People who are not in your workspace cannot see what is
   in it, and cannot browse your details.
+- **The one exception is the operator.** He holds a platform administrator account and can
+  enter any workspace, with the same powers as its owner, in order to run the service. If he
+  enters a workspace he is not a member of, **that is recorded in that workspace's own audit
+  log, where its members can read it.** Section 9 explains exactly what that record does and
+  does not show.
 - The database is not on a cloud provider. It is on a Raspberry Pi in the developer's
   home in Greece.
 - Avatar images are served from a public URL. Anyone with the link can open one, without
-  signing in — and the image file is not deleted when you delete your account. See
-  section 8.
+  signing in — but the file is deleted when you delete your account, and when you replace
+  it. See section 8.
+- If you put other people's personal data into PMD, that is your decision and your
+  responsibility, not the operator's. See section 15.1.
 - You can export everything PMD holds about you, and delete your account, from the app.
 - Your data is not sold, rented, or shared for anyone else's marketing.
 
@@ -71,7 +78,8 @@ or Cloudflare do with data you give them directly in their own contexts (see sec
 **What:** your email address (which is also your login identity), a BCrypt hash of your
 password, your first and last name, display name, avatar image, free-text bio, the team
 and workspaces you belong to, whether your email is verified, whether you are an admin,
-your account creation date, and a list of user ids who have recommended you.
+your account creation date, a list of user ids who have recommended you, and **the moment
+you accepted the Terms of Use together with the version you accepted**.
 
 Your password itself is not stored — only a BCrypt hash of it, which cannot practically
 be turned back into the password.
@@ -81,6 +89,32 @@ service.
 
 **Legal basis:** performance of a contract (Article 6(1)(b) GDPR). You asked for an
 account; PMD cannot provide one without this data.
+
+#### The acceptance record
+
+You cannot create an account without accepting the [Terms of Use](./terms-of-use.md) — the
+server refuses to create one otherwise. Two values are then stored on your account: **when**
+you accepted, and **which version** you accepted. The reason is narrow: if it is ever
+disputed whether you agreed, the answer should be able to say *what* you agreed to, rather
+than merely "yes".
+
+That is all it is — two fields on your record. There is no history of earlier acceptances,
+no separate log, and it is not currently shown to you anywhere in the app.
+
+**Legal basis:** performance of a contract (Article 6(1)(b)) for the acceptance itself, and
+legitimate interests (Article 6(1)(f)) for keeping evidence of it. **The balancing:** the
+interest is being able to show which terms an account holder was actually given — which is
+equally the interest of anyone who ever wants to challenge them. It is two fields; it
+describes something you did deliberately rather than anything observed about you; and it is
+used for nothing else. To be precise about what this is **not**: it records **contractual
+acceptance, not GDPR consent** — see section 4.9.
+
+**Kept for:** as long as the account exists. It is deleted with the account (section 14.2).
+
+**If your account was created before 15 July 2026, nothing is recorded against it.** PMD
+only began enforcing and recording this on that date, and nothing has been filled in
+backwards. A blank means **unrecorded — not refused.** It is not evidence that anybody
+declined anything.
 
 ### 4.2 Sign in with Google (optional)
 
@@ -110,7 +144,13 @@ This content is visible to the other members of the workspace it lives in — se
 
 **What:** each workspace can hold a directory of people, with a display name and an email
 address, scoped to that workspace. Most of these entries are the fictional sample records
-described in section 10. Others can be created by an administrator.
+described in section 10.
+
+**Who can create one:** only the **platform administrator** (section 9) — that is, the
+operator. A workspace's own owner or administrator **cannot** create, edit or delete a
+directory entry; the code refuses them. Every member of the workspace can read the
+directory. So unlike everything else in section 15.1, a real directory entry about a real
+person is the operator's own doing, and his responsibility.
 
 **Why:** so a workspace can refer to people in projects and assignments.
 
@@ -160,21 +200,30 @@ you can object — see section 14.
 
 **What:** for actions inside a workspace — who did it (actor user id and name), who it was
 done to (target user id), the action, its category, the outcome, and the relevant
-workspace, team, role and project ids.
+workspace, team, role and project ids. It also records **entry into the workspace by a
+platform administrator who is not a member** (section 9).
 
-**Why:** so a workspace owner can see who changed roles, removed members, or altered
-projects. Shared workspaces need accountability, otherwise changes are untraceable.
+Each entry carries a hash of the previous one, forming a chain, so that an entry cannot be
+removed or altered afterwards without the break becoming visible. That protects the record
+against everyone, including the operator.
+
+**Why:** so a workspace's own people can see who changed roles, removed members, altered
+projects — or let themselves in. Shared workspaces need accountability, otherwise changes
+are untraceable.
 
 **Legal basis:** legitimate interests (Article 6(1)(f)).
 
 **The balancing:** the interest is accountability inside a shared workspace. It is
 necessary because a shared workspace without a record of administrative actions cannot be
-governed by its owner. It is limited to administrative and membership actions with a
-365-day life; it contains no content, no IP addresses and no browsing behaviour; and it is
-visible to that workspace's administrators, not to the public and not to other workspaces.
-Someone joining a shared workspace would reasonably expect their administrative actions
-there to be recorded. On that basis the developer's view is that this processing does not
-override your interests or rights. You can object — see section 14.
+governed by its owner, and because an operator who can enter any workspace should not be
+able to do so unseen. It is limited to administrative, membership and access events with a
+365-day life; it contains no content and no IP addresses, and it records that an action
+happened rather than what anyone read. It is visible **inside that workspace only** — never
+to the public, never to another workspace. By default every member of the workspace can read
+it, though a workspace can change that through its own role permissions. Someone joining a
+shared workspace would reasonably expect their administrative actions there to be recorded.
+On that basis the developer's view is that this processing does not override your interests
+or rights. You can object — see section 14.
 
 ### 4.7 Anti-bot check (Cloudflare Turnstile)
 
@@ -217,13 +266,15 @@ account you asked for, or a security measure justified under legitimate interest
 cookies PMD sets are strictly necessary for signing in, so they do not require consent.
 
 **One point worth being precise about.** When you register, you tick a box to accept the
-[Terms of Use](./terms-of-use.md) and to confirm you have read this policy. That tick is
-**contractual acceptance of the terms. It is not GDPR consent**, and PMD does not treat it
-as consent. The legal basis for running your account is the contract itself (Article
-6(1)(b)), not that checkbox. The distinction matters in both directions: it means the
-processing described above does not hang on a permission you might later withdraw, and it
-means PMD cannot point at that checkbox to justify anything beyond what is written in this
-policy.
+[Terms of Use](./terms-of-use.md) and to confirm you have read this policy. The server will
+not create an account without it, and it records when you ticked and which version you were
+shown (section 4.1). That tick is **contractual acceptance of the terms. It is not GDPR
+consent**, and PMD does not treat it as consent. The legal basis for running your account is
+the contract itself (Article 6(1)(b)), not that checkbox. The distinction matters in both
+directions: it means the processing described above does not hang on a permission you might
+later withdraw, and it means PMD cannot point at that checkbox to justify anything beyond
+what is written in this policy — recording your acceptance does not turn it into consent for
+anything, and it is not treated as any kind of permission slip.
 
 If PMD ever adds something that genuinely needs consent — marketing email, optional
 analytics, anything non-essential — it will ask you separately and plainly, and you will
@@ -317,18 +368,19 @@ the images are not listed or indexed anywhere. But the protection is the secrecy
 URL, not a permission check. If a URL leaks — if you paste it somewhere, or it ends up in
 a browser history or a proxy log — the image is reachable by whoever has it.
 
-**And the part that matters most:** the image file is **not deleted when you delete your
-account**, and it is not deleted when you replace your avatar with a different one. The
-file stays on the disk, at the same public URL. Deleting your account removes the record
-that says the photo is yours, but it does not remove the photo.
+**The image file itself is deleted when you delete your account, and when you replace it.**
+Not just the record pointing at it — the file. When you upload a new photo, the old one is
+removed from the disk; when you erase your account, your photo goes with it.
 
-This is a known gap. It is written down here rather than glossed over, it is tracked as a
-blocker in PMD's own repository, and it is being fixed. Until it is:
+There is one exception, and it exists to protect other people rather than to keep your data:
+if another account or workspace happens to point at the very same file, it is kept, because
+deleting it would blank out someone else's page.
 
-**Treat your avatar as a permanently public photo. Do not upload an image you would not be
-comfortable with a stranger seeing, or one you might later want recalled.** If you have
-already uploaded one and want the file removed from the disk, email the address in section
-2 and it will be deleted by hand.
+**What this does not undo.** If a URL leaked while the image was still live — you pasted it
+somewhere, or it reached a browser history, a proxy log or someone's saved copy — deleting
+the file does not reach any of that. So the advice stands, more mildly than before: **do not
+upload an avatar you would not be comfortable with a stranger seeing.** PMD can stop serving
+a photo; it cannot un-see one.
 
 Only JPEG, PNG and WebP files up to 2 MB are accepted, and the actual file bytes are
 checked, not just the filename.
@@ -353,12 +405,56 @@ This was checked in a security review of every endpoint, which found no way to r
 workspace boundaries.
 
 **The one exception, stated plainly:** PMD has a **platform administrator** role, held by
-the operator. A platform administrator can enter any workspace with owner-level
-permissions, in order to run the service — investigate a fault, deal with abuse, or recover
-a broken workspace. Today the only platform administrator is the developer named in section
-2. This is not a back door hidden from you; it is the ordinary reality of a hosted service
-having an operator, and this policy is not going to pretend otherwise. That access is not
-used to read your project content for any other purpose.
+the operator. When a platform administrator opens a workspace, the code treats him as
+holding that workspace's **owner** role — so he can read and change anything in it,
+including your project content. Today the only platform administrator is the developer
+named in section 2. This is not a back door hidden from you; it is the ordinary reality of
+a hosted service having an operator, and this policy is not going to pretend otherwise.
+
+**What that access is for, specifically.** Four things, and nothing else: to investigate a
+fault or a bug report; to deal with abuse, a security problem or a report about content; to
+recover or repair a broken workspace; and to comply with a legal obligation. It is not used
+to read your project content for any other purpose — not for analytics, not to train
+anything, not out of curiosity.
+
+**It is recorded, in your log rather than his.** When a platform administrator enters a
+workspace he is **not** a member of, PMD writes an entry into **that workspace's own audit
+log** (section 4.6) — the same log its members read, not a private operator-only store. The
+entry is marked `PLATFORM_ADMIN_ACCESS`, in the `SECURITY` category. So the claim in this
+section is not one you have to take on trust: you can go and look.
+
+The log is **hash-chained**: each entry carries a fingerprint of the one before it, so
+removing or altering an entry breaks the chain from that point onward and the tampering
+shows. That is what makes it evidence rather than decoration — including evidence against
+the operator, which is the point.
+
+**What the record does not tell you.** Read this part, because a half-described safeguard is
+worse than none:
+
+- **It shows presence, not reading.** Entries collapse to **one per administrator, per
+  workspace, per hour**. So the record shows *that the operator was in your workspace during
+  a given hour* — **not** each thing he opened, not what he looked at, and not for how long.
+  There is no per-document or per-click trail, and this policy is not going to imply there
+  is.
+- **It covers entry from outside, not elevation from inside.** The entry is written only
+  when the administrator is not already a member. If he **is** a genuine member of your
+  workspace — including as an ordinary member or a viewer — he is still silently raised to
+  **owner** powers, and *that elevation is not separately recorded*. You would see him in the
+  member list, but not that his role was quietly larger than it looked.
+- **It is best-effort.** Recording is deliberately not allowed to break the request it
+  observes, so if the write fails it is logged on the server and the request still proceeds.
+  It is a good record, not a guaranteed one.
+- **It does not stop him.** Nothing here prevents access. It makes access visible to the
+  people it concerns, which is a different and lesser thing.
+
+**And he does not appear in your member list.** The break-glass membership is constructed in
+memory for the duration of a single request rather than stored, so a platform administrator
+entering from outside is never listed as a member of your workspace. The audit entry is the
+thing that makes him visible — not the member list.
+
+The remaining honest mitigations are that there is exactly one platform administrator, he is
+the person named in section 2, he is the one telling you this, and the record of his entry
+is now in your hands rather than only his.
 
 ## 10. Demo content in new accounts
 
@@ -417,7 +513,8 @@ data centre, and you should not treat PMD as the only copy of anything important
 | Data | Kept for |
 | --- | --- |
 | Your account, profile and bio | Until you delete your account |
-| Your avatar **image file** | **Indefinitely** — it is not deleted when you delete your account; see section 8 |
+| Your terms-acceptance record (when, and which version) | Until you delete your account — it goes with the account record; see section 4.1 |
+| Your avatar **image file** | Until you delete your account or replace the photo — the file is deleted in both cases; see section 8 |
 | Your content (projects, tasks, comments) | Until you or your workspace delete it — see section 14 |
 | Active sessions (`auth_sessions`) | Until they expire; expired sessions are removed by an hourly cleanup |
 | Revoked sessions | **30 days** after revocation |
@@ -441,11 +538,12 @@ Under the GDPR you have the right to:
 - **Erase** it ("right to be forgotten") — see below.
 - **Restrict** processing — ask for processing to be paused while a dispute is sorted out.
 - **Portability** — get your data in a structured, machine-readable format.
-- **Object** to processing based on legitimate interests (sections 4.4, 4.5, 4.6 and 4.7),
-  on grounds relating to your situation. If you object, the processing stops unless there
-  are compelling legitimate grounds that override your interests. For security logs there
-  usually are, since without them accounts cannot be protected — but the objection will be
-  considered properly and you will get a reasoned answer.
+- **Object** to processing based on legitimate interests (the acceptance record in section
+  4.1, and sections 4.4, 4.5, 4.6 and 4.7), on grounds relating to your situation. If you
+  object, the processing stops unless there are compelling legitimate grounds that override
+  your interests. For security logs there usually are, since without them accounts cannot be
+  protected — but the objection will be considered properly and you will get a reasoned
+  answer.
 - **Withdraw consent** at any time, where consent is the basis. As section 4.9 explains,
   PMD does not currently rely on consent for anything.
 
@@ -461,20 +559,38 @@ Both of these are on your profile page, under **"Your data"**:
   downloaded file, and neither tells you anything useful.
 - **Delete your account** (`DELETE /api/auth/me`) — erases the account.
 
+**One gap in the export, named rather than left for you to notice.** The file does **not**
+currently include your terms-acceptance record (section 4.1) — the two fields recording when
+you accepted and which version. That is an oversight, not a decision: those fields were added
+to the account after the export was written, and the export was not updated with them. It is
+tracked in PMD's repository and will be added. Until then, ask by email (section 14.3) and
+you will be told when you accepted and which version, which is the same information.
+
 ### 14.2 What deletion actually does
 
-**Deleted outright:** your user record, your sessions, your email verification tokens, your
+**Deleted outright:** your user record — which is where your terms-acceptance record lives
+(section 4.1), so that goes too — your sessions, your email verification tokens, your
 notification preferences, your panel preferences, your mention restrictions, your workspace
-memberships, your join requests, your sign-in security events, and any people directory
-entry matching your email address.
+memberships, your join requests, your sign-in security events, any people directory entry
+matching your email address, and your avatar image file (section 8).
 
 **Stripped of your identity but kept:** records inside other people's data that merely
 referenced you. The reference is removed — "created by" fields are cleared, and you are
 pulled out of project member lists — while the record itself survives. In the workspace
 audit log, your name is replaced with **"Deleted user"**.
 
-**Not deleted: your avatar image file.** See section 8. This is a known gap, not a policy
-choice. Email the address in section 2 and it will be removed by hand.
+**Two residues worth naming, because "deleted" ought to mean deleted.** Both are records
+somebody else created *about* you rather than records of yours, which is why the automatic
+sweep does not catch them:
+
+- If someone invited you to a workspace by typing your email address, **the invitation
+  keeps the address they typed.** Deleting your account does not remove it, and nothing
+  else expires it either.
+- If you joined a workspace by invitation and the person who invited you had digest emails
+  switched on, **a pending notification entry may still hold your display name.**
+
+Neither is visible to other users in the app, but both are personal data and both survive.
+If you want them gone, email the address in section 2 and they will be removed by hand.
 
 **One honest limit.** Content you authored inside *other people's* workspaces — comments,
 projects, task history — is not deleted with your account. It stays, and it stops resolving
@@ -520,6 +636,63 @@ simply that nothing here needs it, and data that was never collected cannot leak
 
 You stay in control: you can edit or clear any of these fields at any time in Settings, and
 you can delete your account entirely (section 14).
+
+### 15.1 When what you type is about somebody else
+
+Everything above is about data describing **you**. But PMD is a shared workspace tool, so a
+good deal of what gets typed into it is about **someone else**: a comment naming a
+colleague, a task assigned to a person, an email address typed into an invitation to bring
+someone in.
+
+That is what a shared workspace is for, and it is not a problem in itself. But it needs
+saying who is answerable for it, because this is the one part of PMD the operator genuinely
+does not decide.
+
+**Who decided that data is in PMD?** Not the operator. He did not ask for it, does not know
+it is there, and has no way of knowing whether the person it describes agreed to it. He does
+not read workspace content to find out — there is no scanning, no filtering and no review
+(section 6), and the only circumstance in which he reads a workspace at all is the
+administrator access described in section 9. The decision to put the data in, and the reason
+for putting it in, belong to the person who typed it — or to the organisation they were
+acting for when they typed it. That is the honest description of what happens, and it cuts
+both ways.
+
+**What you are responsible for.** If you put personal data about another person into PMD,
+you need a lawful reason to do it, and you need it *before* you type. You are the one who
+knows what the data is, why it is there, and whether the person knows about it. The
+[Terms of Use](./terms-of-use.md) turn this into a promise you make when you use PMD — see
+section 8.2 there. In practice it comes to this: do not put anything about a colleague into
+PMD that you could not defend to their face, and do not use PMD to keep information about
+someone who has no idea it exists.
+
+**What the operator is responsible for.** Everything that is actually his decision: the
+security of the service, who can reach a workspace, how long things are kept, the
+processors in section 11, the platform administrator access in section 9, and answering
+people who assert their rights. He is also responsible for acting once a problem is
+reported to him — see below. This section is not him disclaiming the service; it is about
+the one thing he does not control, which is what you decide to type.
+
+**The formal label is deliberately not claimed here.** Where you or your employer decide
+what personal data goes into a workspace and why, the roles the GDPR would assign to each
+side — controller, joint controllers, processor — are genuinely arguable, and each label
+drags different obligations behind it. Guessing wrong in either direction would be worse
+than admitting the question is open, and asserting a tidy answer in a document nobody has
+reviewed is exactly how a privacy notice ends up being untrue. So it is on the list of
+questions for a lawyer in [`README.md`](./README.md), and it will be answered here once it
+has been answered properly. [TO BE COMPLETED AND CONFIRMED BY A LAWYER: the controller /
+joint-controller / processor characterisation for user-supplied third-party personal data,
+and whether it differs between business and consumer users — see lawyer question 2 in
+`README.md`. This paragraph is the placeholder for that answer.]
+
+What is **not** arguable, and what you can rely on right now, is the practical part: if
+personal data about you is in PMD and you want something done about it, section 14.3 works
+regardless of how the labels eventually land.
+
+**If you are reading this because somebody else put your data into PMD.** You do not need
+an account, and you do not need to know any of the above. Email the address in section 2.
+If the data sits inside a workspace that someone else runs, you will be told so plainly and
+helped to reach them; where the operator is the one who can act, he will act. You will get
+a real answer either way, within the month that section 14.3 promises.
 
 ## 16. Complaints
 
@@ -575,7 +748,11 @@ What is not claimed:
 - It runs on **one Raspberry Pi**, maintained in his spare time by **one person**, with no
   24/7 monitoring and no on-call rotation.
 - No system is perfectly secure, and PMD is a small one. Section 8 describes a known
-  weakness in how avatar files are handled, in full, rather than hiding it.
+  weakness in full rather than hiding it: avatar images are served from an unauthenticated
+  URL, protected only by the secrecy of a random filename.
+- The operator can enter any workspace (section 9). That is now recorded where its members
+  can see it, but recorded is not the same as prevented, and this policy does not pretend
+  otherwise.
 
 If there is ever a personal data breach that is likely to result in a high risk to your
 rights and freedoms, you will be told without undue delay, and the Hellenic DPA will be

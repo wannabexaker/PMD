@@ -18,7 +18,18 @@ These terms are an agreement between you and the operator of PMD (identified in 
 
 When you register, you tick a box confirming that you accept these terms and have read the
 Privacy Policy. **By ticking that box and creating an account, you accept these terms.** An
-account cannot be created without it. If you do not accept them, please do not use PMD.
+account cannot be created without it — the server refuses, whatever the request came from,
+not just PMD's own form. Signing up with Google clears the same bar. If you do not accept
+them, please do not use PMD.
+
+PMD records **when** you accepted and **which version** you accepted. That is so "you agreed"
+can be answered with *what* you agreed to, rather than just asserted. It is described in
+section 4.1 of the [Privacy Policy](./privacy-policy.md), along with everything else stored
+about you.
+
+**While these terms are a draft, they are not in force and they bind nobody** — see the
+status note at the top. The version stamp records which text you were shown at the time; it
+does not turn a draft into a contract.
 
 Please also read the [Privacy Policy](./privacy-policy.md). It explains what happens to
 your data and forms part of your relationship with PMD.
@@ -121,7 +132,8 @@ Do not use PMD to:
 - **Upload malware**, or anything designed to damage a system or a person.
 - **Abuse other people's data.** Do not put personal data about other people into PMD
   unless you are entitled to. If you invite colleagues into a workspace and manage their
-  information there, that is on you as much as on PMD.
+  information there, that is your call and your responsibility — section 8.2 sets out what
+  you are promising when you do it.
 - **Resell or sublicense** access to PMD.
 - **Misrepresent PMD**, or use its name or branding to suggest an endorsement that does not
   exist.
@@ -156,29 +168,62 @@ The licence ends when you delete the content or your account, except for:
 **You are responsible for your content** — for having the right to post it, and for it not
 being illegal or infringing.
 
-### 8.1 Avatar images are publicly reachable, and they outlive your account
+### 8.1 Avatar images are served from a public URL
 
 Repeating this here because it belongs in both documents: **avatar images are served
 without authentication.** Anyone with the URL can open one, without signing into PMD. The
 URL contains a random UUID and cannot realistically be guessed, but the protection is the
 secrecy of the URL rather than a permission check.
 
-**The image file is also not deleted when you delete your account**, and not when you
-replace it with a different avatar. It stays on the disk at the same public URL.
+**The file itself is deleted when you delete your account, and when you replace the photo** —
+not just the record pointing at it.
 
-So: do not upload an avatar you would not be comfortable with a stranger seeing, or one you
-might later want recalled. If you want an image file actually removed, email
-dimos.is.dev@gmail.com and it will be deleted by hand. Section 8 of the
+What that cannot undo is a URL that already leaked while the image was live: a copy someone
+saved, a browser history, a proxy log. So: do not upload an avatar you would not be
+comfortable with a stranger seeing. Section 8 of the
 [Privacy Policy](./privacy-policy.md) explains this in full.
+
+### 8.2 Personal data about other people
+
+Some of what you put into PMD will be about somebody else — a comment naming a colleague, a
+task assigned to a person, an email address you type into an invitation. That is what a
+shared workspace is for. But the operator does not choose what you type, cannot know whether
+the person it describes agreed to it, and does not review workspace content — nothing scans
+or filters it, and the only time he reads a workspace is the administrator access described
+in section 9.1. You are the one who knows. So this part is on you.
+
+**You promise that:**
+
+- you have a **lawful basis** for any personal data about another person that you put into
+  PMD, and you had it before you put it there;
+- you keep that data accurate, and no more extensive than you actually need;
+- you will **deal with that person yourself** if they come to you about it, rather than
+  simply pointing them at the operator for a decision that was yours; and
+- if you are using PMD for an employer or a client, you have that organisation's authority
+  to put its people's data here, and you have checked that doing so is permitted.
+
+If you cannot honestly make those promises about something, do not type it in.
+
+**What the operator does about it.** He is not reviewing your content and has no system that
+could — see section 6 of the [Privacy Policy](./privacy-policy.md). But if someone tells him
+their personal data is in a workspace and should not be, he will look at it and act, which
+may mean removing the content or contacting the workspace's owner. Section 15.1 of the
+Privacy Policy explains how that works, and is candid that the formal division of
+responsibility between you and the operator is still an open question.
+
+**This is not the operator disclaiming the service.** He remains responsible for keeping PMD
+secure, for who can reach your workspace, for how long data is kept, and for answering
+people who assert their rights. This section is about the one thing he does not control:
+what you decide to type.
 
 ## 9. Workspaces and other users
 
 PMD is a shared tool. What you put in a workspace is visible to that workspace's members —
 and to nobody else. Workspaces are separated from each other, people who are not members
 cannot reach yours, and other users cannot browse your details unless they share a
-workspace with you. Section 9 of the [Privacy Policy](./privacy-policy.md) sets this out in
-full, including the one exception: a platform administrator (the operator) can enter any
-workspace in order to run the service.
+workspace with you — with **one exception, set out in section 9.1 below**: a platform
+administrator (the operator) can enter any workspace in order to run the service. Section 9
+of the [Privacy Policy](./privacy-policy.md) sets all of this out in full.
 
 - The **workspace owner and administrators** can see that workspace's content, manage its
   members and roles, and see an audit log of administrative actions. Their powers stop at
@@ -190,6 +235,39 @@ workspace in order to run the service.
 
 Disputes between members of a workspace are for those members to sort out. PMD provides
 the tool; it does not adjudicate who was right.
+
+### 9.1 The operator can enter your workspace
+
+Set out here as well as in the Privacy Policy, because it is a term of the deal and not
+merely a privacy detail.
+
+The operator holds a **platform administrator** account. It lets him open any workspace with
+the same powers as that workspace's owner, including reading its content. He uses it to run
+the service — to investigate a fault, to deal with abuse or a security problem, to recover a
+broken workspace, or to meet a legal obligation — and for nothing else.
+
+**It does not happen unseen.** When he enters a workspace he is not a member of, PMD writes a
+`PLATFORM_ADMIN_ACCESS` entry into **that workspace's own audit log** — the log its members
+read, not an operator-only one. The log is hash-chained, so an entry cannot be removed or
+altered later without the break showing.
+
+Three limits, stated so you are not relying on more than exists:
+
+- **The entry shows presence, not reading.** It collapses to one per administrator per
+  workspace per hour, so it records that he was there during an hour — not what he opened or
+  looked at.
+- **It covers entry from outside, not elevation from inside.** If he is already a genuine
+  member of your workspace, no entry is written, and he is still raised to owner powers
+  regardless of the role you gave him.
+- **It is best-effort and it does not stop him.** Recording is not allowed to break the
+  request, so a failed write does not block access; and a record is not a prevention.
+
+He also does not appear in your member list when entering from outside — the access is
+constructed at the moment of the request rather than stored as a membership. The audit entry,
+not the member list, is what makes him visible.
+
+By using PMD you accept that this access exists. Section 9 of the
+[Privacy Policy](./privacy-policy.md) explains it in full, including what it is limited to.
 
 ## 10. No warranties
 
@@ -223,8 +301,9 @@ will be told which workspaces are in the way.
 
 ### 11.2 What survives your deletion
 
-**Your avatar image file.** It is not deleted — see section 8.1. Email
-dimos.is.dev@gmail.com to have it removed by hand.
+**An email address someone else typed.** If a workspace invited you by email, that
+invitation keeps the address, and your deletion does not remove it. Section 14.2 of the
+[Privacy Policy](./privacy-policy.md) sets out this and one other residue in full.
 
 **Content you authored in other people's workspaces** — comments, projects, task history —
 is not deleted with your account. It stays in those workspaces and stops resolving to your
@@ -311,12 +390,30 @@ written down.
 
 ## 13. Indemnity
 
-If you use PMD in the course of a business, and your use of PMD or your content causes a
-third-party claim against the developer, you agree to cover the reasonable costs of dealing
-with it — provided you are told about the claim promptly and given the chance to be
-involved in how it is handled.
+**This section applies only if you use PMD in the course of a business, trade, craft or
+profession. It does not apply to consumers, and nothing in it may be used against one.**
+The promises in section 8.2 are made by everyone; this clause — which is about money — is
+not.
 
-This does not apply to consumers.
+If your content or your use of PMD causes a third-party claim against the developer —
+including a claim, complaint or regulatory action brought by or on behalf of someone whose
+personal data you put into PMD without the lawful basis you promised in section 8.2 — you
+agree to cover the reasonable, evidenced costs of dealing with it.
+
+That is subject to all of the following, which are conditions rather than formalities:
+
+- you are told about the claim **promptly**, and given a real chance to be involved in how
+  it is handled;
+- **no admission of liability and no settlement** is made without asking you first;
+- reasonable steps are taken to keep the costs down; and
+- it **does not cover any part of a claim caused by the developer's own act or omission** —
+  if the problem was his, it is his, and this clause does not move it onto you.
+
+[TO BE REVIEWED BY A LAWYER: the scope of this clause. PMD is free and run by one person, so
+an indemnity broad enough to be worth having may also be broad enough to be struck down —
+and an unenforceable indemnity protects nobody. The business-only limit, the conditions
+above, and the carve-out for the developer's own fault are deliberate attempts to keep it
+proportionate rather than maximal. See `README.md`.]
 
 ## 14. Changes to these terms
 
