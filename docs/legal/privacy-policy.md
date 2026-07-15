@@ -559,12 +559,9 @@ Both of these are on your profile page, under **"Your data"**:
   downloaded file, and neither tells you anything useful.
 - **Delete your account** (`DELETE /api/auth/me`) — erases the account.
 
-**One gap in the export, named rather than left for you to notice.** The file does **not**
-currently include your terms-acceptance record (section 4.1) — the two fields recording when
-you accepted and which version. That is an oversight, not a decision: those fields were added
-to the account after the export was written, and the export was not updated with them. It is
-tracked in PMD's repository and will be added. Until then, ask by email (section 14.3) and
-you will be told when you accepted and which version, which is the same information.
+The export includes your terms-acceptance record (section 4.1): when you accepted and which
+version. If your account was created before that record existed, both are empty — which means
+it was not recorded, not that you refused.
 
 ### 14.2 What deletion actually does
 

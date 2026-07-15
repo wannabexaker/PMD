@@ -147,8 +147,8 @@ exist to avoid.
   Terms §1 now says an account **cannot be created** without acceptance, because that is now
   true of the server rather than only the form. Privacy §4.1 gained the acceptance record as
   an inventory item with basis, balancing and retention; §4.9, §13, §14.1, §14.2 and the
-  Art. 21 objection list in §14 were updated to match. **Two things this did not resolve:**
-  the export omits the new fields (blocker 2), and accounts created before 15 July 2026 have
+  Art. 21 objection list in §14 were updated to match. The export gap this opened was closed
+  in `8c5aa3a`. **One thing this did not resolve:** accounts created before 15 July 2026 have
   no record at all (lawyer question 23).
 - ~~Export and account deletion do not exist~~ — **done.** `GET /api/auth/me/export` and
   `DELETE /api/auth/me` are implemented in `AuthController`, backed by
