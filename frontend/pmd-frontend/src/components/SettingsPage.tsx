@@ -24,7 +24,8 @@ import { API_BASE_URL, isApiError } from '../api/http'
 import { getErrorMessage, isForbiddenError } from '../api/errors'
 import { uploadImage } from '../api/uploads'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
-import { cropAvatarSquare } from '../shared/avatarCrop'
+import { AVATAR_ACCEPT, validateAvatarFile } from '../shared/avatarCrop'
+import { AvatarCropDialog, type AvatarCrop } from './avatar/AvatarCropDialog'
 import type {
   WorkspaceInvite,
   WorkspaceJoinRequest,
@@ -125,10 +126,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [workspaceProfileMaxStorageMb, setWorkspaceProfileMaxStorageMb] = useState('')
   const [workspaceProfileAvatarUploading, setWorkspaceProfileAvatarUploading] = useState(false)
   const [workspaceAvatarCropFile, setWorkspaceAvatarCropFile] = useState<File | null>(null)
-  const [workspaceAvatarCropPreviewUrl, setWorkspaceAvatarCropPreviewUrl] = useState('')
-  const [workspaceAvatarCropX, setWorkspaceAvatarCropX] = useState(50)
-  const [workspaceAvatarCropY, setWorkspaceAvatarCropY] = useState(50)
-  const [workspaceAvatarCropZoom, setWorkspaceAvatarCropZoom] = useState(100)
+  const [workspaceAvatarCropInitial, setWorkspaceAvatarCropInitial] = useState<AvatarCrop | undefined>(undefined)
   // Read-only: legacy workspace avatars uploaded before cropping was baked in still carry a
   // stored view-transform. We restore it when re-cropping so it gets baked into the new file.
   const [savedWorkspaceCropByUrl] = useState<Record<string, SavedCropState>>(() =>
@@ -213,7 +211,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const gridBoundsRafRef = useRef<number | null>(null)
   const pendingGridBoundsRef = useRef(DEFAULT_SETTINGS_GRID_BOUNDS)
   const settingsPanelRootRef = useRef<HTMLElement | null>(null)
-  const workspaceCropDragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
   const workspaceProfileAvatarFileRef = useRef<HTMLInputElement | null>(null)
   const lastResolvedJoinTokenRef = useRef('')
 
@@ -1096,37 +1093,22 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
 
   const handleUploadWorkspaceProfileAvatar: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
     const file = event.target.files?.[0]
-    if (!file) return
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      showToast({ type: 'error', message: 'Use PNG/JPG/WEBP for avatar.' })
-      event.target.value = ''
-      return
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      showToast({ type: 'error', message: 'Avatar max size is 2MB.' })
-      event.target.value = ''
-      return
-    }
-    setWorkspaceAvatarCropFile(file)
-    setWorkspaceAvatarCropPreviewUrl(URL.createObjectURL(file))
-    setWorkspaceAvatarCropX(50)
-    setWorkspaceAvatarCropY(50)
-    setWorkspaceAvatarCropZoom(100)
     event.target.value = ''
+    if (!file) return
+    const problem = validateAvatarFile(file)
+    if (problem) {
+      showToast({ type: 'error', message: problem })
+      return
+    }
+    setWorkspaceAvatarCropInitial(undefined)
+    setWorkspaceAvatarCropFile(file)
   }
 
-  const handleApplyWorkspaceAvatarCrop = async () => {
-    if (!workspaceAvatarCropFile) return
+  const handleApplyWorkspaceAvatarCrop = async (cropped: File) => {
     try {
       setWorkspaceProfileAvatarUploading(true)
-      // Bake the framing into the uploaded file (same as ProfilePanel): the stored
-      // view-transform only ever applied in the uploader's own browser, so every other
-      // member saw the workspace avatar uncropped.
-      const cropped = await cropAvatarSquare(workspaceAvatarCropFile, {
-        xPercent: workspaceAvatarCropX,
-        yPercent: workspaceAvatarCropY,
-        zoomPercent: workspaceAvatarCropZoom,
-      })
+      // The framing is already baked into `cropped`, so no view-transform is stored for the
+      // new URL and every member sees the same picture.
       const uploaded = await uploadImage(cropped)
       const nextAvatarUrl = (uploaded.url ?? '').trim()
       setWorkspaceProfileAvatarUrl(nextAvatarUrl)
@@ -1149,8 +1131,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           setSettingsBusy(false)
         }
       }
-      URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
-      setWorkspaceAvatarCropPreviewUrl('')
       setWorkspaceAvatarCropFile(null)
     } catch (err) {
       showToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to upload avatar.' })
@@ -1210,12 +1190,8 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       const blob = await response.blob()
       const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
       const file = new File([blob], `workspace-picture.${extension}`, { type: blob.type || 'image/jpeg' })
+      setWorkspaceAvatarCropInitial(savedWorkspaceCropByUrl[currentUrl])
       setWorkspaceAvatarCropFile(file)
-      setWorkspaceAvatarCropPreviewUrl(URL.createObjectURL(file))
-      const saved = savedWorkspaceCropByUrl[currentUrl]
-      setWorkspaceAvatarCropX(saved?.x ?? 50)
-      setWorkspaceAvatarCropY(saved?.y ?? 50)
-      setWorkspaceAvatarCropZoom(saved?.zoom ?? 100)
     } catch (err) {
       showToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to open crop editor.' })
     }
@@ -1244,52 +1220,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       active = false
     }
   }, [])
-
-  useEffect(() => {
-    return () => {
-      if (workspaceAvatarCropPreviewUrl) {
-        URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
-      }
-    }
-  }, [workspaceAvatarCropPreviewUrl])
-
-
-  const handleWorkspaceCropPointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
-    if (!workspaceAvatarCropPreviewUrl) return
-    workspaceCropDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      baseX: workspaceAvatarCropX,
-      baseY: workspaceAvatarCropY,
-    }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  const handleWorkspaceCropPointerMove: React.PointerEventHandler<HTMLDivElement> = (event) => {
-    const state = workspaceCropDragRef.current
-    if (!state) return
-    const dx = event.clientX - state.startX
-    const dy = event.clientY - state.startY
-    const frameSize = Math.max(1, event.currentTarget.getBoundingClientRect().width)
-    const step = 100 / frameSize
-    const nextX = Math.max(0, Math.min(100, state.baseX - dx * step))
-    const nextY = Math.max(0, Math.min(100, state.baseY - dy * step))
-    setWorkspaceAvatarCropX(nextX)
-    setWorkspaceAvatarCropY(nextY)
-  }
-
-  const handleWorkspaceCropPointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
-    if (workspaceCropDragRef.current) {
-      workspaceCropDragRef.current = null
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-  }
-
-  const handleWorkspaceCropWheel: React.WheelEventHandler<HTMLDivElement> = (event) => {
-    event.preventDefault()
-    const delta = event.deltaY > 0 ? -4 : 4
-    setWorkspaceAvatarCropZoom((prev) => Math.max(100, Math.min(220, prev + delta)))
-  }
 
   useEffect(() => {
     if (!editingRoleId) return
@@ -2248,7 +2178,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                                 <input
                                   ref={workspaceProfileAvatarFileRef}
                                   type="file"
-                                  accept="image/png,image/jpeg,image/webp"
+                                  accept={AVATAR_ACCEPT}
                                   onChange={handleUploadWorkspaceProfileAvatar}
                                   style={{ display: 'none' }}
                                 />
@@ -2519,7 +2449,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       <input
                         ref={workspaceProfileAvatarFileRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/webp"
+                        accept={AVATAR_ACCEPT}
                         onChange={handleUploadWorkspaceProfileAvatar}
                         style={{ display: 'none' }}
                       />
@@ -4031,115 +3961,15 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           </div>
         </div>
       ) : null}
-      {workspaceAvatarCropPreviewUrl ? (
-        <div
-          className="modal-overlay profile-avatar-context-overlay"
-          onClick={() => {
-            URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
-            setWorkspaceAvatarCropPreviewUrl('')
-            setWorkspaceAvatarCropFile(null)
-          }}
-        >
-          <div className="modal avatar-editor-modal profile-avatar-context-window" onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className="avatar-editor-close"
-              aria-label="Close crop editor"
-              onClick={() => {
-                URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
-                setWorkspaceAvatarCropPreviewUrl('')
-                setWorkspaceAvatarCropFile(null)
-              }}
-            >
-              <span className="settings-icon-glyph" aria-hidden="true">
-                <SettingsCloseIcon />
-              </span>
-            </button>
-            <div className="avatar-crop-body">
-              <h4>Adjust thumbnail</h4>
-              <p className="muted">Drag with cursor (hand) to position. Use zoom for framing.</p>
-              <div
-                className="avatar-crop-preview avatar-crop-draggable"
-                style={
-                  {
-                    ['--avatar-crop-x' as string]: `${workspaceAvatarCropX}`,
-                    ['--avatar-crop-y' as string]: `${workspaceAvatarCropY}`,
-                    ['--avatar-crop-zoom' as string]: `${workspaceAvatarCropZoom}`,
-                  }
-                }
-                onPointerDown={handleWorkspaceCropPointerDown}
-                onPointerMove={handleWorkspaceCropPointerMove}
-                onPointerUp={handleWorkspaceCropPointerUp}
-                onPointerCancel={handleWorkspaceCropPointerUp}
-                onWheel={handleWorkspaceCropWheel}
-              >
-                <span className="workspace-avatar workspace-avatar-xl" aria-hidden="true">
-                  <img src={workspaceAvatarCropPreviewUrl} alt="" draggable={false} onDragStart={(event) => event.preventDefault()} />
-                </span>
-              </div>
-              <div className="avatar-crop-sliders">
-                <label>
-                  Horizontal
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={workspaceAvatarCropX}
-                    onChange={(event) => setWorkspaceAvatarCropX(Number(event.target.value))}
-                    disabled={workspaceProfileAvatarUploading}
-                  />
-                </label>
-                <label>
-                  Vertical
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={workspaceAvatarCropY}
-                    onChange={(event) => setWorkspaceAvatarCropY(Number(event.target.value))}
-                    disabled={workspaceProfileAvatarUploading}
-                  />
-                </label>
-                <label>
-                  Zoom
-                  <input
-                    type="range"
-                    min={100}
-                    max={220}
-                    step={1}
-                    value={workspaceAvatarCropZoom}
-                    onChange={(event) => setWorkspaceAvatarCropZoom(Number(event.target.value))}
-                    disabled={workspaceProfileAvatarUploading}
-                  />
-                </label>
-              </div>
-              <div className="workspace-profile-avatar-actions-row">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
-                    setWorkspaceAvatarCropPreviewUrl('')
-                    setWorkspaceAvatarCropFile(null)
-                  }}
-                  disabled={workspaceProfileAvatarUploading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleApplyWorkspaceAvatarCrop}
-                  disabled={workspaceProfileAvatarUploading}
-                >
-                  {workspaceProfileAvatarUploading ? 'Uploading...' : 'Use image'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {workspaceAvatarCropFile ? (
+        <AvatarCropDialog
+          file={workspaceAvatarCropFile}
+          title="Adjust workspace photo"
+          initialCrop={workspaceAvatarCropInitial}
+          busy={workspaceProfileAvatarUploading}
+          onCancel={() => setWorkspaceAvatarCropFile(null)}
+          onApply={handleApplyWorkspaceAvatarCrop}
+        />
       ) : null}
     </section>
   )

@@ -2050,81 +2050,182 @@
   padding-right: 4px;
 }
 
-.avatar-crop-body {
+/* --- Avatar crop dialog (shared by profile + workspace) --- */
+.avatar-crop-modal {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  width: min(420px, 92vw);
+  padding: 18px;
 }
 
-.avatar-crop-body h4 {
-  margin: 0;
-}
-
-.avatar-crop-body .muted {
-  margin: 0;
-}
-
-.avatar-crop-preview {
+.avatar-crop-header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.avatar-crop-header h4 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.avatar-crop-close {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease);
+}
+
+.avatar-crop-close:hover:not([disabled]) {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--text);
+}
+
+.avatar-crop-close:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 65%, transparent);
+  outline-offset: 2px;
+}
+
+/* The stage is exactly the square that gets saved. */
+.avatar-crop-stage {
+  position: relative;
+  width: min(280px, 72vw);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface2);
+  border: 1px solid var(--border);
   touch-action: none;
   user-select: none;
   cursor: grab;
 }
 
-.avatar-crop-preview .workspace-avatar {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 30%, transparent);
-  position: relative;
+.avatar-crop-stage:active {
+  cursor: grabbing;
 }
 
-.avatar-crop-preview img {
+.avatar-crop-stage img {
   display: block;
   position: absolute;
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 100%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   object-position: calc(var(--avatar-crop-x, 50) * 1%) calc(var(--avatar-crop-y, 50) * 1%);
-  inset: 0;
   transform: scale(calc(var(--avatar-crop-zoom, 100) / 100));
   will-change: transform, object-position;
+  pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+/* Dim the corners the circular avatar will cut, and ring the safe area. */
+.avatar-crop-mask {
+  position: absolute;
+  inset: 0;
   pointer-events: none;
-  opacity: 1;
+  background: radial-gradient(circle at 50% 50%, transparent 0 49.5%, rgba(2, 6, 23, 0.58) 50.5% 100%);
 }
 
-.avatar-crop-draggable {
-  cursor: grab !important;
+.avatar-crop-mask::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 70%, white);
 }
 
-.avatar-crop-draggable:active {
-  cursor: grabbing !important;
+.avatar-crop-drop-hint {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #fff;
+  background: color-mix(in srgb, var(--primary) 30%, rgba(2, 6, 23, 0.7));
+  pointer-events: none;
 }
 
-.avatar-crop-draggable .workspace-avatar,
-.avatar-crop-draggable img {
-  cursor: inherit !important;
+.avatar-crop-stage.is-drop-active {
+  border-color: color-mix(in srgb, var(--primary) 60%, var(--border));
 }
 
-.avatar-crop-draggable:active {
-  cursor: grabbing !important;
+.avatar-crop-stage.is-drop-active .avatar-crop-drop-hint {
+  display: flex;
 }
 
-.avatar-crop-draggable:active .workspace-avatar,
-.avatar-crop-draggable:active img {
-  cursor: grabbing !important;
+.avatar-crop-help {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
 }
 
-.avatar-crop-sliders {
+.avatar-crop-zoom {
   display: grid;
-  gap: 8px;
-}
-
-.avatar-crop-sliders label {
-  display: grid;
-  gap: 4px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.avatar-crop-zoom input[type='range'] {
+  width: 100%;
+  padding: 0;
+}
+
+.avatar-crop-reset {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+.avatar-crop-error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--danger);
+}
+
+.avatar-crop-actions {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  padding-top: 12px;
+}
+
+.avatar-crop-source {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.avatar-crop-replace {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+}
+
+.avatar-crop-replace input[type='file'] {
+  display: none;
+}
+
+.avatar-crop-formats {
+  font-size: 0.75rem;
+}
+
+.avatar-crop-confirm {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .pmd-images-grid {
