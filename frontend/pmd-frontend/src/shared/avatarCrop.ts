@@ -20,6 +20,24 @@ type CropOptions = {
   zoomPercent?: number
 }
 
+/** Shared so the file input, the drop target and the hint text can never disagree. */
+export const AVATAR_ACCEPT = 'image/png,image/jpeg,image/webp'
+export const AVATAR_MAX_MB = 2
+export const AVATAR_MAX_BYTES = AVATAR_MAX_MB * 1024 * 1024
+export const AVATAR_ZOOM_MIN = 100
+export const AVATAR_ZOOM_MAX = 220
+
+/** Returns an error message, or null when the file is an acceptable avatar source. */
+export function validateAvatarFile(file: File): string | null {
+  if (!AVATAR_ACCEPT.split(',').includes(file.type)) {
+    return 'Use a PNG, JPG, or WEBP image.'
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    return `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB. Max size is ${AVATAR_MAX_MB}MB.`
+  }
+  return null
+}
+
 export type CropRect = { offsetX: number; offsetY: number; sourceSize: number }
 
 /**

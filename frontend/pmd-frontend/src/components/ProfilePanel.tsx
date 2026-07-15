@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { DashboardStatsResponse, UpdateProfilePayload, User, UserStatsResponse } from '../types'
 import { updateProfile } from '../api/auth'
 import { uploadImage } from '../api/uploads'
@@ -8,7 +8,8 @@ import { fetchMyUserStats } from '../api/stats'
 import { fetchMyDashboardStats } from '../api/projects'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
-import { cropAvatarSquare } from '../shared/avatarCrop'
+import { AVATAR_ACCEPT, validateAvatarFile } from '../shared/avatarCrop'
+import { AvatarCropDialog, type AvatarCrop } from './avatar/AvatarCropDialog'
 
 type ProfilePanelProps = {
   user: User
@@ -48,10 +49,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null)
-  const [avatarCropPreviewUrl, setAvatarCropPreviewUrl] = useState('')
-  const [avatarCropX, setAvatarCropX] = useState(50)
-  const [avatarCropY, setAvatarCropY] = useState(50)
-  const [avatarCropZoom, setAvatarCropZoom] = useState(100)
+  const [avatarCropInitial, setAvatarCropInitial] = useState<AvatarCrop | undefined>(undefined)
   // Read-only: legacy avatars uploaded before cropping was baked in still carry a stored
   // view-transform. We restore it when re-cropping so it gets baked into the new file.
   const [savedCropByUrl] = useState<Record<string, SavedCropState>>(() =>
@@ -59,7 +57,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   )
   const [pmdImages, setPmdImages] = useState<string[]>([])
   const [pmdImagesOpen, setPmdImagesOpen] = useState(false)
-  const cropDragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
   const [myStats, setMyStats] = useState<UserStatsResponse | null>(null)
   const [myStatsError, setMyStatsError] = useState<string | null>(null)
   const [myDashboardStats, setMyDashboardStats] = useState<DashboardStatsResponse | null>(null)
@@ -164,24 +161,16 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
 
   const handleAvatarFileUpload: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
     const file = event.target.files?.[0]
-    if (!file) return
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setAvatarError('Use PNG, JPG, or WEBP.')
-      event.target.value = ''
-      return
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setAvatarError('Max file size is 2MB.')
-      event.target.value = ''
-      return
-    }
-    setAvatarCropFile(file)
-    setAvatarCropPreviewUrl(URL.createObjectURL(file))
-    setAvatarCropX(50)
-    setAvatarCropY(50)
-    setAvatarCropZoom(100)
-    setAvatarError(null)
     event.target.value = ''
+    if (!file) return
+    const problem = validateAvatarFile(file)
+    if (problem) {
+      setAvatarError(problem)
+      return
+    }
+    setAvatarError(null)
+    setAvatarCropInitial(undefined)
+    setAvatarCropFile(file)
   }
 
   const handleOpenCropFromCurrentAvatar = async () => {
@@ -196,37 +185,21 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
       const blob = await response.blob()
       const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
       const file = new File([blob], `profile-picture.${extension}`, { type: blob.type || 'image/jpeg' })
+      setAvatarCropInitial(savedCropByUrl[currentUrl])
       setAvatarCropFile(file)
-      setAvatarCropPreviewUrl(URL.createObjectURL(file))
-      const saved = savedCropByUrl[currentUrl]
-      setAvatarCropX(saved?.x ?? 50)
-      setAvatarCropY(saved?.y ?? 50)
-      setAvatarCropZoom(saved?.zoom ?? 100)
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : 'Failed to open crop editor.')
     }
   }
 
-  const applyAvatarCropAndUpload = async () => {
-    if (!avatarCropFile) return
+  const handleApplyAvatarCrop = async (cropped: File) => {
     try {
       setAvatarUploading(true)
       setAvatarError(null)
-      // Bake the framing into the uploaded file. Previously the original was uploaded and the
-      // framing was kept only in this browser's localStorage, so everyone else — and this user
-      // on any other device — saw the uncropped image. The cropped square is also ~100KB.
-      const cropped = await cropAvatarSquare(avatarCropFile, {
-        xPercent: avatarCropX,
-        yPercent: avatarCropY,
-        zoomPercent: avatarCropZoom,
-      })
+      // The framing is already baked into `cropped`, so no view-transform is stored for the
+      // new URL: getAvatarFrameStyle() returns undefined and the image renders 1:1.
       const uploaded = await uploadImage(cropped)
-      const nextUrl = (uploaded.url ?? '').trim()
-      setAvatarUrlDraft(nextUrl)
-      // No stored view-transform for the new URL: the file itself is already framed, so
-      // getAvatarFrameStyle() returns undefined and the image renders 1:1.
-      URL.revokeObjectURL(avatarCropPreviewUrl)
-      setAvatarCropPreviewUrl('')
+      setAvatarUrlDraft((uploaded.url ?? '').trim())
       setAvatarCropFile(null)
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : 'Failed to upload avatar')
@@ -255,52 +228,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
       active = false
     }
   }, [])
-
-  useEffect(() => {
-    return () => {
-      if (avatarCropPreviewUrl) {
-        URL.revokeObjectURL(avatarCropPreviewUrl)
-      }
-    }
-  }, [avatarCropPreviewUrl])
-
-  const handleCropPointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
-    if (!avatarCropPreviewUrl) return
-    const element = event.currentTarget
-    cropDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      baseX: avatarCropX,
-      baseY: avatarCropY,
-    }
-    element.setPointerCapture(event.pointerId)
-  }
-
-  const handleCropPointerMove: React.PointerEventHandler<HTMLDivElement> = (event) => {
-    const state = cropDragRef.current
-    if (!state) return
-    const dx = event.clientX - state.startX
-    const dy = event.clientY - state.startY
-    const frameSize = Math.max(1, event.currentTarget.getBoundingClientRect().width)
-    const step = 100 / frameSize
-    const nextX = Math.max(0, Math.min(100, state.baseX - dx * step))
-    const nextY = Math.max(0, Math.min(100, state.baseY - dy * step))
-    setAvatarCropX(nextX)
-    setAvatarCropY(nextY)
-  }
-
-  const handleCropPointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
-    if (cropDragRef.current) {
-      cropDragRef.current = null
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-  }
-
-  const handleCropWheel: React.WheelEventHandler<HTMLDivElement> = (event) => {
-    event.preventDefault()
-    const delta = event.deltaY > 0 ? -4 : 4
-    setAvatarCropZoom((prev) => Math.max(100, Math.min(220, prev + delta)))
-  }
 
   useEffect(() => {
     let active = true
@@ -408,7 +335,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                     {avatarUploading ? 'Uploading...' : 'Upload image'}
                     <input
                       type="file"
-                      accept="image/png,image/jpeg,image/webp"
+                      accept={AVATAR_ACCEPT}
                       onChange={handleAvatarFileUpload}
                       style={{ display: 'none' }}
                       disabled={avatarUploading || avatarSaving}
@@ -481,105 +408,15 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
           </div>
         </div>
       ) : null}
-      {avatarCropPreviewUrl ? (
-        <div className="modal-overlay profile-avatar-context-overlay" onClick={() => {
-          URL.revokeObjectURL(avatarCropPreviewUrl)
-          setAvatarCropPreviewUrl('')
-          setAvatarCropFile(null)
-        }}>
-          <div className="modal avatar-editor-modal profile-avatar-context-window" onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className="avatar-editor-close"
-              aria-label="Close crop editor"
-              onClick={() => {
-                URL.revokeObjectURL(avatarCropPreviewUrl)
-                setAvatarCropPreviewUrl('')
-                setAvatarCropFile(null)
-              }}
-            >
-              X
-            </button>
-            <div className="avatar-crop-body">
-              <h4>Adjust thumbnail</h4>
-              <p className="muted">Drag with cursor (hand) to position. Use zoom for framing.</p>
-              <div
-                className="avatar-crop-preview avatar-crop-draggable"
-                style={
-                  {
-                    ['--avatar-crop-x' as string]: `${avatarCropX}`,
-                    ['--avatar-crop-y' as string]: `${avatarCropY}`,
-                    ['--avatar-crop-zoom' as string]: `${avatarCropZoom}`,
-                  }
-                }
-                onPointerDown={handleCropPointerDown}
-                onPointerMove={handleCropPointerMove}
-                onPointerUp={handleCropPointerUp}
-                onPointerCancel={handleCropPointerUp}
-                onWheel={handleCropWheel}
-              >
-                <span className="workspace-avatar workspace-avatar-xl" aria-hidden="true">
-                  <img src={avatarCropPreviewUrl} alt="" draggable={false} onDragStart={(event) => event.preventDefault()} />
-                </span>
-              </div>
-              <div className="avatar-crop-sliders">
-                <label>
-                  Horizontal
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={avatarCropX}
-                    onChange={(event) => setAvatarCropX(Number(event.target.value))}
-                    disabled={avatarUploading}
-                  />
-                </label>
-                <label>
-                  Vertical
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={avatarCropY}
-                    onChange={(event) => setAvatarCropY(Number(event.target.value))}
-                    disabled={avatarUploading}
-                  />
-                </label>
-                <label>
-                  Zoom
-                  <input
-                    type="range"
-                    min={100}
-                    max={220}
-                    step={1}
-                    value={avatarCropZoom}
-                    onChange={(event) => setAvatarCropZoom(Number(event.target.value))}
-                    disabled={avatarUploading}
-                  />
-                </label>
-              </div>
-              <div className="workspace-profile-avatar-actions-row">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    URL.revokeObjectURL(avatarCropPreviewUrl)
-                    setAvatarCropPreviewUrl('')
-                    setAvatarCropFile(null)
-                  }}
-                  disabled={avatarUploading}
-                >
-                  Cancel
-                </button>
-                <button type="button" className="btn btn-primary" onClick={applyAvatarCropAndUpload} disabled={avatarUploading}>
-                  {avatarUploading ? 'Uploading...' : 'Use image'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {avatarCropFile ? (
+        <AvatarCropDialog
+          file={avatarCropFile}
+          title="Adjust your photo"
+          initialCrop={avatarCropInitial}
+          busy={avatarUploading}
+          onCancel={() => setAvatarCropFile(null)}
+          onApply={handleApplyAvatarCrop}
+        />
       ) : null}
       <form className="form" onSubmit={handleSubmit}>
         <div className="form-grid two-col">
