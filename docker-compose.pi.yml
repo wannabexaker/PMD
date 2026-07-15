@@ -56,6 +56,10 @@ services:
       PMD_AUTH_SESSION_COOKIE_SAME_SITE: ${PMD_AUTH_SESSION_COOKIE_SAME_SITE:-Lax}
       PMD_AUTH_REQUIRE_VERIFIED_EMAIL: ${PMD_AUTH_REQUIRE_VERIFIED_EMAIL:-false}
       PMD_SECURITY_TRUST_PROXY_HEADERS: ${PMD_SECURITY_TRUST_PROXY_HEADERS:-true}
+      # Salts the fingerprint stored alongside the masked IP. Without it the hash is an
+      # unsalted SHA-256 and, since the /24 is stored in clear, the last octet has only 256
+      # candidates — the "anonymised" IP is recoverable instantly. Must be set.
+      PMD_SECURITY_CLIENT_METADATA_HASH_SALT: ${PMD_SECURITY_CLIENT_METADATA_HASH_SALT:?generate one, e.g. openssl rand -hex 32}
       PMD_ALLOWED_ORIGINS: ${PMD_ALLOWED_ORIGINS:?e.g. https://pmd.olamov.com}
       PMD_ALLOWED_ORIGIN_PATTERNS: ${PMD_ALLOWED_ORIGIN_PATTERNS:-}
       # Google Sign-In (public OAuth client id) + Cloudflare Turnstile secret.
