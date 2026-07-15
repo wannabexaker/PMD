@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { DashboardStatsResponse, UpdateProfilePayload, User, UserStatsResponse } from '../types'
-import { updateProfile } from '../api/auth'
+import { deleteMyAccount, exportMyData, updateProfile } from '../api/auth'
 import { uploadImage } from '../api/uploads'
 import { API_BASE_URL } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
@@ -58,6 +58,8 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   )
   const [pmdImages, setPmdImages] = useState<string[]>([])
   const [pmdImagesOpen, setPmdImagesOpen] = useState(false)
+  const [dataBusy, setDataBusy] = useState<'export' | 'delete' | null>(null)
+  const [dataError, setDataError] = useState<string | null>(null)
   const [myStats, setMyStats] = useState<UserStatsResponse | null>(null)
   const [myStatsError, setMyStatsError] = useState<string | null>(null)
   const [myDashboardStats, setMyDashboardStats] = useState<DashboardStatsResponse | null>(null)
@@ -157,6 +159,40 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
       setAvatarError(err instanceof Error ? err.message : 'Failed to save avatar')
     } finally {
       setAvatarSaving(false)
+    }
+  }
+
+  const handleExportData = async () => {
+    try {
+      setDataBusy('export')
+      setDataError(null)
+      const blob = await exportMyData()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'pmd-my-data.json'
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setDataError(err instanceof Error ? err.message : 'Could not prepare your data.')
+    } finally {
+      setDataBusy(null)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    // Irreversible, so make the user type the confirmation rather than click through it.
+    const typed = window.prompt('This permanently deletes your account and cannot be undone.\n\nType DELETE to confirm:')
+    if (typed !== 'DELETE') return
+    try {
+      setDataBusy('delete')
+      setDataError(null)
+      await deleteMyAccount()
+      window.location.assign('/login')
+    } catch (err) {
+      // The server refuses if this user is the only one who can manage a workspace.
+      setDataError(err instanceof Error ? err.message : 'Could not delete your account.')
+      setDataBusy(null)
     }
   }
 
@@ -510,6 +546,25 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
           </div>
         </div>
       </form>
+      <div className="card profile-data-card">
+        <div className="panel-header">
+          <h4>Your data</h4>
+        </div>
+        <p className="muted">
+          Download everything PMD holds about you, or remove your account for good. Deleting
+          erases your account, sessions, photo, preferences and memberships. Anything you wrote
+          inside someone else&apos;s workspace stays there, shown as &quot;Deleted user&quot;.
+        </p>
+        {dataError ? <p className="error">{dataError}</p> : null}
+        <div className="actions-right">
+          <button type="button" className="btn btn-secondary" onClick={() => void handleExportData()} disabled={dataBusy !== null}>
+            {dataBusy === 'export' ? 'Preparing...' : 'Download my data'}
+          </button>
+          <button type="button" className="btn btn-danger" onClick={() => void handleDeleteAccount()} disabled={dataBusy !== null}>
+            {dataBusy === 'delete' ? 'Deleting...' : 'Delete my account'}
+          </button>
+        </div>
+      </div>
       <div className="card profile-stats-card">
         <div className="panel-header">
           <h4>My stats</h4>

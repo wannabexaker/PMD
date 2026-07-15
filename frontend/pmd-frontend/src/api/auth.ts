@@ -96,6 +96,18 @@ export async function updateProfile(payload: UpdateProfilePayload): Promise<User
   })
 }
 
+/** GDPR Art. 20 — downloads everything the service holds about the signed-in user. */
+export async function exportMyData(): Promise<Blob> {
+  const data = await requestJson<unknown>('/api/auth/me/export')
+  return new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+}
+
+/** GDPR Art. 17 — erases the account. Irreversible. */
+export async function deleteMyAccount(): Promise<void> {
+  await requestJson<void>('/api/auth/me', { method: 'DELETE' })
+  clearAuthToken()
+}
+
 export async function updatePeoplePageWidgets(payload: PeoplePageWidgets): Promise<PeoplePageWidgets> {
   return requestJson<PeoplePageWidgets>('/api/auth/me/people-page-widgets', {
     method: 'PATCH',

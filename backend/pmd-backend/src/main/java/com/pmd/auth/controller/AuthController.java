@@ -26,16 +26,21 @@ import com.pmd.user.model.PeoplePageWidgets;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
 import com.pmd.workspace.service.WorkspaceService;
+import com.pmd.privacy.service.AccountPrivacyService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -65,6 +70,7 @@ public class AuthController {
     private final ClientMetadataService clientMetadataService;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final TurnstileService turnstileService;
+    private final AccountPrivacyService accountPrivacyService;
 
     public AuthController(UserService userService, PasswordEncoder passwordEncoder, JwtService jwtService,
                           WelcomeEmailService welcomeEmailService,
@@ -76,7 +82,8 @@ public class AuthController {
                           WorkspaceService workspaceService,
                           ClientMetadataService clientMetadataService,
                           GoogleTokenVerifier googleTokenVerifier,
-                          TurnstileService turnstileService) {
+                          TurnstileService turnstileService,
+                          AccountPrivacyService accountPrivacyService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -90,6 +97,7 @@ public class AuthController {
         this.clientMetadataService = clientMetadataService;
         this.googleTokenVerifier = googleTokenVerifier;
         this.turnstileService = turnstileService;
+        this.accountPrivacyService = accountPrivacyService;
     }
 
     @PostMapping("/login")
@@ -329,6 +337,42 @@ public class AuthController {
 
         User saved = userService.save(user);
         return toUserResponse(saved);
+    }
+
+    /** GDPR Art. 20: the user's own data, as a downloadable file. */
+    @GetMapping("/me/export")
+    public ResponseEntity<Map<String, Object>> exportMyData(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        User user = userService.findById(principal.getId());
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"pmd-my-data.json\"")
+            .body(accountPrivacyService.exportUserData(user));
+    }
+
+    /** GDPR Art. 17: erase the account. */
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMyAccount(Authentication authentication,
+                                HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        User user = userService.findById(principal.getId());
+        List<String> blocking = accountPrivacyService.findWorkspacesBlockingDeletion(user);
+        if (!blocking.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "You are the only member who can manage: " + String.join(", ", blocking)
+                    + ". Hand them over to someone else, or delete them, before deleting your account.");
+        }
+        accountPrivacyService.deleteAccount(user);
+        // Logged only after erasure, and without the email: keeps an accountability record of
+        // the deletion without re-creating the personal data we were asked to remove.
+        authSecurityEventService.log("ACCOUNT_DELETE", "ALLOW", user.getId(), null,
+            "Account erased on user request", httpRequest);
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildClearRefreshCookie(httpRequest.isSecure()));
+        httpResponse.addHeader("Set-Cookie", authSessionService.buildClearCsrfCookie(httpRequest.isSecure()));
     }
 
     @PatchMapping("/me/people-page-widgets")
