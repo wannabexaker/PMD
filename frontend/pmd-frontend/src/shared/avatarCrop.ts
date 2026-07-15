@@ -20,6 +20,33 @@ type CropOptions = {
   zoomPercent?: number
 }
 
+export type CropRect = { offsetX: number; offsetY: number; sourceSize: number }
+
+/**
+ * Geometry of the exported crop, kept pure so it can be unit-tested without a canvas.
+ *
+ * It mirrors the live preview exactly: there the <img> is object-fit:cover inside a square
+ * box with object-position x%/y%, and zoom is a `transform: scale()` about the box centre.
+ * So the visible source square is minSide/zoom, centred on the point object-position picked
+ * at zoom 1 — NOT a top-left mapping across a zoom-adjusted range, which only agrees with
+ * the preview at zoom=100 or x/y=50.
+ */
+export function computeCropRect(width: number, height: number, options?: CropOptions): CropRect {
+  const minSide = Math.min(width, height)
+  const safeZoom = Math.max(100, Math.min(220, options?.zoomPercent ?? 100))
+  const zoom = safeZoom / 100
+  const safeX = Math.max(0, Math.min(100, options?.xPercent ?? 50))
+  const safeY = Math.max(0, Math.min(100, options?.yPercent ?? 50))
+  const sourceSize = Math.max(1, minSide / zoom)
+  const centerX = (safeX / 100) * (width - minSide) + minSide / 2
+  const centerY = (safeY / 100) * (height - minSide) + minSide / 2
+  return {
+    sourceSize,
+    offsetX: Math.max(0, Math.min(width - sourceSize, centerX - sourceSize / 2)),
+    offsetY: Math.max(0, Math.min(height - sourceSize, centerY - sourceSize / 2)),
+  }
+}
+
 export async function cropAvatarSquare(file: File, options?: CropOptions): Promise<File> {
   const image = await loadImageFromFile(file)
   const width = image.naturalWidth || image.width
@@ -28,17 +55,7 @@ export async function cropAvatarSquare(file: File, options?: CropOptions): Promi
     throw new Error('Invalid image dimensions.')
   }
 
-  const minSide = Math.min(width, height)
-  const safeZoom = Math.max(100, Math.min(220, options?.zoomPercent ?? 100))
-  const sourceSize = Math.max(1, minSide * (100 / safeZoom))
-  const safeX = Math.max(0, Math.min(100, options?.xPercent ?? 50))
-  const safeY = Math.max(0, Math.min(100, options?.yPercent ?? 50))
-  const maxOffsetX = Math.max(0, width - sourceSize)
-  const maxOffsetY = Math.max(0, height - sourceSize)
-  // Top-left normalized mapping: x/y sliders map directly to the available
-  // crop range so preview and exported crop stay 1:1 aligned.
-  const offsetX = Math.max(0, Math.min(maxOffsetX, (safeX / 100) * maxOffsetX))
-  const offsetY = Math.max(0, Math.min(maxOffsetY, (safeY / 100) * maxOffsetY))
+  const { offsetX, offsetY, sourceSize } = computeCropRect(width, height, options)
 
   const outputSize = 512
   const canvas = document.createElement('canvas')

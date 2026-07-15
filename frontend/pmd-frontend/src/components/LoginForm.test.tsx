@@ -4,6 +4,16 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { LoginForm } from './LoginForm'
 import { ToastProvider } from '../shared/ui/toast/ToastProvider'
 
+// The Google/Turnstile widgets are env-gated, so without this the test depends on whether a
+// .env.local happens to define real keys — with Turnstile "enabled" submit bails on the
+// missing captcha token and never calls onLogin. Pin them off so the test is deterministic.
+vi.mock('../lib/authProviders', () => ({
+  GOOGLE_CLIENT_ID: '',
+  TURNSTILE_SITE_KEY: '',
+  isGoogleEnabled: false,
+  isTurnstileEnabled: false,
+}))
+
 function renderLogin(onLogin = vi.fn().mockResolvedValue(undefined)) {
   const utils = render(
     <ToastProvider>

@@ -24,6 +24,7 @@ import { API_BASE_URL, isApiError } from '../api/http'
 import { getErrorMessage, isForbiddenError } from '../api/errors'
 import { uploadImage } from '../api/uploads'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
+import { cropAvatarSquare } from '../shared/avatarCrop'
 import type {
   WorkspaceInvite,
   WorkspaceJoinRequest,
@@ -128,8 +129,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [workspaceAvatarCropX, setWorkspaceAvatarCropX] = useState(50)
   const [workspaceAvatarCropY, setWorkspaceAvatarCropY] = useState(50)
   const [workspaceAvatarCropZoom, setWorkspaceAvatarCropZoom] = useState(100)
-  const [workspaceAvatarCropSourceUrl, setWorkspaceAvatarCropSourceUrl] = useState<string | null>(null)
-  const [savedWorkspaceCropByUrl, setSavedWorkspaceCropByUrl] = useState<Record<string, SavedCropState>>(() =>
+  // Read-only: legacy workspace avatars uploaded before cropping was baked in still carry a
+  // stored view-transform. We restore it when re-cropping so it gets baked into the new file.
+  const [savedWorkspaceCropByUrl] = useState<Record<string, SavedCropState>>(() =>
     loadSavedCropMap(WORKSPACE_CROP_STORAGE_KEY)
   )
   const [pmdImages, setPmdImages] = useState<string[]>([])
@@ -1110,7 +1112,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     setWorkspaceAvatarCropX(50)
     setWorkspaceAvatarCropY(50)
     setWorkspaceAvatarCropZoom(100)
-    setWorkspaceAvatarCropSourceUrl(null)
     event.target.value = ''
   }
 
@@ -1118,19 +1119,17 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     if (!workspaceAvatarCropFile) return
     try {
       setWorkspaceProfileAvatarUploading(true)
-      let nextAvatarUrl = workspaceAvatarCropSourceUrl?.trim() ?? ''
-      if (!nextAvatarUrl) {
-        // Frame-mode behavior: upload original image and persist POV separately.
-        const uploaded = await uploadImage(workspaceAvatarCropFile)
-        nextAvatarUrl = (uploaded.url ?? '').trim()
-      }
+      // Bake the framing into the uploaded file (same as ProfilePanel): the stored
+      // view-transform only ever applied in the uploader's own browser, so every other
+      // member saw the workspace avatar uncropped.
+      const cropped = await cropAvatarSquare(workspaceAvatarCropFile, {
+        xPercent: workspaceAvatarCropX,
+        yPercent: workspaceAvatarCropY,
+        zoomPercent: workspaceAvatarCropZoom,
+      })
+      const uploaded = await uploadImage(cropped)
+      const nextAvatarUrl = (uploaded.url ?? '').trim()
       setWorkspaceProfileAvatarUrl(nextAvatarUrl)
-      if (nextAvatarUrl) {
-        setSavedWorkspaceCropByUrl((prev) => ({
-          ...prev,
-          [nextAvatarUrl]: { x: workspaceAvatarCropX, y: workspaceAvatarCropY, zoom: workspaceAvatarCropZoom },
-        }))
-      }
       if (!workspaceProfileTargetId || !canEditSelectedProfile) {
         showToast({ type: 'success', message: 'Avatar uploaded.' })
       } else {
@@ -1153,7 +1152,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
       setWorkspaceAvatarCropPreviewUrl('')
       setWorkspaceAvatarCropFile(null)
-      setWorkspaceAvatarCropSourceUrl(null)
     } catch (err) {
       showToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to upload avatar.' })
     } finally {
@@ -1218,7 +1216,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       setWorkspaceAvatarCropX(saved?.x ?? 50)
       setWorkspaceAvatarCropY(saved?.y ?? 50)
       setWorkspaceAvatarCropZoom(saved?.zoom ?? 100)
-      setWorkspaceAvatarCropSourceUrl(currentUrl)
     } catch (err) {
       showToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to open crop editor.' })
     }
@@ -1256,13 +1253,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     }
   }, [workspaceAvatarCropPreviewUrl])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(WORKSPACE_CROP_STORAGE_KEY, JSON.stringify(savedWorkspaceCropByUrl))
-    } catch {
-      // ignore storage errors
-    }
-  }, [savedWorkspaceCropByUrl])
 
   const handleWorkspaceCropPointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
     if (!workspaceAvatarCropPreviewUrl) return
@@ -4048,7 +4038,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
             URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
             setWorkspaceAvatarCropPreviewUrl('')
             setWorkspaceAvatarCropFile(null)
-            setWorkspaceAvatarCropSourceUrl(null)
           }}
         >
           <div className="modal avatar-editor-modal profile-avatar-context-window" onClick={(event) => event.stopPropagation()}>
@@ -4060,7 +4049,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
                 setWorkspaceAvatarCropPreviewUrl('')
                 setWorkspaceAvatarCropFile(null)
-                setWorkspaceAvatarCropSourceUrl(null)
               }}
             >
               <span className="settings-icon-glyph" aria-hidden="true">
@@ -4135,7 +4123,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     URL.revokeObjectURL(workspaceAvatarCropPreviewUrl)
                     setWorkspaceAvatarCropPreviewUrl('')
                     setWorkspaceAvatarCropFile(null)
-                    setWorkspaceAvatarCropSourceUrl(null)
                   }}
                   disabled={workspaceProfileAvatarUploading}
                 >

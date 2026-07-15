@@ -8,6 +8,7 @@ import { fetchMyUserStats } from '../api/stats'
 import { fetchMyDashboardStats } from '../api/projects'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
+import { cropAvatarSquare } from '../shared/avatarCrop'
 
 type ProfilePanelProps = {
   user: User
@@ -51,8 +52,9 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   const [avatarCropX, setAvatarCropX] = useState(50)
   const [avatarCropY, setAvatarCropY] = useState(50)
   const [avatarCropZoom, setAvatarCropZoom] = useState(100)
-  const [avatarCropSourceUrl, setAvatarCropSourceUrl] = useState<string | null>(null)
-  const [savedCropByUrl, setSavedCropByUrl] = useState<Record<string, SavedCropState>>(() =>
+  // Read-only: legacy avatars uploaded before cropping was baked in still carry a stored
+  // view-transform. We restore it when re-cropping so it gets baked into the new file.
+  const [savedCropByUrl] = useState<Record<string, SavedCropState>>(() =>
     loadSavedCropMap(PROFILE_CROP_STORAGE_KEY)
   )
   const [pmdImages, setPmdImages] = useState<string[]>([])
@@ -178,7 +180,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
     setAvatarCropX(50)
     setAvatarCropY(50)
     setAvatarCropZoom(100)
-    setAvatarCropSourceUrl(null)
     setAvatarError(null)
     event.target.value = ''
   }
@@ -201,7 +202,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
       setAvatarCropX(saved?.x ?? 50)
       setAvatarCropY(saved?.y ?? 50)
       setAvatarCropZoom(saved?.zoom ?? 100)
-      setAvatarCropSourceUrl(currentUrl)
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : 'Failed to open crop editor.')
     }
@@ -212,23 +212,22 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
     try {
       setAvatarUploading(true)
       setAvatarError(null)
-      let nextUrl = avatarCropSourceUrl?.trim() ?? ''
-      if (!nextUrl) {
-        // Frame-mode behavior: upload original image (no real crop) and persist POV separately.
-        const uploaded = await uploadImage(avatarCropFile)
-        nextUrl = (uploaded.url ?? '').trim()
-      }
+      // Bake the framing into the uploaded file. Previously the original was uploaded and the
+      // framing was kept only in this browser's localStorage, so everyone else — and this user
+      // on any other device — saw the uncropped image. The cropped square is also ~100KB.
+      const cropped = await cropAvatarSquare(avatarCropFile, {
+        xPercent: avatarCropX,
+        yPercent: avatarCropY,
+        zoomPercent: avatarCropZoom,
+      })
+      const uploaded = await uploadImage(cropped)
+      const nextUrl = (uploaded.url ?? '').trim()
       setAvatarUrlDraft(nextUrl)
-      if (nextUrl) {
-        setSavedCropByUrl((prev) => ({
-          ...prev,
-          [nextUrl]: { x: avatarCropX, y: avatarCropY, zoom: avatarCropZoom },
-        }))
-      }
+      // No stored view-transform for the new URL: the file itself is already framed, so
+      // getAvatarFrameStyle() returns undefined and the image renders 1:1.
       URL.revokeObjectURL(avatarCropPreviewUrl)
       setAvatarCropPreviewUrl('')
       setAvatarCropFile(null)
-      setAvatarCropSourceUrl(null)
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : 'Failed to upload avatar')
     } finally {
@@ -264,14 +263,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
       }
     }
   }, [avatarCropPreviewUrl])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PROFILE_CROP_STORAGE_KEY, JSON.stringify(savedCropByUrl))
-    } catch {
-      // ignore storage errors
-    }
-  }, [savedCropByUrl])
 
   const handleCropPointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
     if (!avatarCropPreviewUrl) return
@@ -495,7 +486,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
           URL.revokeObjectURL(avatarCropPreviewUrl)
           setAvatarCropPreviewUrl('')
           setAvatarCropFile(null)
-          setAvatarCropSourceUrl(null)
         }}>
           <div className="modal avatar-editor-modal profile-avatar-context-window" onClick={(event) => event.stopPropagation()}>
             <button
@@ -506,7 +496,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                 URL.revokeObjectURL(avatarCropPreviewUrl)
                 setAvatarCropPreviewUrl('')
                 setAvatarCropFile(null)
-                setAvatarCropSourceUrl(null)
               }}
             >
               X
@@ -579,7 +568,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                     URL.revokeObjectURL(avatarCropPreviewUrl)
                     setAvatarCropPreviewUrl('')
                     setAvatarCropFile(null)
-                    setAvatarCropSourceUrl(null)
                   }}
                   disabled={avatarUploading}
                 >
