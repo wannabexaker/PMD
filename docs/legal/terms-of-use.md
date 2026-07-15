@@ -80,7 +80,11 @@ That has a real and specific consequence:
   long time.
 - Maintenance and restarts happen when they happen, and are usually not announced in
   advance.
-- **Data loss is genuinely possible.** Hardware fails. Consumer hardware fails more.
+- **Data loss is genuinely possible, and there are no backups. None.** The copy of the
+  database on that Pi is the only copy that exists — no nightly dump, no off-site copy, no
+  manual one either (confirmed 15 July 2026). Hardware fails. Consumer hardware fails more.
+  If the Pi's storage dies, everything in PMD is gone, for everyone, with nothing to
+  restore from.
 
 **So: do not use PMD as the only copy of anything you care about.** Keep your own copy of
 anything important. Export your data regularly (Settings has an export). If PMD is the only
@@ -153,17 +157,19 @@ tasks, comments, bio, avatar — stays yours. PMD does not claim ownership of an
 To be able to run the service, PMD needs your permission to handle your content. So you
 grant a **non-exclusive, worldwide, royalty-free licence to host, store, copy, transmit
 and display your content, solely to operate and provide PMD to you and to the people you
-have shared it with**, and to make backups.
+have shared it with**.
 
 That is the whole licence. It exists because a server cannot store and display your data
-without permission to store and display your data. It does not permit anything else — PMD
+without permission to store and display your data — "copy" covers the transient copies any
+computer makes to serve a page, and nothing more. It does not permit anything else — PMD
 will not sell your content, publish it, use it for advertising, use it to train machine
-learning models, or show it to anyone you have not shared it with.
+learning models, or show it to anyone you have not shared it with. It does not cover
+backups, because — as section 4 tells you plainly — **there are none to cover**.
 
-The licence ends when you delete the content or your account, except for:
-
-- backup copies, until they age out in the ordinary backup cycle; and
-- content you put into other people's workspaces, which is covered in section 11.2.
+The licence ends when you delete the content or your account, with one exception: content
+you put into other people's workspaces, which is covered in section 11.2. There is no
+"except our backups" carve-out here, because there are no backup copies for one to apply
+to. When you delete something, the copy you deleted was the copy.
 
 **You are responsible for your content** — for having the right to post it, and for it not
 being illegal or infringing.

@@ -34,67 +34,41 @@ and/or the EU–US Data Privacy Framework "as applicable". **No DPA has actually
 accepted with any of them.** This must be done, and privacy policy §11 updated to state the
 real mechanism per provider rather than a hedge. See lawyer question 5.
 
-### 2. The export omits the terms-acceptance record
-
-**Small, and mechanical to fix.** `termsAcceptedAt` and `termsVersion` were added to the user
-document in `687ff16`, but `AccountPrivacyService.exportUserData` was not updated — the commit
-does not touch that file. Verified: the `profile` map it builds puts `id`, `email`,
-`username`, `displayName`, `firstName`, `lastName`, `bio`, `avatarUrl`, `emailVerified`,
-`signedInWithGoogle`, `createdAt` — and stops.
-
-So two pieces of personal data are now held about every new account and are **not** in the
-Art. 15 / Art. 20 export. Unlike `passwordHash` and `googleId`, which are left out
-deliberately and for stated reasons, this one is an oversight.
-
-Privacy policy §14.1 currently **discloses the gap** rather than pretending otherwise, which
-is accurate but is not where this should end up.
-
-**Fix:** two lines in `exportUserData`:
-
-```java
-profile.put("termsAcceptedAt", user.getTermsAcceptedAt() != null ? user.getTermsAcceptedAt().toString() : null);
-profile.put("termsVersion", user.getTermsVersion());
-```
-
-Then delete the "One gap in the export" paragraph from §14.1. **Erasure is already correct** —
-the fields live on the user document and nowhere else (verified), and `deleteAccount` calls
-`userRepository.deleteById`, so they go with it.
-
-### 3. The two documents contradict each other about backups — and both cannot be right
-
-**Found on this pass. Not yet fixed, because fixing it needs a fact only the developer has.**
-
-- Privacy policy §12 says the Pi is **"the primary and only copy of the database"**.
-- Terms §8 grants a licence **"to make backups"**, and ends the licence on deletion *except
-  for* **"backup copies, until they age out in the ordinary backup cycle"** — which asserts
-  that a backup cycle exists.
-- `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md` prescribes a **daily** `mongodump`, retention
-  of **14 daily / 8 weekly / 6 monthly**, and storage **"off-host preferred"**.
-
-Those cannot all be true at once, and **whichever way it resolves, something published today
-would be false**:
-
-- **If backups are actually being taken:** privacy §12 is false, and worse, the documents are
-  silent on things that would then matter a great deal — where the backups physically live
-  (off-host could mean another country and another recipient for §11), that §13's retention
-  table has no backup row, and that "deletion cannot be undone" (§14.2) coexists with a
-  deleted account surviving in an archive for **up to six months**. That last one is a real
-  Art. 17 disclosure point, not a technicality.
-- **If backups are not being taken:** terms §8's carve-out describes a cycle that does not
-  exist, the licence grant to "make backups" is speculative, and the runbook is aspirational
-  documentation rather than a description of the service — which is worth knowing separately,
-  given that terms §4 tells users hardware failure could lose their data.
-
-There is **no automated backup anywhere in the repo** — no backup service in
-`docker-compose.pi.yml`, nothing in CI. So the runbook describes a manual procedure, and
-whether it is actually performed is not knowable from the code. **Developer: say which it is,
-then one of the two passages gets rewritten and §11/§13/§14.2 updated to match.** No wording
-was changed on this pass, because guessing here is exactly the failure mode these documents
-exist to avoid.
-
 ---
 
 ## Resolved since the first draft
+
+- ~~The export omits the terms-acceptance record~~ — **fixed** (commit `8c5aa3a`), verified:
+  `AccountPrivacyService.exportUserData` now puts `termsAcceptedAt` (null-safe) and
+  `termsVersion` into the profile map, which was exactly the two-line fix this blocker
+  prescribed. Privacy §14.1 was updated in `b21bbec` to say the export includes the record —
+  and to keep the "empty means unrecorded, not refused" caveat for pre-15-July accounts.
+  Erasure was already correct: the fields live on the user document and nowhere else, and
+  `deleteAccount` deletes that document.
+
+- ~~The two documents contradict each other about backups~~ — **resolved by the developer's
+  answer, 15 July 2026: there are no backups at all.** Not automated, not manual, none.
+  `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md` is aspirational and was never implemented. So:
+  - **Privacy §12's "the primary and only copy of the database" was true all along** and is
+    unchanged.
+  - **Terms §8 was the false half** and has been rewritten: the licence no longer includes
+    "to make backups", and the "backup copies... ordinary backup cycle" carve-out on
+    licence-end is gone. The licence now ends at deletion with a single exception (content in
+    other people's workspaces, §11.2), and §8 says outright that there is no backup
+    carve-out because there is nothing for one to apply to.
+  - **Terms §4 now states the fact positively**: no backups, none, confirmed 15 July 2026 —
+    an SD-card death is total loss for every user. This belongs in the section people are
+    told to read, not implied by an absence.
+  - **"Deletion cannot be undone" (privacy §14.2, terms §11.1) now stands unqualified and
+    literally true** — no archive anywhere holds a deleted account. Neither passage needed a
+    change; both were already unhedged.
+
+  **Provenance, honestly:** the *absence of automated* backups is code-verifiable (no backup
+  service in `docker-compose.pi.yml`, nothing in CI); the absence of *manual* ones is not
+  something code can prove — it rests on the developer's direct statement, dated. That is
+  the same footing as "the only platform administrator is the developer": a claim about
+  operational reality, made by the person who operates it. See R3 for what must happen
+  before this ever changes.
 
 - ~~Avatar image files are never deleted~~ — **fully fixed** (commits `bcb73bf` erasure,
   `20b7e0a` replacement), and the six passages that said otherwise have been rewritten.
@@ -295,7 +269,10 @@ Ordered roughly by how much it matters.
 18. **The ODR platform.** The EU ODR platform shut down in July 2025. The draft flags this
     rather than linking a dead platform. What, if anything, is now required in its place?
 19. **The content licence** (§8). Drawn narrowly enough to be fair while still covering what
-    a server actually has to do (host, copy, transmit, display, back up)?
+    a server actually has to do (host, copy, transmit, display)? Note it deliberately no
+    longer covers backups — none exist (see R3) — so if backups are ever introduced, the
+    licence must regain that word *before* the first copy is made, and the question then is
+    whether re-acceptance is needed to widen a licence users already granted.
 20. **The indemnity** (§13) and the warranty behind it (§8.2). The **warranty** — that you
     have a lawful basis for third-party personal data you put in — is asked of everyone. The
     **indemnity** is business-only, and conditioned on prompt notice, no settlement without
@@ -416,20 +393,56 @@ cover**, which is the part worth defending against future tidying-up:
 Do not let the documents drift into implying per-read granularity or a guarantee. They
 currently do not, deliberately.
 
-#### R2. The demo seeder can mint a known-password admin
+#### R2. The demo seeder can mint a known-password admin — now guarded (done)
 
-Not currently a live problem, and **not** disclosed in the documents because it is not true
-of production — but worth knowing before it becomes true. `DemoSeeder` creates
-`admin1@pmd.local` with the hardcoded password `admin321` and `isAdmin = true`. It is gated
-on `PMD_SEED_DEMO=true` or the `dev` profile; production runs `docker,prod` and does not set
-the flag, so it does not run. `UserSeeder` is safer still — it seeds nothing unless
-`PMD_SEED_ADMIN_PASSWORD` is explicitly set, and has no default password.
+**Implemented** (commit `ac2e3b3`), verified: `DemoSeeder.run` calls `refuseInProduction()`
+before seeding, which throws and **stops the application from starting** if seeding is
+enabled while the `prod` profile is active — exactly the fail-fast this recommendation asked
+for. A warning in a log is read after the account exists; a refusal to boot is read before.
 
-The point: privacy policy §9 states that **the only platform administrator is the developer**.
-That is a claim about the production database, not about the code, and the code has a switch
-that would falsify it. If `PMD_SEED_DEMO` is ever turned on in production, §9 becomes false
-and every workspace is reachable with a published password. Consider failing startup if
-`PMD_SEED_DEMO` is true while the `prod` profile is active.
+Why it existed: `DemoSeeder` creates `admin1@pmd.local` with the hardcoded password
+`admin321` and `isAdmin = true`, gated on `PMD_SEED_DEMO=true` or the `dev` profile. A
+platform administrator can enter every workspace, so one stray environment variable in
+production would have falsified privacy §9's claim that **the only platform administrator is
+the developer** — with a password that is public in the source. `UserSeeder` was already
+safe (no default password, seeds nothing unless `PMD_SEED_ADMIN_PASSWORD` is set).
+
+What remains true and needs no fix: in dev/demo runs the seeder still mints those accounts,
+which is its job. §9's claim is about production, and production now refuses to start rather
+than let the claim go false silently. Nothing in the published documents needed changing —
+the documents never disclosed the risk because it was never true of production, and now the
+code holds that line rather than convention.
+
+#### R3. There are no backups — the documents now say so, and that cuts both ways
+
+The developer confirmed (15 July 2026): **no backups exist, manual or automated.** The
+documents have been aligned to that fact (see Resolved). Two consequences, one good, one bad,
+both now stated in the published text:
+
+- **Erasure is truly final.** "Deletion cannot be undone" is literally, unqualifiedly true —
+  the cleanest possible Art. 17 position. No archive, no retention tail, no "gone in up to
+  six months". Few services can say this; PMD currently can.
+- **A dead SD card is total data loss for every user, permanently.** Terms §4 now says this
+  in as many words. It was always implied by "only copy"; now it is text.
+
+**If backups are ever introduced — and for the users' sake they probably should be — the
+documents must be rewritten *before* the first dump is taken, not after.** The moment one
+archive exists:
+
+- terms §4 ("there are no backups. None.") and §8 ("there are no backup copies for one to
+  apply to") are **false**;
+- privacy §12 ("the primary and only copy") is **false**;
+- privacy §13 needs a backup-retention row, §14.2 needs the honesty about deleted accounts
+  surviving in archives until they age out, and — if the archive leaves the Pi — §11 may
+  gain a **new recipient and possibly a new international transfer**;
+- and note the deliberate forcing function: **terms §8's licence no longer covers backup
+  copies at all.** Taking a backup of user content without first restoring that clause would
+  exceed the licence users granted. The sequencing is therefore self-enforcing: text first,
+  then dump.
+
+`docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md` stays useful as the *procedure* to implement,
+but it describes nothing that exists. Consider marking it aspirational at the top so nobody
+else spends an afternoon on the same contradiction.
 
 ### D. Operational
 
@@ -464,7 +477,8 @@ and every workspace is reachable with a published password. Consider failing sta
   - **export and deletion behaviour** — `AccountPrivacyService` (`exportUserData`,
     `deleteAccount`, `findWorkspacesBlockingDeletion`), `AuthController`. **When a field is
     added to `User`, it must be added to `exportUserData` too** — that is precisely how
-    blocker 2 happened, and the export silently omits rather than failing.
+    the export gap of 15 July 2026 happened (`687ff16` added fields, `8c5aa3a` had to chase
+    them into the export), and the export silently omits rather than failing.
   - **terms acceptance** — `AuthController` (`requireTermsAccepted`, `stampTermsAcceptance`,
     `CURRENT_TERMS_VERSION`), `RegisterRequest.acceptedTerms` / `GoogleLoginRequest`,
     `User.termsAcceptedAt` / `termsVersion`. Terms §1 and privacy §4.1, §4.9, §13, §14.1,
@@ -497,6 +511,12 @@ and every workspace is reachable with a published password. Consider failing sta
     `.env.pi.example`, `docker-compose.pi.yml`
   - **the no-tracking claim** — `frontend/pmd-frontend/package.json` (no analytics
     dependency) and the three-origin check against the live site
+  - **the no-backups claim** — terms §4, terms §8 (twice) and, implicitly, privacy §12's
+    "only copy". The automated half is code-verifiable (`docker-compose.pi.yml`, CI); the
+    manual half rests on the developer's statement of 15 July 2026 and **cannot be verified
+    from the repo** — re-confirm it with him rather than re-grepping. If any backup is ever
+    taken, four passages go false at once and §8's licence no longer covers the copy: see
+    recommendation R3 **before** the first dump, not after.
 - Placeholders are marked `[TO BE COMPLETED: ...]` and `[TO BE CONFIRMED ...]`. Grep for
   `TO BE` before publishing; there should be no hits left.
 - Resist the urge to make these sound more professional than the service is. The value of
