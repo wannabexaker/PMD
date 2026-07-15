@@ -1002,6 +1002,39 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent), var(--hover-shadow);
 }
 
+/* The dragged panel is inserted *before* this card, so mark the exact edge it lands on.
+   Tinting the card alone only said "this one", never "where". */
+.settings-card.is-drop-target::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: -9px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+  pointer-events: none;
+}
+
+/* The card you picked up, so it is obvious which panel is moving. */
+.settings-card.is-dragging {
+  opacity: 0.45;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+}
+
+/* A card is never its own drop target; don't draw the insertion bar on it. */
+.settings-card.is-dragging::before {
+  content: none;
+}
+
+/* Surface the "move to the end" slot only while a drag is in progress. */
+.settings-empty-slot.is-active {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  color: var(--text);
+}
+
 .settings-order-popover {
   position: absolute;
   top: calc(100% + 8px);

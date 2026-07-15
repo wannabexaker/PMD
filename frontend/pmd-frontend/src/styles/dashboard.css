@@ -2051,6 +2051,14 @@
 }
 
 /* --- Avatar crop dialog (shared by profile + workspace) --- */
+/* Opened *from* the avatar editor, which sits at (--z-modal + 20), so it has to stack
+   above it — plain .modal-overlay would put it behind and it would look like nothing
+   happened when you picked a photo. */
+.avatar-crop-overlay {
+  z-index: calc(var(--z-modal) + 30);
+  backdrop-filter: blur(2px);
+}
+
 .avatar-crop-modal {
   display: grid;
   gap: 12px;

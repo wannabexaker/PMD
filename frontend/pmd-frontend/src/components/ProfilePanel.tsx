@@ -10,6 +10,7 @@ import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
 import { AVATAR_ACCEPT, validateAvatarFile } from '../shared/avatarCrop'
 import { AvatarCropDialog, type AvatarCrop } from './avatar/AvatarCropDialog'
+import { CloseIcon } from '../shared/ui/CloseIcon'
 
 type ProfilePanelProps = {
   user: User
@@ -278,16 +279,19 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
       </div>
       {avatarEditorOpen ? (
         <div className="modal-overlay profile-avatar-context-overlay" onClick={() => setAvatarEditorOpen(false)}>
-          <div className="modal avatar-editor-modal profile-avatar-context-window" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="modal avatar-editor-modal profile-avatar-editor-modal profile-avatar-context-window"
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
               type="button"
               className="avatar-editor-close"
               aria-label="Close avatar editor"
               onClick={() => setAvatarEditorOpen(false)}
             >
-              X
+              <CloseIcon size={15} />
             </button>
-            <div className="workspace-profile-avatar-panel profile-avatar-editor-panel">
+            <div className="workspace-profile-avatar-panel profile-avatar-editor-layout">
               <div className="workspace-profile-avatar-preview">
                 <span className="workspace-avatar workspace-avatar-xl workspace-avatar-edit-preview" aria-hidden="true">
                   {avatarUrlDraft ? (
@@ -316,7 +320,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                     }}
                     disabled={avatarUploading || avatarSaving}
                   >
-                    X
+                    <CloseIcon size={12} />
                   </button>
                 ) : null}
               </div>
@@ -330,7 +334,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                 />
                 <p className="muted">PNG/JPG/WEBP up to 2MB</p>
                 {avatarError ? <p className="error">{avatarError}</p> : null}
-                <div className="workspace-profile-avatar-actions-row">
+                <div className="avatar-editor-primary-actions">
                   <label className="btn btn-secondary workspace-profile-avatar-button">
                     {avatarUploading ? 'Uploading...' : 'Upload image'}
                     <input
@@ -349,14 +353,8 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                   >
                     Adjust crop
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={avatarUploading || avatarSaving}
-                    onClick={() => void handleAvatarSave(avatarUrlDraft)}
-                  >
-                    {avatarSaving ? 'Saving...' : 'Save avatar'}
-                  </button>
+                </div>
+                <div className="avatar-editor-secondary-actions">
                   <button
                     type="button"
                     className="btn btn-ghost"
@@ -364,6 +362,14 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                     onClick={() => setPmdImagesOpen((prev) => !prev)}
                   >
                     PMD images
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={avatarUploading || avatarSaving}
+                    onClick={() => void handleAvatarSave(avatarUrlDraft)}
+                  >
+                    {avatarSaving ? 'Saving...' : 'Save avatar'}
                   </button>
                 </div>
                 {pmdImagesOpen ? <p className="muted">Select from PMD images window.</p> : null}
@@ -381,7 +387,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
               aria-label="Close PMD images"
               onClick={() => setPmdImagesOpen(false)}
             >
-              X
+              <CloseIcon size={15} />
             </button>
             <div className="pmd-images-picker-header">
               <h4>PMD images</h4>
