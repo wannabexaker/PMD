@@ -87,6 +87,7 @@ public class DemoSeeder implements ApplicationRunner {
         if (!shouldSeed()) {
             return;
         }
+        refuseInProduction();
         StartupMongoRetry.runWithRetry(logger, "demo seed", () -> {
             logger.info("Starting demo seed run.");
             User admin = userService.ensureAdminSeedUser(
@@ -126,6 +127,29 @@ public class DemoSeeder implements ApplicationRunner {
 
             logger.info("Demo seed completed with {} users and {} projects.", seededUsers.size(), SEED_PROJECTS.size());
         });
+    }
+
+    /**
+     * Stops the application rather than seeding a production database.
+     *
+     * <p>This seeder creates a platform administrator with a password published in this file,
+     * alongside ten accounts with equally well-known ones. A platform administrator can enter
+     * every workspace, so the blast radius of that happening in production is every user's
+     * data, not just the demo rows.
+     *
+     * <p>Only the profile keeps that apart from production today, and one stray
+     * {@code PMD_SEED_DEMO=true} is all it would take. Failing to start is deliberate: a
+     * warning in the log is read after the account already exists, if at all.
+     */
+    private void refuseInProduction() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("prod".equalsIgnoreCase(profile)) {
+                throw new IllegalStateException(
+                    "Refusing to start: demo seeding is enabled under the 'prod' profile. It would create "
+                    + "a platform-administrator account with a password that is public in the source code. "
+                    + "Unset PMD_SEED_DEMO and do not activate the 'dev' profile in production.");
+            }
+        }
     }
 
     private boolean shouldSeed() {
