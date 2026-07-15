@@ -119,6 +119,11 @@ public class AccountPrivacyService {
         profile.put("emailVerified", user.isEmailVerified());
         profile.put("signedInWithGoogle", user.getGoogleId() != null && !user.getGoogleId().isBlank());
         profile.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+        // The acceptance record is held about the user, so it belongs in their copy — and it is
+        // the one piece here they might actually want to check. Null on accounts created before
+        // it was recorded, which means unrecorded, not refused.
+        profile.put("termsAcceptedAt", user.getTermsAcceptedAt() != null ? user.getTermsAcceptedAt().toString() : null);
+        profile.put("termsVersion", user.getTermsVersion());
         // Deliberately omitted: passwordHash and googleId — secrets/identifiers that would
         // only create risk in an exported file without telling the user anything useful.
         export.put("profile", profile);
