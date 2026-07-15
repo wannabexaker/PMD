@@ -4,6 +4,13 @@ spring:
   profiles:
     default: local
 
+  servlet:
+    multipart:
+      # Must stay >= the client-side limit in the upload UIs (2MB), otherwise a file
+      # that passes the browser check is rejected here with a confusing error.
+      max-file-size: ${PMD_UPLOAD_MAX_FILE_SIZE:4MB}
+      max-request-size: ${PMD_UPLOAD_MAX_REQUEST_SIZE:8MB}
+
   mail:
     host: ${SPRING_MAIL_HOST:localhost}
     port: ${SPRING_MAIL_PORT:1025}
