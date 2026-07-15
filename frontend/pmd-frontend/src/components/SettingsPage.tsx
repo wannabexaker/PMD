@@ -26,6 +26,7 @@ import { uploadImage } from '../api/uploads'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
 import { AVATAR_ACCEPT, validateAvatarFile } from '../shared/avatarCrop'
 import { AvatarCropDialog, type AvatarCrop } from './avatar/AvatarCropDialog'
+import { GripIcon } from '../shared/ui/GripIcon'
 import type {
   WorkspaceInvite,
   WorkspaceJoinRequest,
@@ -1623,7 +1624,18 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       (event: DragEvent<HTMLDivElement>) => {
         event.preventDefault()
         event.dataTransfer.dropEffect = 'move'
-        setDragOverPanel(targetId)
+        // dragover fires continuously; only re-render when the target actually changes.
+        setDragOverPanel((prev) => (prev === targetId ? prev : targetId))
+      },
+    []
+  )
+
+  const handlePanelDragLeave = useCallback(
+    (targetId: SettingsPanelId | 'end') =>
+      (event: DragEvent<HTMLDivElement>) => {
+        // Ignore moves between a card's own children, which also fire dragleave.
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        setDragOverPanel((prev) => (prev === targetId ? null : prev))
       },
     []
   )
@@ -1676,7 +1688,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
         title="Drag to reorder or click to set position"
         aria-label={`Reorder ${label} panel`}
       >
-        ::
+        <GripIcon />
       </button>
       {orderMenuPanel === id ? (
         <div
@@ -1851,13 +1863,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
         style={settingsGridStyle}
       >
         <div
-          className={`card settings-card settings-card-compact${dragOverPanel === 'preferences' ? ' is-drop-target' : ''}${isTabVisible('preferences') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card settings-card-compact${draggingPanel === 'preferences' ? ' is-dragging' : ''}${dragOverPanel === 'preferences' ? ' is-drop-target' : ''}${isTabVisible('preferences') ? '' : ' settings-card-hidden'}`}
           data-panel-id="preferences"
           ref={setPanelRef('preferences')}
           style={panelCardStyle('preferences')}
           onDragOver={handlePanelDragOver('preferences')}
+          onDragLeave={handlePanelDragLeave('preferences')}
           onDrop={handlePanelDrop('preferences')}
-          onDragLeave={() => setDragOverPanel((prev) => (prev === 'preferences' ? null : prev))}
         >
           {settingsViewMode === 'grid' ? (
             <div className="settings-resize-handle top" onMouseDown={handleResizeStart('preferences', 'top')} />
@@ -1931,14 +1943,14 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           ) : null}
         </div>
         <div
-          className={`card settings-card${dragOverPanel === 'workspaces' ? ' is-drop-target' : ''}${isTabVisible('workspaces') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${draggingPanel === 'workspaces' ? ' is-dragging' : ''}${dragOverPanel === 'workspaces' ? ' is-drop-target' : ''}${isTabVisible('workspaces') ? '' : ' settings-card-hidden'}`}
           data-panel-id="workspaces"
           data-tour="settings-workspaces-card"
           ref={setPanelRef('workspaces')}
           style={panelCardStyle('workspaces')}
           onDragOver={handlePanelDragOver('workspaces')}
+          onDragLeave={handlePanelDragLeave('workspaces')}
           onDrop={handlePanelDrop('workspaces')}
-          onDragLeave={() => setDragOverPanel((prev) => (prev === 'workspaces' ? null : prev))}
         >
           {settingsViewMode === 'grid' ? (
             <div className="settings-resize-handle top" onMouseDown={handleResizeStart('workspaces', 'top')} />
@@ -2781,13 +2793,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           ) : null}
         </div>
         <div
-          className={`card settings-card${dragOverPanel === 'audit' ? ' is-drop-target' : ''}${isTabVisible('audit') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${draggingPanel === 'audit' ? ' is-dragging' : ''}${dragOverPanel === 'audit' ? ' is-drop-target' : ''}${isTabVisible('audit') ? '' : ' settings-card-hidden'}`}
           data-panel-id="audit"
           ref={setPanelRef('audit')}
           style={panelCardStyle('audit')}
           onDragOver={handlePanelDragOver('audit')}
+          onDragLeave={handlePanelDragLeave('audit')}
           onDrop={handlePanelDrop('audit')}
-          onDragLeave={() => setDragOverPanel((prev) => (prev === 'audit' ? null : prev))}
         >
           {/* Audit card stays pinned at top in grid mode; only bottom resize is allowed. */}
           <div className="panel-header settings-card-handle">
@@ -2941,13 +2953,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           ) : null}
         </div>
         <div
-          className={`card settings-card${dragOverPanel === 'teams' ? ' is-drop-target' : ''}${isTabVisible('teams') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${draggingPanel === 'teams' ? ' is-dragging' : ''}${dragOverPanel === 'teams' ? ' is-drop-target' : ''}${isTabVisible('teams') ? '' : ' settings-card-hidden'}`}
           data-panel-id="teams"
           ref={setPanelRef('teams')}
           style={panelCardStyle('teams')}
           onDragOver={handlePanelDragOver('teams')}
+          onDragLeave={handlePanelDragLeave('teams')}
           onDrop={handlePanelDrop('teams')}
-          onDragLeave={() => setDragOverPanel((prev) => (prev === 'teams' ? null : prev))}
         >
           {settingsViewMode === 'grid' ? (
             <div className="settings-resize-handle top" onMouseDown={handleResizeStart('teams', 'top')} />
@@ -3340,13 +3352,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           ) : null}
         </div>
         <div
-          className={`card settings-card${dragOverPanel === 'notifications' ? ' is-drop-target' : ''}${isTabVisible('notifications') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${draggingPanel === 'notifications' ? ' is-dragging' : ''}${dragOverPanel === 'notifications' ? ' is-drop-target' : ''}${isTabVisible('notifications') ? '' : ' settings-card-hidden'}`}
           data-panel-id="notifications"
           ref={setPanelRef('notifications')}
           style={panelCardStyle('notifications')}
           onDragOver={handlePanelDragOver('notifications')}
+          onDragLeave={handlePanelDragLeave('notifications')}
           onDrop={handlePanelDrop('notifications')}
-          onDragLeave={() => setDragOverPanel((prev) => (prev === 'notifications' ? null : prev))}
         >
           {settingsViewMode === 'grid' ? (
             <div className="settings-resize-handle top" onMouseDown={handleResizeStart('notifications', 'top')} />
@@ -3434,13 +3446,13 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           ) : null}
         </div>
         <div
-          className={`card settings-card${dragOverPanel === 'roles' ? ' is-drop-target' : ''}${isTabVisible('roles') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${draggingPanel === 'roles' ? ' is-dragging' : ''}${dragOverPanel === 'roles' ? ' is-drop-target' : ''}${isTabVisible('roles') ? '' : ' settings-card-hidden'}`}
           data-panel-id="roles"
           ref={setPanelRef('roles')}
           style={panelCardStyle('roles')}
           onDragOver={handlePanelDragOver('roles')}
+          onDragLeave={handlePanelDragLeave('roles')}
           onDrop={handlePanelDrop('roles')}
-          onDragLeave={() => setDragOverPanel((prev) => (prev === 'roles' ? null : prev))}
         >
           {settingsViewMode === 'grid' ? (
             <div className="settings-resize-handle top" onMouseDown={handleResizeStart('roles', 'top')} />
@@ -3913,11 +3925,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
         </div>
         {draggingPanel && settingsViewMode === 'grid' ? (
           <div
-            className={`settings-empty-slot${dragOverPanel === 'end' ? ' is-drop-target' : ''}`}
+            className={`settings-empty-slot${draggingPanel ? ' is-active' : ''}${dragOverPanel === 'end' ? ' is-drop-target' : ''}`}
             style={{ order: panelOrder.length + 1 }}
             onDragOver={handlePanelDragOver('end')}
+            onDragLeave={handlePanelDragLeave('end')}
             onDrop={handlePanelDrop('end')}
-            onDragLeave={() => setDragOverPanel((prev) => (prev === 'end' ? null : prev))}
           >
             Drop Here
           </div>
