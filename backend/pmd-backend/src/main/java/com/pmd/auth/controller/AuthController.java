@@ -27,6 +27,7 @@ import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
 import com.pmd.workspace.service.WorkspaceService;
 import com.pmd.privacy.service.AccountPrivacyService;
+import com.pmd.upload.service.AvatarCleanupService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -71,6 +72,7 @@ public class AuthController {
     private final GoogleTokenVerifier googleTokenVerifier;
     private final TurnstileService turnstileService;
     private final AccountPrivacyService accountPrivacyService;
+    private final AvatarCleanupService avatarCleanupService;
 
     public AuthController(UserService userService, PasswordEncoder passwordEncoder, JwtService jwtService,
                           WelcomeEmailService welcomeEmailService,
@@ -83,7 +85,9 @@ public class AuthController {
                           ClientMetadataService clientMetadataService,
                           GoogleTokenVerifier googleTokenVerifier,
                           TurnstileService turnstileService,
-                          AccountPrivacyService accountPrivacyService) {
+                          AccountPrivacyService accountPrivacyService,
+                          AvatarCleanupService avatarCleanupService) {
+        this.avatarCleanupService = avatarCleanupService;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -323,6 +327,7 @@ public class AuthController {
             user.setTeam(request.getTeam());
         }
         user.setBio(request.getBio());
+        String previousAvatar = user.getAvatarUrl();
         if (request.getAvatarUrl() != null) {
             String avatar = request.getAvatarUrl().trim();
             // Only allow an uploaded/relative path or an http(s) URL — never a
@@ -336,6 +341,11 @@ public class AuthController {
         user.setDisplayName(buildDisplayName(user));
 
         User saved = userService.save(user);
+        // /uploads is public, so a replaced photo would otherwise stay downloadable forever.
+        // Only after the save: the reference check reads the database.
+        if (previousAvatar != null && !previousAvatar.equals(saved.getAvatarUrl())) {
+            avatarCleanupService.deleteIfUnreferenced(previousAvatar, "avatar replaced");
+        }
         return toUserResponse(saved);
     }
 

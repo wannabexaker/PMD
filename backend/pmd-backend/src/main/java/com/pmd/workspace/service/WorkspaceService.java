@@ -5,6 +5,7 @@ import com.pmd.mention.repository.MentionAuditEventRepository;
 import com.pmd.mention.repository.MentionRestrictionRepository;
 import com.pmd.notification.repository.WorkspaceInviteAcceptedDigestRepository;
 import com.pmd.notification.repository.WorkspaceJoinRequestEmailThrottleRepository;
+import com.pmd.upload.service.AvatarCleanupService;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
 import com.pmd.workspace.dto.WorkspaceDeletePreviewResponse;
@@ -87,6 +88,7 @@ public class WorkspaceService {
     private final WorkspacePanelPreferencesRepository workspacePanelPreferencesRepository;
     private final WorkspaceInviteAcceptedDigestRepository workspaceInviteAcceptedDigestRepository;
     private final WorkspaceJoinRequestEmailThrottleRepository workspaceJoinRequestEmailThrottleRepository;
+    private final AvatarCleanupService avatarCleanupService;
     private final TeamService teamService;
     private final DemoWorkspaceSeeder demoWorkspaceSeeder;
     private final WorkspaceInviteNotificationService workspaceInviteNotificationService;
@@ -109,7 +111,9 @@ public class WorkspaceService {
                             TeamService teamService,
                             DemoWorkspaceSeeder demoWorkspaceSeeder,
                             WorkspaceInviteNotificationService workspaceInviteNotificationService,
-                            UserService userService) {
+                            UserService userService,
+                            AvatarCleanupService avatarCleanupService) {
+        this.avatarCleanupService = avatarCleanupService;
         this.workspaceRepository = workspaceRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceInviteRepository = workspaceInviteRepository;
@@ -691,6 +695,7 @@ public class WorkspaceService {
         if (language != null) {
             workspace.setLanguage(language.trim());
         }
+        String previousAvatar = workspace.getAvatarUrl();
         if (avatarUrl != null) {
             workspace.setAvatarUrl(avatarUrl.trim());
         }
@@ -707,6 +712,11 @@ public class WorkspaceService {
             workspace.setMaxStorageMb(normalizeLimit(maxStorageMb, "Max storage"));
         }
         Workspace saved = workspaceRepository.save(workspace);
+        // /uploads is public, so a replaced logo would otherwise stay downloadable forever.
+        // Only after the save: the reference check reads the database.
+        if (previousAvatar != null && !previousAvatar.equals(saved.getAvatarUrl())) {
+            avatarCleanupService.deleteIfUnreferenced(previousAvatar, "workspace avatar replaced");
+        }
         return new WorkspaceMembership(saved, member);
     }
 

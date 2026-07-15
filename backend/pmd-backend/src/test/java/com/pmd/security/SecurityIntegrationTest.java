@@ -116,8 +116,10 @@ class SecurityIntegrationTest {
 
     @Test
     void unsupportedHttpMethodReturns405NotServerError() throws Exception {
-        // /api/auth/me has no DELETE handler -> 405, not 500.
-        mockMvc.perform(delete("/api/auth/me").header("Authorization", "Bearer " + userToken))
+        // /api/auth/login is POST-only, so DELETE has no handler -> 405, not 500.
+        // This used to use DELETE /api/auth/me, which became the account-erasure
+        // endpoint (GDPR Art. 17) and now answers 204.
+        mockMvc.perform(delete("/api/auth/login").header("Authorization", "Bearer " + userToken))
             .andExpect(status().isMethodNotAllowed());
     }
 
