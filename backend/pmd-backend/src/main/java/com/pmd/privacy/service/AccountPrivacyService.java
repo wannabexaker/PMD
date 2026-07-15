@@ -1,5 +1,6 @@
 package com.pmd.privacy.service;
 
+import com.pmd.upload.service.UploadService;
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
 import com.pmd.workspace.model.WorkspaceMember;
@@ -44,17 +45,20 @@ public class AccountPrivacyService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceService workspaceService;
+    private final UploadService uploadService;
 
     public AccountPrivacyService(MongoTemplate mongo,
                                  UserRepository userRepository,
                                  WorkspaceMemberRepository workspaceMemberRepository,
                                  WorkspaceRepository workspaceRepository,
-                                 WorkspaceService workspaceService) {
+                                 WorkspaceService workspaceService,
+                                 UploadService uploadService) {
         this.mongo = mongo;
         this.userRepository = userRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceRepository = workspaceRepository;
         this.workspaceService = workspaceService;
+        this.uploadService = uploadService;
     }
 
     /**
@@ -180,7 +184,34 @@ public class AccountPrivacyService {
         set("workspace_audit_events", Criteria.where("actorUserId").is(userId), "actorName", ANONYMISED_NAME);
 
         userRepository.deleteById(userId);
+        // The photo is personal data and /uploads is public, so leaving the file behind would
+        // keep a face downloadable forever by anyone who ever saw the URL. Done after the
+        // document is gone: an orphaned file is a smaller problem than a record pointing at nothing.
+        deleteAvatarFile(user.getAvatarUrl(), userId);
         logger.info("Erased account {} on request", userId);
+    }
+
+    /**
+     * Removes an avatar file once no record points at it.
+     *
+     * <p>avatarUrl arrives from the client on update-profile, so a user could aim theirs at
+     * someone else's photo and have erasure delete it for them. The reference check makes that
+     * a no-op, and {@link UploadService#deleteByUrl} rejects anything we did not mint.
+     */
+    private void deleteAvatarFile(String avatarUrl, String userId) {
+        if (avatarUrl == null || avatarUrl.isBlank()) {
+            return;
+        }
+        boolean stillReferenced =
+            mongo.exists(new Query(Criteria.where("avatarUrl").is(avatarUrl)), "users")
+            || mongo.exists(new Query(Criteria.where("avatarUrl").is(avatarUrl)), "workspaces");
+        if (stillReferenced) {
+            logger.info("Kept avatar of erased account {}: still referenced elsewhere", userId);
+            return;
+        }
+        if (uploadService.deleteByUrl(avatarUrl)) {
+            logger.info("Deleted avatar file of erased account {}", userId);
+        }
     }
 
     private void removeAll(String collection, Criteria criteria) {

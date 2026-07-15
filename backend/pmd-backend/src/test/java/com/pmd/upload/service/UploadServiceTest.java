@@ -30,6 +30,45 @@ class UploadServiceTest {
     };
 
     @Test
+    void deleteByUrlRemovesAFileItMinted() throws Exception {
+        UploadResponse stored = service.store(new MockMultipartFile("file", "a.png", "image/png", PNG));
+        Path onDisk = Path.of("uploads", stored.getUrl().substring("/uploads/".length()));
+        assertThat(onDisk).exists();
+
+        assertThat(service.deleteByUrl(stored.getUrl())).isTrue();
+        assertThat(onDisk).doesNotExist();
+        // Erasure runs once; a second pass must not report a phantom deletion.
+        assertThat(service.deleteByUrl(stored.getUrl())).isFalse();
+    }
+
+    /**
+     * avatarUrl is client-supplied, so deleteByUrl is reachable with an attacker-chosen
+     * string. Anything other than the exact shape store() mints must be ignored — never
+     * resolved as a path.
+     */
+    @Test
+    void deleteByUrlRefusesAnythingItDidNotMint() throws Exception {
+        Path bystander = Path.of("uploads", "not-ours.png");
+        Files.createDirectories(bystander.getParent());
+        Files.write(bystander, PNG);
+        try {
+            assertThat(service.deleteByUrl("/uploads/../../etc/passwd")).isFalse();
+            assertThat(service.deleteByUrl("/uploads/..%2Fnot-ours.png")).isFalse();
+            assertThat(service.deleteByUrl("/uploads/not-ours.png")).isFalse();
+            assertThat(service.deleteByUrl("/etc/passwd")).isFalse();
+            assertThat(service.deleteByUrl("https://evil.example/uploads/x.png")).isFalse();
+            // A real UUID name, but pointing outside the upload root.
+            assertThat(service.deleteByUrl("/uploads/../uploads/" + java.util.UUID.randomUUID() + ".png")).isFalse();
+            assertThat(service.deleteByUrl("")).isFalse();
+            assertThat(service.deleteByUrl(null)).isFalse();
+            // The bystander must still be there: none of the above touched the disk.
+            assertThat(bystander).exists();
+        } finally {
+            Files.deleteIfExists(bystander);
+        }
+    }
+
+    @Test
     void detectsRealImageFormatsFromMagicBytes() {
         assertThat(UploadService.detectImageExtension(PNG)).isEqualTo("png");
         assertThat(UploadService.detectImageExtension(JPEG)).isEqualTo("jpg");
