@@ -5,6 +5,7 @@ import com.pmd.mention.repository.MentionAuditEventRepository;
 import com.pmd.mention.repository.MentionRestrictionRepository;
 import com.pmd.notification.repository.WorkspaceInviteAcceptedDigestRepository;
 import com.pmd.notification.repository.WorkspaceJoinRequestEmailThrottleRepository;
+import com.pmd.audit.service.AdminAccessAuditService;
 import com.pmd.upload.service.AvatarCleanupService;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
@@ -89,6 +90,7 @@ public class WorkspaceService {
     private final WorkspaceInviteAcceptedDigestRepository workspaceInviteAcceptedDigestRepository;
     private final WorkspaceJoinRequestEmailThrottleRepository workspaceJoinRequestEmailThrottleRepository;
     private final AvatarCleanupService avatarCleanupService;
+    private final AdminAccessAuditService adminAccessAuditService;
     private final TeamService teamService;
     private final DemoWorkspaceSeeder demoWorkspaceSeeder;
     private final WorkspaceInviteNotificationService workspaceInviteNotificationService;
@@ -112,8 +114,10 @@ public class WorkspaceService {
                             DemoWorkspaceSeeder demoWorkspaceSeeder,
                             WorkspaceInviteNotificationService workspaceInviteNotificationService,
                             UserService userService,
-                            AvatarCleanupService avatarCleanupService) {
+                            AvatarCleanupService avatarCleanupService,
+                            AdminAccessAuditService adminAccessAuditService) {
         this.avatarCleanupService = avatarCleanupService;
+        this.adminAccessAuditService = adminAccessAuditService;
         this.workspaceRepository = workspaceRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceInviteRepository = workspaceInviteRepository;
@@ -801,6 +805,15 @@ public class WorkspaceService {
         if (user.isAdmin()) {
             if (!workspaceRepository.existsById(workspaceId)) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found");
+            }
+            // Only genuine break-glass entry is recorded. An admin who is a real member got in
+            // the ordinary way and is already visible to the others; logging that would bury the
+            // operator's own workspaces in noise and make the interesting entries harder to spot.
+            boolean isRealMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, user.getId())
+                .filter(member -> member.getStatus() == WorkspaceMemberStatus.ACTIVE)
+                .isPresent();
+            if (!isRealMember) {
+                adminAccessAuditService.recordWorkspaceEntry(user, workspaceId);
             }
             WorkspaceMember adminMember = new WorkspaceMember();
             adminMember.setWorkspaceId(workspaceId);

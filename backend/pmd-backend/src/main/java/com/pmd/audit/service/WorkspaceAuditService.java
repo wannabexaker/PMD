@@ -2,7 +2,6 @@ package com.pmd.audit.service;
 
 import com.pmd.audit.dto.WorkspaceAuditEventResponse;
 import com.pmd.audit.model.WorkspaceAuditEvent;
-import com.pmd.audit.repository.WorkspaceAuditEventRepository;
 import com.pmd.user.model.User;
 import com.pmd.workspace.model.WorkspacePermission;
 import com.pmd.workspace.service.WorkspaceService;
@@ -10,11 +9,6 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.StringJoiner;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -27,43 +21,20 @@ public class WorkspaceAuditService {
     private static final int DEFAULT_LIMIT = 120;
     private static final int MAX_LIMIT = 500;
 
-    private final WorkspaceAuditEventRepository auditRepository;
     private final WorkspaceService workspaceService;
     private final MongoTemplate mongoTemplate;
+    private final WorkspaceAuditWriter writer;
 
-    public WorkspaceAuditService(WorkspaceAuditEventRepository auditRepository,
-                                 WorkspaceService workspaceService,
-                                 MongoTemplate mongoTemplate) {
-        this.auditRepository = auditRepository;
+    public WorkspaceAuditService(WorkspaceService workspaceService,
+                                 MongoTemplate mongoTemplate,
+                                 WorkspaceAuditWriter writer) {
         this.workspaceService = workspaceService;
         this.mongoTemplate = mongoTemplate;
+        this.writer = writer;
     }
 
     public void log(WorkspaceAuditWriteRequest request) {
-        if (request == null || isBlank(request.workspaceId()) || request.actor() == null) {
-            return;
-        }
-        WorkspaceAuditEvent previous = auditRepository.findTopByWorkspaceIdOrderByCreatedAtDescIdDesc(request.workspaceId());
-        String prevHash = previous != null ? blankToNull(previous.getEventHash()) : null;
-        WorkspaceAuditEvent event = new WorkspaceAuditEvent();
-        event.setWorkspaceId(request.workspaceId());
-        event.setCreatedAt(Instant.now());
-        event.setCategory(normalize(request.category(), "GENERAL"));
-        event.setAction(normalize(request.action(), "UNKNOWN"));
-        event.setOutcome(normalize(request.outcome(), "SUCCESS"));
-        event.setActorUserId(request.actor().getId());
-        event.setActorName(request.actor().getDisplayName());
-        event.setTargetUserId(blankToNull(request.targetUserId()));
-        event.setTeamId(blankToNull(request.teamId()));
-        event.setRoleId(blankToNull(request.roleId()));
-        event.setProjectId(blankToNull(request.projectId()));
-        event.setEntityType(blankToNull(request.entityType()));
-        event.setEntityId(blankToNull(request.entityId()));
-        event.setEntityName(blankToNull(request.entityName()));
-        event.setMessage(blankToNull(request.message()));
-        event.setPrevEventHash(prevHash);
-        event.setEventHash(hashEvent(event, prevHash));
-        mongoTemplate.insert(event);
+        writer.log(request);
     }
 
     public List<WorkspaceAuditEventResponse> list(String workspaceId, WorkspaceAuditQuery query, User requester) {
@@ -156,17 +127,6 @@ public class WorkspaceAuditService {
         );
     }
 
-    private String normalize(String value, String fallback) {
-        if (isBlank(value)) {
-            return fallback;
-        }
-        return value.trim().toUpperCase();
-    }
-
-    private String blankToNull(String value) {
-        return isBlank(value) ? null : value.trim();
-    }
-
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
@@ -184,45 +144,6 @@ public class WorkspaceAuditService {
             return DEFAULT_LIMIT;
         }
         return Math.max(1, Math.min(MAX_LIMIT, raw));
-    }
-
-    private String hashEvent(WorkspaceAuditEvent event, String prevHash) {
-        StringJoiner joiner = new StringJoiner("|");
-        joiner.add(nonNull(event.getWorkspaceId()));
-        joiner.add(nonNull(event.getCreatedAt() != null ? event.getCreatedAt().toString() : null));
-        joiner.add(nonNull(event.getCategory()));
-        joiner.add(nonNull(event.getAction()));
-        joiner.add(nonNull(event.getOutcome()));
-        joiner.add(nonNull(event.getActorUserId()));
-        joiner.add(nonNull(event.getActorName()));
-        joiner.add(nonNull(event.getTargetUserId()));
-        joiner.add(nonNull(event.getTeamId()));
-        joiner.add(nonNull(event.getRoleId()));
-        joiner.add(nonNull(event.getProjectId()));
-        joiner.add(nonNull(event.getEntityType()));
-        joiner.add(nonNull(event.getEntityId()));
-        joiner.add(nonNull(event.getEntityName()));
-        joiner.add(nonNull(event.getMessage()));
-        joiner.add(nonNull(prevHash));
-        return sha256Hex(joiner.toString());
-    }
-
-    private String sha256Hex(String source) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(source.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder(hash.length * 2);
-            for (byte value : hash) {
-                builder.append(String.format(Locale.ROOT, "%02x", value));
-            }
-            return builder.toString();
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 not available", ex);
-        }
-    }
-
-    private String nonNull(String value) {
-        return Objects.requireNonNullElse(value, "");
     }
 
     public record WorkspaceAuditWriteRequest(
