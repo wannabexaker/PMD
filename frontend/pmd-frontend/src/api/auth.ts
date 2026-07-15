@@ -26,10 +26,16 @@ export async function login(payload: LoginPayload): Promise<AuthResponse> {
   return response
 }
 
-export async function googleLogin(credential: string, remember: boolean): Promise<AuthResponse> {
+// acceptedTerms only matters when this sign-in creates the account; the backend ignores it
+// for an existing user rather than re-asking them.
+export async function googleLogin(
+  credential: string,
+  remember: boolean,
+  acceptedTerms = false,
+): Promise<AuthResponse> {
   const response = await requestJson<AuthResponse>('/api/auth/google', {
     method: 'POST',
-    body: JSON.stringify({ credential, remember: Boolean(remember) }),
+    body: JSON.stringify({ credential, remember: Boolean(remember), acceptedTerms }),
   })
   if (response?.token) {
     setAuthToken(response.token, Boolean(remember))
@@ -81,6 +87,7 @@ export async function register(payload: RegisterPayload): Promise<RegisterRespon
       lastName: payload.lastName,
       bio: payload.bio || '',
       turnstileToken: payload.turnstileToken,
+      acceptedTerms: Boolean(payload.acceptedTerms),
     }),
   })
 }

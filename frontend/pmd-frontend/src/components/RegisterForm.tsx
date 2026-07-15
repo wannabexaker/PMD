@@ -9,7 +9,7 @@ import { isGoogleEnabled, isTurnstileEnabled } from '../lib/authProviders'
 
 type RegisterFormProps = {
   onRegister: (payload: RegisterPayload) => Promise<RegisterResponse>
-  onGoogleLogin?: (credential: string, remember: boolean) => Promise<void>
+  onGoogleLogin?: (credential: string, remember: boolean, acceptedTerms?: boolean) => Promise<void>
   loading: boolean
   onSwitchToLogin: () => void
 }
@@ -159,6 +159,7 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
         lastName: form.lastName.trim(),
         bio: form.bio?.trim() || '',
         turnstileToken,
+        acceptedTerms,
       })
       if (!result.accountCreated) {
         throw new Error(result.message || 'Registration failed')
@@ -377,10 +378,19 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
               <>
                 <div className="auth-divider"><span>or</span></div>
                 <div className="auth-google">
-                  <GoogleSignInButton
-                    label="Sign up with Google"
-                    onCredential={(credential) => onGoogleLogin(credential, true)}
-                  />
+                  {/* Signing up with Google must clear the same bar as the form, or the
+                      checkbox is decoration. Not rendering the button also keeps Google's
+                      script — and the contact with it — out of the page until they agree. */}
+                  {acceptedTerms ? (
+                    <GoogleSignInButton
+                      label="Sign up with Google"
+                      onCredential={(credential) => onGoogleLogin(credential, true, true)}
+                    />
+                  ) : (
+                    <p className="muted auth-google-gate">
+                      Accept the Terms of Use and Privacy Policy above to sign up with Google.
+                    </p>
+                  )}
                 </div>
               </>
             ) : null}

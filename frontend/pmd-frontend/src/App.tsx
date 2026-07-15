@@ -706,11 +706,11 @@ function AppView({
     }
   }
 
-  const handleGoogleLogin = async (credential: string, remember: boolean) => {
+  const handleGoogleLogin = async (credential: string, remember: boolean, acceptedTerms = false) => {
     setAuthError(null)
     try {
       setAuthLoading(true)
-      const response = await googleLogin(credential, remember)
+      const response = await googleLogin(credential, remember, acceptedTerms)
       setCurrentUser(response.user ?? null)
       setDashboardSelectedProjectIdState(null)
       setAssignSelectedProjectIdState(null)

@@ -28,6 +28,7 @@ import com.pmd.user.service.UserService;
 import com.pmd.workspace.service.WorkspaceService;
 import com.pmd.privacy.service.AccountPrivacyService;
 import com.pmd.upload.service.AvatarCleanupService;
+import java.time.Instant;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -142,6 +143,7 @@ public class AuthController {
     @ResponseStatus(HttpStatus.OK)
     public RegisterResponse register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
         turnstileService.verifyOrThrow(request.getTurnstileToken(), clientMetadataService.resolveClientIp(httpRequest));
+        requireTermsAccepted(request.isAcceptedTerms());
         String username = normalizeEmail(request.getEmail());
         if (userService.existsByUsername(username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User already exists");
@@ -161,6 +163,7 @@ public class AuthController {
         user.setTeam(request.getTeam());
         user.setBio(request.getBio() != null ? request.getBio().trim() : null);
         user.setDisplayName(buildDisplayName(user));
+        stampTermsAcceptance(user);
 
         User saved;
         try {
@@ -193,6 +196,9 @@ public class AuthController {
         User user = userService.findByUsernameOrNull(email);
         boolean newUser = false;
         if (user == null) {
+            // Only when creating the account. Signing in with Google is not the moment to
+            // re-ask an existing user, and blocking them would lock them out of their data.
+            requireTermsAccepted(request.isAcceptedTerms());
             User created = new User();
             created.setUsername(email);
             created.setEmail(email);
@@ -203,6 +209,7 @@ public class AuthController {
             created.setEmailVerified(true);
             created.setDisplayName(googleUser.name() != null && !googleUser.name().isBlank()
                 ? googleUser.name().trim() : buildDisplayName(created));
+            stampTermsAcceptance(created);
             try {
                 user = userService.save(created);
                 newUser = true;
@@ -347,6 +354,32 @@ public class AuthController {
             avatarCleanupService.deleteIfUnreferenced(previousAvatar, "avatar replaced");
         }
         return toUserResponse(saved);
+    }
+
+    /**
+     * The version of the terms an account is accepting. Bump when a new version takes effect,
+     * so a stored acceptance says WHAT was accepted rather than merely that something was.
+     */
+    private static final String CURRENT_TERMS_VERSION = "2026-07-15";
+
+    /**
+     * Rejects account creation without acceptance.
+     *
+     * <p>The registration form has a required checkbox, but a form is not an access control:
+     * anything can post to this endpoint. Without this check the terms bind nobody, which is
+     * the whole point of asking.
+     */
+    private void requireTermsAccepted(boolean accepted) {
+        if (!accepted) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "You must accept the Terms of Use and Privacy Policy to create an account");
+        }
+    }
+
+    /** Records what was accepted and when, so acceptance can be evidenced later. */
+    private void stampTermsAcceptance(User user) {
+        user.setTermsAcceptedAt(Instant.now());
+        user.setTermsVersion(CURRENT_TERMS_VERSION);
     }
 
     /** GDPR Art. 20: the user's own data, as a downloadable file. */

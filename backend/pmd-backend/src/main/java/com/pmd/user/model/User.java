@@ -48,6 +48,17 @@ public class User {
 
     private int schemaVersion = 1;
 
+    /**
+     * When the user accepted the terms, and which version they accepted.
+     *
+     * <p>Kept because acceptance the service cannot evidence is not worth much: if someone
+     * later says they never agreed, this is the answer. Null for accounts created before
+     * acceptance was recorded — do not read null as a refusal.
+     */
+    private Instant termsAcceptedAt;
+
+    private String termsVersion;
+
     private Instant createdAt;
 
     private List<String> recommendedByUserIds = new ArrayList<>();
@@ -167,6 +178,22 @@ public class User {
 
     public void setAdmin(boolean admin) {
         isAdmin = admin;
+    }
+
+    public Instant getTermsAcceptedAt() {
+        return termsAcceptedAt;
+    }
+
+    public void setTermsAcceptedAt(Instant termsAcceptedAt) {
+        this.termsAcceptedAt = termsAcceptedAt;
+    }
+
+    public String getTermsVersion() {
+        return termsVersion;
+    }
+
+    public void setTermsVersion(String termsVersion) {
+        this.termsVersion = termsVersion;
     }
 
     public String getBio() {

@@ -34,6 +34,13 @@ public class RegisterRequest {
 
     private String turnstileToken;
 
+    /**
+     * Acceptance of the terms and privacy notice. The registration form ticks this, but the
+     * form is not the gate — a client can post whatever it likes, so the server checks it too.
+     * This is contractual acceptance, not GDPR consent: the lawful basis stays contract.
+     */
+    private boolean acceptedTerms;
+
     public RegisterRequest() {
     }
 
@@ -119,5 +126,13 @@ public class RegisterRequest {
 
     public void setTurnstileToken(String turnstileToken) {
         this.turnstileToken = turnstileToken;
+    }
+
+    public boolean isAcceptedTerms() {
+        return acceptedTerms;
+    }
+
+    public void setAcceptedTerms(boolean acceptedTerms) {
+        this.acceptedTerms = acceptedTerms;
     }
 }

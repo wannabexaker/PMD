@@ -124,6 +124,7 @@ export type RegisterPayload = {
   lastName: string
   bio?: string
   turnstileToken?: string
+  acceptedTerms?: boolean
 }
 
 export type UpdateProfilePayload = {

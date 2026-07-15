@@ -13,6 +13,12 @@ public class GoogleLoginRequest {
 
     private Boolean remember;
 
+    /**
+     * Acceptance of the terms and privacy notice. Only consulted when this sign-in would
+     * create a new account — an existing user signing in is not re-asked.
+     */
+    private Boolean acceptedTerms;
+
     public GoogleLoginRequest() {
     }
 
@@ -38,5 +44,13 @@ public class GoogleLoginRequest {
 
     public void setRemember(Boolean remember) {
         this.remember = remember;
+    }
+
+    public boolean isAcceptedTerms() {
+        return Boolean.TRUE.equals(acceptedTerms);
+    }
+
+    public void setAcceptedTerms(Boolean acceptedTerms) {
+        this.acceptedTerms = acceptedTerms;
     }
 }
