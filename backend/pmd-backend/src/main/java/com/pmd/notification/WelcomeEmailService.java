@@ -57,6 +57,31 @@ public class WelcomeEmailService {
         }
     }
 
+    /**
+     * Sends the email-change confirmation to the NEW address (not the account's current email),
+     * since proving ownership of that address is the whole point.
+     */
+    public boolean sendEmailChangeVerification(User user, String newEmail, String token) {
+        if (newEmail == null || newEmail.isBlank()) {
+            return false;
+        }
+        EmailContent content = templateBuilder.buildEmailChangeVerification(
+            user != null ? user.getDisplayName() : null, newEmail, token);
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromAddress);
+            helper.setTo(newEmail);
+            helper.setSubject(content.getSubject());
+            helper.setText(content.getTextBody(), content.getHtmlBody());
+            mailSender.send(message);
+            return true;
+        } catch (MailException | MessagingException ex) {
+            logger.warn("Failed to send email-change verification to {}", newEmail, ex);
+            return false;
+        }
+    }
+
     public void sendConfirmedEmail(User user) {
         if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
             return;

@@ -124,6 +124,34 @@ public class EmailTemplateBuilder {
         return new EmailContent("Confirm your PMD account", html, text);
     }
 
+    public EmailContent buildEmailChangeVerification(String displayName, String newEmail, String token) {
+        String title = "Confirm your new PMD email";
+        String confirmUrl = appBaseUrl + "/confirm-email?token=" + safe(token);
+        String greeting = displayName != null && !displayName.isBlank() ? escape(displayName) : "there";
+        String html = wrapHtml(title, """
+            <p>Hi %s,</p>
+            <p>We received a request to change the email on your PMD account to <strong>%s</strong>.</p>
+            <p>Confirm it to make the change take effect. Until then you keep signing in with your
+            current email, so if you did not request this you can safely ignore this message.</p>
+            <a class=\"cta\" href=\"%s\">Confirm new email</a>
+            """.formatted(greeting, escape(newEmail), confirmUrl));
+
+        String text = """
+            Confirm your new PMD email
+
+            We received a request to change the email on your PMD account to %s.
+            Confirm it to make the change take effect: %s
+
+            Until then you keep signing in with your current email. If you did not
+            request this, ignore this message.
+
+            %s
+            %s
+            """.formatted(safe(newEmail), confirmUrl, AUTO, DISMISS);
+
+        return new EmailContent(title, html, text);
+    }
+
     public EmailContent buildSimpleEmail(String subject, String textBody) {
         String title = subject != null && !subject.isBlank() ? subject : "PMD Notification";
         String safeText = textBody != null ? textBody : "";

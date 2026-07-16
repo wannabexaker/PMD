@@ -117,6 +117,7 @@ public class AccountPrivacyService {
         profile.put("bio", user.getBio());
         profile.put("avatarUrl", user.getAvatarUrl());
         profile.put("emailVerified", user.isEmailVerified());
+        profile.put("pendingEmail", user.getPendingEmail());
         profile.put("signedInWithGoogle", user.getGoogleId() != null && !user.getGoogleId().isBlank());
         profile.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
         // The acceptance record is held about the user, so it belongs in their copy — and it is

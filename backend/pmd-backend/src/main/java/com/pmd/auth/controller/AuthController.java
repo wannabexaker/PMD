@@ -319,15 +319,17 @@ public class AuthController {
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         String newEmail = normalizeEmail(request.getEmail());
-        if (!newEmail.isBlank() && !newEmail.equals(normalizeEmail(user.getEmail()))) {
-            // Changing the contact email: reject collisions with another account's login identity and
-            // require the new address to be re-verified before it counts as confirmed.
+        boolean emailChangeRequested = !newEmail.isBlank() && !newEmail.equals(normalizeEmail(user.getEmail()));
+        if (emailChangeRequested) {
+            // Reject collisions with another account's login identity up front.
             User emailOwner = userService.findByUsernameOrNull(newEmail);
             if (emailOwner != null && !emailOwner.getId().equals(user.getId())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
             }
-            user.setEmail(newEmail);
-            user.setEmailVerified(false);
+            // Record the address as pending and prove it by email. The login identity (username +
+            // email) is NOT touched here, so the current email keeps working and a typo cannot lock
+            // the account out; the switch is applied only when the new address is confirmed.
+            user.setPendingEmail(newEmail);
         }
         if (request.getTeamId() != null || request.getTeam() != null) {
             user.setTeamId(request.getTeamId());
@@ -352,6 +354,12 @@ public class AuthController {
         // Only after the save: the reference check reads the database.
         if (previousAvatar != null && !previousAvatar.equals(saved.getAvatarUrl())) {
             avatarCleanupService.deleteIfUnreferenced(previousAvatar, "avatar replaced");
+        }
+        // Send the change confirmation to the NEW address, after the pending state is persisted.
+        // The token is bound to that address, and the switch happens only when it is clicked.
+        if (emailChangeRequested) {
+            String token = emailVerificationTokenService.createToken(saved, saved.getPendingEmail()).getToken();
+            welcomeEmailService.sendEmailChangeVerification(saved, saved.getPendingEmail(), token);
         }
         return toUserResponse(saved);
     }

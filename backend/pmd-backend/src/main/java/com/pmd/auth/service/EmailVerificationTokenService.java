@@ -25,10 +25,18 @@ public class EmailVerificationTokenService {
         this.userService = userService;
     }
 
+    /** Registration: proves ownership of the account's current email. */
     public EmailVerificationToken createToken(User user) {
+        return createToken(user, user.getEmail());
+    }
+
+    /** Binds the token to a specific address — the current email at registration, or a
+     *  pending new email when the user changes it. */
+    public EmailVerificationToken createToken(User user, String targetEmail) {
         EmailVerificationToken token = new EmailVerificationToken();
         token.setUserId(user.getId());
         token.setToken(generateToken());
+        token.setTargetEmail(targetEmail);
         token.setExpiresAt(Instant.now().plusSeconds(EXPIRATION_SECONDS));
         return tokenRepository.save(token);
     }
@@ -50,11 +58,40 @@ public class EmailVerificationTokenService {
             return new ConfirmEmailResult(ConfirmEmailStatus.EXPIRED_TOKEN, null);
         }
 
+        // A consumed token must not verify anything again — otherwise an old registration link
+        // could later confirm a different address the user never re-proved.
+        if (token.getUsedAt() != null) {
+            return new ConfirmEmailResult(ConfirmEmailStatus.INVALID_TOKEN, null);
+        }
+
         User user;
         try {
             user = userService.findById(token.getUserId());
         } catch (ResponseStatusException ex) {
             return new ConfirmEmailResult(ConfirmEmailStatus.INVALID_TOKEN, null);
+        }
+
+        // Legacy tokens predate targetEmail; treat them as proving the current email.
+        String target = token.getTargetEmail() != null ? token.getTargetEmail() : user.getEmail();
+
+        // Email-change confirmation: apply the pending switch only now, so an unproven (or
+        // mistyped) address never becomes the login identity. Checked before the
+        // already-verified guard, since the user's OLD email is already verified.
+        String pending = user.getPendingEmail();
+        if (pending != null && !pending.isBlank() && pending.equalsIgnoreCase(target)) {
+            User collision = userService.findByUsernameOrNull(pending);
+            if (collision != null && !collision.getId().equals(user.getId())) {
+                // Someone else claimed the address between request and confirmation.
+                return new ConfirmEmailResult(ConfirmEmailStatus.INVALID_TOKEN, user);
+            }
+            user.setEmail(pending);
+            user.setUsername(pending);
+            user.setPendingEmail(null);
+            user.setEmailVerified(true);
+            userService.save(user);
+            token.setUsedAt(Instant.now());
+            tokenRepository.save(token);
+            return new ConfirmEmailResult(ConfirmEmailStatus.CONFIRMED, user);
         }
 
         if (user.isEmailVerified()) {

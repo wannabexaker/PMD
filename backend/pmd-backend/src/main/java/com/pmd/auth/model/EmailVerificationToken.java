@@ -14,6 +14,13 @@ public class EmailVerificationToken {
 
     private String token;
 
+    /**
+     * The address this token proves ownership of. Binding the token to the email — not just the
+     * user — is what lets it double as an email-change confirmation, and stops an old
+     * registration link from later verifying a different address.
+     */
+    private String targetEmail;
+
     private Instant expiresAt;
 
     private Instant usedAt;
@@ -27,6 +34,14 @@ public class EmailVerificationToken {
         this.token = token;
         this.expiresAt = expiresAt;
         this.usedAt = usedAt;
+    }
+
+    public String getTargetEmail() {
+        return targetEmail;
+    }
+
+    public void setTargetEmail(String targetEmail) {
+        this.targetEmail = targetEmail;
     }
 
     public String getId() {

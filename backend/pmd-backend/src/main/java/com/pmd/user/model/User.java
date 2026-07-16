@@ -44,6 +44,13 @@ public class User {
 
     private boolean emailVerified;
 
+    /**
+     * A new email the user asked to switch to, not yet proven. The login identity (username +
+     * email) is left untouched until the address is verified, so a typo cannot lock anyone out.
+     * Cleared once the change is applied.
+     */
+    private String pendingEmail;
+
     private boolean mustChangePassword;
 
     private int schemaVersion = 1;
@@ -178,6 +185,14 @@ public class User {
 
     public void setAdmin(boolean admin) {
         isAdmin = admin;
+    }
+
+    public String getPendingEmail() {
+        return pendingEmail;
+    }
+
+    public void setPendingEmail(String pendingEmail) {
+        this.pendingEmail = pendingEmail;
     }
 
     public Instant getTermsAcceptedAt() {
