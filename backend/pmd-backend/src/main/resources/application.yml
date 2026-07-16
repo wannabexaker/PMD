@@ -48,6 +48,8 @@ pmd:
       require-verified-email: ${PMD_AUTH_REQUIRE_VERIFIED_EMAIL:false}
   security:
     trust-proxy-headers: ${PMD_SECURITY_TRUST_PROXY_HEADERS:false}
+    # Comma-separated emails allowed to hold isAdmin. Blank disables the startup sweep.
+    admin-emails: ${PMD_SECURITY_ADMIN_EMAILS:}
     client-metadata:
       store-raw: ${PMD_SECURITY_CLIENT_METADATA_STORE_RAW:false}
       hash-salt: ${PMD_SECURITY_CLIENT_METADATA_HASH_SALT:}

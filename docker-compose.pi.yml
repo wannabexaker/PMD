@@ -60,6 +60,10 @@ services:
       # unsalted SHA-256 and, since the /24 is stored in clear, the last octet has only 256
       # candidates — the "anonymised" IP is recoverable instantly. Must be set.
       PMD_SECURITY_CLIENT_METADATA_HASH_SALT: ${PMD_SECURITY_CLIENT_METADATA_HASH_SALT:?generate one, e.g. openssl rand -hex 32}
+      # Only these emails may hold the platform-admin flag: any other isAdmin bit found in
+      # the database is stripped at startup. Blank would disable that sweep, so in
+      # production it is required on purpose.
+      PMD_SECURITY_ADMIN_EMAILS: ${PMD_SECURITY_ADMIN_EMAILS:?comma-separated admin emails}
       PMD_ALLOWED_ORIGINS: ${PMD_ALLOWED_ORIGINS:?e.g. https://pmd.olamov.com}
       PMD_ALLOWED_ORIGIN_PATTERNS: ${PMD_ALLOWED_ORIGIN_PATTERNS:-}
       # Google Sign-In (public OAuth client id) + Cloudflare Turnstile secret.
