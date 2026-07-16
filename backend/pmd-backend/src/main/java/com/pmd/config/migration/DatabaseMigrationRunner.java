@@ -46,6 +46,30 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         apply("2026-02-25-demo-invite-code-randomization-v1", this::applyDemoInviteCodeRandomization);
         apply("2026-02-26-invite-notification-indexes-v1", this::applyInviteNotificationIndexes);
         apply("2026-02-26-client-metadata-redaction-v1", this::applyClientMetadataRedactionV1);
+        apply("2026-07-15-core-identity-indexes-v1", this::applyCoreIdentityIndexes);
+    }
+
+    /**
+     * Indexes the earlier migrations never created for the top-level collections.
+     *
+     * <p>These were expected to come from {@code @Indexed} annotations on the entities, but the
+     * custom {@code MongoTemplate} bean builds its own mapping context with annotation-driven
+     * index creation disabled, so those annotations produce nothing — only indexes created here
+     * exist. Verified on the live database: {@code users}, {@code workspaces},
+     * {@code project_comments} and {@code people} had only their {@code _id_} index.
+     *
+     * <p>The consequence of the missing unique index on {@code users.username} was not just
+     * slow scans: registration's {@code catch (DuplicateKeyException)} could never fire, so two
+     * concurrent sign-ups for one email created two documents, after which {@code findByUsername}
+     * matches more than one and every login for that email is a 500. The unique index is what
+     * makes that catch real. (Safe to build here: the live data was verified duplicate-free.)
+     */
+    private void applyCoreIdentityIndexes() {
+        ensureIndex("users", new Index().on("username", Sort.Direction.ASC).unique().named("uniq_users_username"));
+        ensureIndex("users", new Index().on("email", Sort.Direction.ASC).named("idx_users_email"));
+        ensureIndex("workspaces", new Index().on("slug", Sort.Direction.ASC).unique().named("uniq_workspaces_slug"));
+        ensureIndex("project_comments", new Index().on("projectId", Sort.Direction.ASC).on("createdAt", Sort.Direction.DESC).named("idx_project_comments_project_created"));
+        ensureIndex("people", new Index().on("workspaceId", Sort.Direction.ASC).on("email", Sort.Direction.ASC).named("idx_people_workspace_email"));
     }
 
     private void apply(String migrationId, Runnable migration) {

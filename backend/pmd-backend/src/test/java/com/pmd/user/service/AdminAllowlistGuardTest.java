@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pmd.user.model.User;
 import com.pmd.user.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,6 +27,14 @@ class AdminAllowlistGuardTest {
 
     @Autowired
     private MongoTemplate mongoTemplate;
+
+    // The keeper's email is fixed (it has to match the allowlist property), so this test is not
+    // self-isolating by construction. Clear the collection first — and, now that a unique index
+    // on username exists, a leftover keeper from a prior run would otherwise fail the insert.
+    @BeforeEach
+    void clean() {
+        userRepository.deleteAll();
+    }
 
     private User user(String email, boolean admin) {
         User user = new User();
