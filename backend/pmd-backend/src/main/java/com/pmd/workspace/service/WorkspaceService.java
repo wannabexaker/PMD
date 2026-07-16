@@ -355,11 +355,17 @@ public class WorkspaceService {
 
     public WorkspaceInvite createInvite(String workspaceId, User requester, Instant expiresAt, Integer maxUses,
                                         String defaultRoleId, String invitedEmail, String joinQuestion) {
-        requireWorkspacePermission(requester, workspaceId, WorkspacePermission.INVITE_MEMBERS);
+        WorkspaceMember requesterMember = requireWorkspacePermission(requester, workspaceId, WorkspacePermission.INVITE_MEMBERS);
         if (maxUses != null && maxUses < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Max uses must be at least 1");
         }
         WorkspaceRole roleFromInvite = resolveInviteRole(workspaceId, defaultRoleId);
+        // Privilege ceiling: the invite's default role is a grant, so it must obey the same limit
+        // as create/update/assign-role. Every plain Member has INVITE_MEMBERS by default, so
+        // without this a Member could mint a Manager-level invite and escalate through the back door.
+        if (roleFromInvite != null && !requester.isAdmin()) {
+            requireWithinCallerPrivileges(resolveMemberPermissions(workspaceId, requesterMember), roleFromInvite.getPermissions());
+        }
         WorkspaceInvite invite = new WorkspaceInvite();
         invite.setWorkspaceId(workspaceId);
         invite.setToken(generateToken());
@@ -564,6 +570,11 @@ public class WorkspaceService {
         if (request.getStatus() != WorkspaceJoinRequestStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request is not pending");
         }
+        // Enforce the member cap BEFORE any mutation. At the limit this leaves the request PENDING
+        // (re-approvable once space frees) instead of stranding it as APPROVED-but-not-a-member:
+        // the writes are not transactional, so a 409 thrown after the request was saved APPROVED
+        // would be unrecoverable — it would vanish from the pending list and reject re-approval.
+        enforceMemberActivationLimit(workspaceId);
         request.setStatus(WorkspaceJoinRequestStatus.APPROVED);
         request.setDecidedAt(Instant.now());
         request.setDecidedByUserId(requester.getId());
@@ -578,7 +589,6 @@ public class WorkspaceService {
             WorkspaceRole memberRole = ensureDefaultRoles(workspaceId, requester).get("member");
             setMemberPrimaryRole(joiner, memberRole, "Member");
         }
-        enforceMemberActivationLimit(workspaceId);
         joiner.setStatus(WorkspaceMemberStatus.ACTIVE);
         if (joiner.getCreatedAt() == null) {
             joiner.setCreatedAt(request.getCreatedAt());
@@ -616,7 +626,11 @@ public class WorkspaceService {
         request.setDecidedByUserId(requester.getId());
         workspaceJoinRequestRepository.save(request);
         clearDuplicatePendingRequests(workspaceId, request.getUserId(), request.getId(), requester.getId());
+        // Only remove the membership if it is still PENDING for this request. An ACTIVE member
+        // must never be deleted by denying a stale request — that could happen when approval was
+        // toggled off and the user re-joined directly while an old PENDING request lingered.
         workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, request.getUserId())
+            .filter(member -> member.getStatus() == WorkspaceMemberStatus.PENDING)
             .ifPresent(workspaceMemberRepository::delete);
         Workspace workspace = workspaceRepository.findById(workspaceId).orElse(null);
         User requesterUser = safeFindUserById(request.getUserId());
