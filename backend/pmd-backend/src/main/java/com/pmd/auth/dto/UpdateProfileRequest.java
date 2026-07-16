@@ -18,7 +18,10 @@ public class UpdateProfileRequest {
 
     private String teamId;
 
-    @Size(max = 128)
+    // Must match RegisterRequest (256) and the textarea's maxLength. When this was 128, a bio
+    // of 129-256 chars — accepted at registration — made every profile save fail 400, including
+    // name, team and avatar changes, since they are all submitted together.
+    @Size(max = 256)
     private String bio;
 
     @Size(max = 1024)

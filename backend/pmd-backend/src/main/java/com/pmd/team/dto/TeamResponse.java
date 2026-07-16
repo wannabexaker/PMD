@@ -1,5 +1,6 @@
 package com.pmd.team.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 
 public class TeamResponse {
@@ -68,6 +69,10 @@ public class TeamResponse {
         this.workspaceId = workspaceId;
     }
 
+    // Without this, Jackson serialises the getter as "active" (it strips the "is"), but the
+    // frontend reads team.isActive — so the value is always undefined and a deactivated team
+    // can never be reactivated from the UI. Same fix as UserResponse.isAdmin().
+    @JsonProperty("isActive")
     public boolean isActive() {
         return isActive;
     }
