@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -176,7 +175,6 @@ public class DemoWorkspaceSeeder {
     private final PersonRepository personRepository;
     private final ProjectRepository projectRepository;
     private final ProjectCommentRepository projectCommentRepository;
-    private final PasswordEncoder passwordEncoder;
 
     public DemoWorkspaceSeeder(TeamRepository teamRepository,
                                TeamService teamService,
@@ -189,8 +187,7 @@ public class DemoWorkspaceSeeder {
                                WorkspaceRepository workspaceRepository,
                                PersonRepository personRepository,
                                ProjectRepository projectRepository,
-                               ProjectCommentRepository projectCommentRepository,
-                               PasswordEncoder passwordEncoder) {
+                               ProjectCommentRepository projectCommentRepository) {
         this.teamRepository = teamRepository;
         this.teamService = teamService;
         this.userService = userService;
@@ -203,7 +200,6 @@ public class DemoWorkspaceSeeder {
         this.personRepository = personRepository;
         this.projectRepository = projectRepository;
         this.projectCommentRepository = projectCommentRepository;
-        this.passwordEncoder = passwordEncoder;
     }
 
     public void resetWorkspaceData(String workspaceId) {
@@ -359,7 +355,12 @@ public class DemoWorkspaceSeeder {
         user.setFirstName(seed.firstName());
         user.setLastName(seed.lastName());
         user.setDisplayName(seed.firstName() + " " + seed.lastName());
-        user.setPasswordHash(passwordEncoder.encode("demo123!"));
+        // Deliberately NO password hash. Demo members exist only to populate the demo
+        // workspace with realistic names, comments and roles — nobody ever signs in as one.
+        // A usable password here would mint 11 login-capable accounts (one an Owner) on every
+        // registration, with a credential visible in the source, reachable because the email
+        // embeds the workspace id. A null hash makes password login impossible (AuthController
+        // rejects a blank hash), and there is no googleId either, so the account is unreachable.
         user.setEmailVerified(true);
         user.setTeam(seed.teamName());
         user.setTeamId(null);
