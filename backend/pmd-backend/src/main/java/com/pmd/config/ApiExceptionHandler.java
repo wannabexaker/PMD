@@ -5,6 +5,7 @@ import java.util.Map;
 import java.time.Instant;
 import jakarta.servlet.http.HttpServletRequest;
 import com.pmd.security.RequestIdFilter;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -86,6 +87,14 @@ public class ApiExceptionHandler {
     private ResponseEntity<Map<String, Object>> respond(HttpStatus status, String message, HttpServletRequest request) {
         return ResponseEntity.status(status).body(errorBody(
             status, message, request.getRequestURI(), resolveRequestId(request), null));
+    }
+
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicateKey(DuplicateKeyException ex, HttpServletRequest request) {
+        // A unique-index collision from a check-then-act race — two concurrent creates of the
+        // same username/slug/role/member. The loser should get a clean 409, not the catch-all 500.
+        logger.warn("Duplicate key on {}: {}", request.getRequestURI(), ex.getMessage());
+        return respond(HttpStatus.CONFLICT, "Already exists", request);
     }
 
     @ExceptionHandler(Exception.class)
