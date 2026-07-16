@@ -107,6 +107,10 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
           Register
         </button>
       </div>
+      <p className="auth-beta-note">
+        PMD is in <strong>beta</strong>. Expect rough edges — and there are <strong>no backups</strong>:
+        don&apos;t keep anything here you can&apos;t afford to lose.
+      </p>
       <form className="form auth-form" onSubmit={handleSubmit}>
         <div className="form-grid">
           <div className="form-field">

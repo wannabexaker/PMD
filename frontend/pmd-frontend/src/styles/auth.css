@@ -1245,3 +1245,21 @@ p.muted {
 .auth-consent a:hover {
   text-decoration-thickness: 2px;
 }
+
+/* The beta warning on the auth cards. It carries the no-backups fact, so it must
+   read as information, not decoration — bordered, not a toast that disappears. */
+.auth-beta-note {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 8px;
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.auth-beta-note strong {
+  color: var(--text);
+}

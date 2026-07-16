@@ -213,6 +213,10 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
           Back to login
         </button>
       </div>
+      <p className="auth-beta-note">
+        PMD is in <strong>beta</strong>. Expect rough edges — and there are <strong>no backups</strong>:
+        don&apos;t keep anything here you can&apos;t afford to lose.
+      </p>
       {showSuccess ? (
         <div className="auth-success">
           <div className="banner info">

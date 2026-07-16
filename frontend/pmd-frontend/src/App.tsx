@@ -961,6 +961,9 @@ function AppView({
           >
             <Logo size={26} />
           </button>
+          <span className="beta-badge" title="PMD is in beta — there are no backups; don't keep anything here you can't afford to lose.">
+            Beta
+          </span>
           <div className="topbar-actions">
             {isAuthed ? (
               <div className="topbar-identities">
