@@ -70,7 +70,9 @@ jobs:
       - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
-          context: ./frontend/pmd-frontend
+          # Repo root: the frontend build inlines docs/legal/*.md via ?raw, which lives
+          # outside frontend/pmd-frontend. The Dockerfile copies both in from this context.
+          context: .
           file: ./frontend/pmd-frontend/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64

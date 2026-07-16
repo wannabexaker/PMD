@@ -1,0 +1,16 @@
+# Root .dockerignore — applies to builds whose context is the repository root
+# (the frontend image, which needs docs/legal/ alongside frontend/pmd-frontend/).
+# The backend image builds from ./backend/pmd-backend, so this file does not affect it.
+.git
+.github
+backend
+graphify-out
+docs/legal/README.md
+**/node_modules
+**/dist
+**/target
+**/coverage
+**/.runtime
+*.log
+.idea
+.vscode
