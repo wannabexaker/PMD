@@ -34,6 +34,10 @@ pmd:
     # Comment attachments are the one unbounded upload path and the real disk-fill risk on the
     # Pi's SD card. Disabled until a per-user/per-workspace storage quota exists.
     attachments-enabled: ${PMD_UPLOADS_ATTACHMENTS_ENABLED:false}
+    rate-limit:
+      # Files one account may upload per hour. Generous for avatar changes, far too low to fill
+      # the disk by scripting the endpoint.
+      per-hour: ${PMD_UPLOADS_RATE_LIMIT_PER_HOUR:20}
   mail:
     from: no-reply@pmd.local
   jwt:

@@ -2,6 +2,7 @@ package com.pmd.upload.controller;
 
 import com.pmd.auth.security.UserPrincipal;
 import com.pmd.upload.dto.UploadResponse;
+import com.pmd.upload.service.UploadRateLimiterService;
 import com.pmd.upload.service.UploadService;
 import com.pmd.user.model.User;
 import com.pmd.user.service.UserService;
@@ -21,16 +22,22 @@ public class UploadController {
 
     private final UploadService uploadService;
     private final UserService userService;
+    private final UploadRateLimiterService uploadRateLimiterService;
 
-    public UploadController(UploadService uploadService, UserService userService) {
+    public UploadController(UploadService uploadService, UserService userService,
+                           UploadRateLimiterService uploadRateLimiterService) {
         this.uploadService = uploadService;
         this.userService = userService;
+        this.uploadRateLimiterService = uploadRateLimiterService;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public UploadResponse upload(@RequestParam("file") MultipartFile file, Authentication authentication) {
-        getRequester(authentication);
+        User requester = getRequester(authentication);
+        // Bound how many files one account can store per hour so a scripted client cannot fill
+        // the disk. Counted before storing, so a rejected upload never touches the filesystem.
+        uploadRateLimiterService.checkAndRecord(requester.getId());
         return uploadService.store(file);
     }
 
