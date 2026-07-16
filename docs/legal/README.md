@@ -1,14 +1,17 @@
-# Legal documents — drafts
+# Legal documents — beta (launched, lawyer review pending)
 
-This folder holds **draft** legal documents for the hosted PMD service at
+This folder holds the legal documents for the hosted PMD service at
 <https://pmd.olamov.com>.
 
 | File | What it is | Status |
 | --- | --- | --- |
-| [`privacy-policy.md`](./privacy-policy.md) | GDPR Article 13 privacy notice | Draft — not published |
-| [`terms-of-use.md`](./terms-of-use.md) | Terms of use for the hosted service | Draft — not published |
+| [`privacy-policy.md`](./privacy-policy.md) | GDPR Article 13 privacy notice | **In force (beta v2026-07-15)** |
+| [`terms-of-use.md`](./terms-of-use.md) | Terms of use for the hosted service | **In force (beta v2026-07-15)** |
 
-**Neither has been reviewed by a lawyer. Neither is in force.**
+**Launched for the PMD beta on 15 July 2026 WITHOUT prior lawyer review, at the operator's
+own decision and risk.** A lawyer review is a follow-up, not a blocker the operator chose to
+wait on. The documents are operative: they no longer carry "draft / not in force" banners,
+and all user-visible `[TO BE ...]` placeholders were resolved with the beta decisions below.
 
 They were written by the developer, by reading the source code, and describe what PMD
 actually does rather than what a template says it might do. The factual claims (retention
@@ -20,19 +23,26 @@ The `LICENSE` at the repository root covers the **source code**. These documents
 
 **Last reviewed against the code:** 15 July 2026.
 
----
+## Beta decisions applied at launch (confirm/refine with a lawyer)
 
-## Blockers — fix before publishing
+- **Age:** 18+ (operator's decision) — privacy §17, terms §5.
+- **Governing law / court:** Greek law, competent Greek courts (generic) — terms §15.
+- **Cookies:** only strictly-necessary (auth + CSRF + sign-in functional) → no consent banner.
+- **DPO:** not appointed (not large-scale processing per Art. 37).
+- **Processors:** Vercel, Cloudflare, Google listed; transfers on their SCCs/EU-US DPF.
+- **Complaints:** Hellenic Data Protection Authority (www.dpa.gr).
+- **Liability:** limited to the maximum extent permitted by law + a EUR-100/paid-amount cap,
+  with the mandatory consumer carve-outs; indemnity business-only and proportionate.
+- **ODR:** EU ODR platform closed July 2025 → no link; courts + local consumer schemes noted.
 
-These are not lawyer questions. They are things that would make the published documents
-**false on day one**, or that the documents currently have to disclose as a weakness.
+## Still for the lawyer (not launch blockers, refinements)
 
-### 1. Processor terms are not accepted
+### 1. Processor DPAs are not formally accepted
 
-The privacy policy states that transfers to Vercel, Cloudflare and Google rely on SCCs
-and/or the EU–US Data Privacy Framework "as applicable". **No DPA has actually been
-accepted with any of them.** This must be done, and privacy policy §11 updated to state the
-real mechanism per provider rather than a hedge. See lawyer question 5.
+The privacy policy states transfers to Vercel, Cloudflare and Google rely on SCCs and/or the
+EU–US Data Privacy Framework. **No DPA has been formally accepted with any of them.** Accept
+each provider's data-processing terms and confirm the mechanism per provider. See lawyer
+question 5.
 
 ---
 

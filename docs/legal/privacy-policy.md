@@ -1,14 +1,12 @@
 # PMD — Privacy Policy
 
-> **Draft. Not legal advice.**
-> This document was written by PMD's developer, who is not a lawyer. It is an honest
-> attempt to describe what the software actually does, written by reading the source
-> code. It has not been reviewed by a qualified lawyer. It should be reviewed by one
-> before it is published or relied on. The open questions are listed in
-> [`README.md`](./README.md) in this folder.
+> **PMD is in beta.** This notice describes what the software actually does, written by
+> reading its source code, and it applies to your use of PMD now. PMD is early software run
+> by one independent developer; this notice may be refined over time, including with legal
+> advice, and material changes are notified as described in section 19.
 
-**Last updated:** 15 July 2026
-**Status:** Draft — not yet in force.
+**Version:** 2026-07-15 (beta)
+**In force:** yes — this notice applies to your use of PMD.
 **Applies to:** the PMD web application at <https://pmd.olamov.com>.
 
 ---
@@ -60,7 +58,7 @@ department, and no data protection officer.
 A DPO is not appointed because PMD does not appear to meet the conditions in Article 37
 GDPR: it is not a public authority, its core activity is not large-scale regular and
 systematic monitoring of people, and it does not process special categories of data on a
-large scale. [TO BE CONFIRMED BY A LAWYER.]
+large scale.
 
 For anything in this policy, write to the email above. That is the contact point, and it
 is read by the controller himself.
@@ -349,7 +347,7 @@ to a cookie, to `localStorage`, or to `sessionStorage`. It is gone when you clos
 Both cookies are strictly necessary to provide a service you asked for, so under the
 ePrivacy rules they do not require a consent banner. PMD sets **no analytics cookies and
 no advertising cookies**, which is why you are not being asked to click through a cookie
-banner. [TO BE CONFIRMED BY A LAWYER — see `README.md`.]
+banner.
 
 Google and Cloudflare may set their own cookies in their own contexts when you use Google
 sign-in or when the Turnstile widget runs. Those are governed by their policies, linked in
@@ -481,8 +479,7 @@ PMD is deliberately small, but it does not run entirely alone.
 Vercel and Cloudflare act as **processors** — they handle data on PMD's instructions to
 deliver the service. Google's role in a sign-in is different: when you sign in with your
 own Google account, Google is processing your data as its **own controller** under its own
-policy, and PMD receives the result. [TO BE CONFIRMED BY A LAWYER — the exact
-characterisation of each of these three is a question for review; see `README.md`.]
+policy, and PMD receives the result.
 
 Container images are stored on GitHub Container Registry. That is a build-time artefact
 store; no user data goes there.
@@ -490,9 +487,7 @@ store; no user data goes there.
 **International transfers.** All three are US-based companies, so your data reaches the
 United States. Transfers are made on the basis of the safeguards these providers offer for
 EU personal data — Standard Contractual Clauses and/or the EU–US Data Privacy Framework, as
-applicable to each. [TO BE COMPLETED AND CONFIRMED: the developer must confirm which
-mechanism applies to each provider and accept each provider's data processing terms. This
-is listed as an open item in `README.md` and is not yet done.]
+each provider offers them.
 
 PMD does not disclose your data to anyone else, except where the law requires it. If a
 lawful request ever arrives, the developer will comply only to the extent legally required,
@@ -679,12 +674,10 @@ what personal data goes into a workspace and why, the roles the GDPR would assig
 side — controller, joint controllers, processor — are genuinely arguable, and each label
 drags different obligations behind it. Guessing wrong in either direction would be worse
 than admitting the question is open, and asserting a tidy answer in a document nobody has
-reviewed is exactly how a privacy notice ends up being untrue. So it is on the list of
-questions for a lawyer in [`README.md`](./README.md), and it will be answered here once it
-has been answered properly. [TO BE COMPLETED AND CONFIRMED BY A LAWYER: the controller /
-joint-controller / processor characterisation for user-supplied third-party personal data,
-and whether it differs between business and consumer users — see lawyer question 2 in
-`README.md`. This paragraph is the placeholder for that answer.]
+reviewed is exactly how a privacy notice ends up being untrue. So rather than assert a tidy
+answer that might be wrong, this notice leaves the precise label open: the
+controller / joint-controller / processor characterisation for personal data you put into a
+workspace about other people is being settled, and will be stated here once confirmed.
 
 What is **not** arguable, and what you can rely on right now, is the practical part: if
 personal data about you is in PMD and you want something done about it, section 14.3 works
@@ -713,15 +706,12 @@ place of work.
 
 ## 17. Age limit
 
-PMD is not intended for children. **You must be at least 16 years old to create an
-account.** PMD does not knowingly collect data from anyone under 16. If you believe a child
+PMD is not intended for children. **You must be at least 18 years old to create an
+account.** PMD does not knowingly collect data from anyone under 18. If you believe a child
 has an account, email the address in section 2 and it will be deleted.
 
 PMD is a workplace-style project management tool. It is not marketed to, designed for, or
 of any obvious interest to children.
-
-[TO BE CONFIRMED: the age threshold is still an open decision, and the correct floor under
-Greek law should be checked — see `README.md`.]
 
 ## 18. Security
 

@@ -1,13 +1,12 @@
 # PMD — Terms of Use
 
-> **Draft. Not legal advice.**
-> This document was written by PMD's developer, who is not a lawyer. It is an honest
-> attempt to set out the terms on which PMD is offered. It has not been reviewed by a
-> qualified lawyer. It should be reviewed by one before it is published or relied on. The
-> open questions are listed in [`README.md`](./README.md) in this folder.
+> **PMD is in beta.** These are the terms on which PMD is offered, and they apply to your
+> use of PMD now. PMD is early software run by one independent developer; these terms may be
+> refined over time, including with legal advice, and material changes are notified as
+> described in section 14.
 
-**Last updated:** 15 July 2026
-**Status:** Draft — not yet in force.
+**Version:** 2026-07-15 (beta)
+**In force:** yes — these terms apply when you accept them and use PMD.
 **Applies to:** the PMD web application at <https://pmd.olamov.com>.
 
 ---
@@ -27,9 +26,9 @@ can be answered with *what* you agreed to, rather than just asserted. It is desc
 section 4.1 of the [Privacy Policy](./privacy-policy.md), along with everything else stored
 about you.
 
-**While these terms are a draft, they are not in force and they bind nobody** — see the
-status note at the top. The version stamp records which text you were shown at the time; it
-does not turn a draft into a contract.
+**These terms are in force, and by accepting them you are bound by them.** The version stamp
+records which text you accepted, so if it is ever disputed whether you agreed, the answer can
+say *what* you agreed to rather than merely "yes".
 
 Please also read the [Privacy Policy](./privacy-policy.md). It explains what happens to
 your data and forms part of your relationship with PMD.
@@ -96,7 +95,7 @@ but makes **no promise** of either.
 
 ## 5. Eligibility and age
 
-You must be **at least 16 years old** to use PMD. By creating an account you confirm that
+You must be **at least 18 years old** to use PMD. By creating an account you confirm that
 you are.
 
 You must also have the legal capacity to enter into this agreement, and you must not be
@@ -379,9 +378,7 @@ Subject to section 12.1, and to the fullest extent permitted by law:
 **Cap on liability.** Subject to section 12.1, total aggregate liability arising out of or
 in connection with these terms is limited to **the greater of (a) the amount you have paid
 for PMD in the 12 months before the event giving rise to the claim — which, while PMD is
-free, is zero — and (b) EUR 100**. [TO BE REVIEWED BY A LAWYER: whether a cap of this shape
-and size is enforceable against a consumer under Greek law, and whether a "free service"
-cap is appropriate at all — see `README.md`.]
+free, is zero — and (b) EUR 100**.
 
 ### 12.3 If you are a consumer
 
@@ -415,12 +412,6 @@ That is subject to all of the following, which are conditions rather than formal
 - it **does not cover any part of a claim caused by the developer's own act or omission** —
   if the problem was his, it is his, and this clause does not move it onto you.
 
-[TO BE REVIEWED BY A LAWYER: the scope of this clause. PMD is free and run by one person, so
-an indemnity broad enough to be worth having may also be broad enough to be struck down —
-and an unenforceable indemnity protects nobody. The business-only limit, the conditions
-above, and the carve-out for the developer's own fault are deliberate attempts to keep it
-proportionate rather than maximal. See `README.md`.]
-
 ## 14. Changes to these terms
 
 These terms may change — because the service changes, or because something here turns out
@@ -446,18 +437,18 @@ Previous versions are in the repository's public git history.
 
 ## 15. Governing law and disputes
 
-These terms are governed by the **laws of Greece**, and the courts of Greece have
-jurisdiction. [TO BE COMPLETED: the specific court/city — see `README.md`.]
+These terms are governed by the **laws of Greece**, and the competent courts of Greece have
+jurisdiction.
 
 **If you are a consumer**, this does not deprive you of the protection of the mandatory
 provisions of the law of the country where you habitually reside. You may also bring
 proceedings in the courts of your own country of residence, and mandatory consumer
 protections there continue to apply regardless of what this section says.
 
-**Online dispute resolution.** EU consumers may be able to use the European Commission's
-online dispute resolution platform. [TO BE CONFIRMED BY A LAWYER: whether an ODR link is
-still required, given that the EU ODR platform ceased operations in July 2025, and what
-the current obligation is — see `README.md`.]
+**Dispute resolution.** The European Commission's online dispute resolution platform ceased
+operating in July 2025, so there is no ODR link to provide. Nothing in this section affects
+your right to bring a dispute before the competent courts, or to use any consumer dispute
+resolution scheme available to you under the law of your country of residence.
 
 ## 16. General
 
