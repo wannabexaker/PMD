@@ -187,6 +187,12 @@ public class AccountPrivacyService {
         pull("projects", Criteria.where("memberIds").is(userId), "memberIds", userId);
         // The audit trail is retained for security, but the actor's name is personal data.
         set("workspace_audit_events", Criteria.where("actorUserId").is(userId), "actorName", ANONYMISED_NAME);
+        // Comments stay so other people's threads keep their shape, but the author's name is
+        // personal data and is denormalised onto each row (the read path returns it verbatim,
+        // it is not re-resolved from users). Anonymise it exactly as the audit actor above;
+        // the opaque authorUserId is left, since it no longer resolves to anyone once the user
+        // document is gone. Without this, erasure leaves the real name on every comment forever.
+        set("project_comments", Criteria.where("authorUserId").is(userId), "authorName", ANONYMISED_NAME);
 
         userRepository.deleteById(userId);
         // The photo is personal data and /uploads is public, so leaving the file behind would
