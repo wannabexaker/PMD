@@ -367,7 +367,9 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
                 <a href="/privacy" target="_blank" rel="noreferrer">
                   Privacy Policy
                 </a>
-                .
+                . I understand that PMD is a free service provided &ldquo;as is&rdquo;, with no
+                warranties, that I use it at my own risk, and that I am responsible for the
+                content I add and how I use it.
               </span>
             </label>
             {showTurnstile ? (
