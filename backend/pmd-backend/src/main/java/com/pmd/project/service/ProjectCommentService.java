@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -39,17 +40,23 @@ public class ProjectCommentService {
     private final UserRepository userRepository;
     private final MentionNotificationService mentionNotificationService;
     private final MentionPolicyService mentionPolicyService;
+    // Comment attachments are the one unbounded upload path (a new file per comment), so on a
+    // single Pi with an SD card they are the real disk-fill risk. Off by default until a proper
+    // per-user/per-workspace quota exists; flip PMD_UPLOADS_ATTACHMENTS_ENABLED to re-enable.
+    private final boolean attachmentsEnabled;
 
     public ProjectCommentService(ProjectCommentRepository commentRepository, ProjectRepository projectRepository,
                                  AccessPolicy accessPolicy, UserRepository userRepository,
                                  MentionNotificationService mentionNotificationService,
-                                 MentionPolicyService mentionPolicyService) {
+                                 MentionPolicyService mentionPolicyService,
+                                 @Value("${pmd.uploads.attachments-enabled:false}") boolean attachmentsEnabled) {
         this.commentRepository = commentRepository;
         this.projectRepository = projectRepository;
         this.accessPolicy = accessPolicy;
         this.userRepository = userRepository;
         this.mentionNotificationService = mentionNotificationService;
         this.mentionPolicyService = mentionPolicyService;
+        this.attachmentsEnabled = attachmentsEnabled;
     }
 
     public Page<ProjectCommentItemResponse> listComments(String workspaceId, String projectId, int page, int size,
@@ -91,6 +98,12 @@ public class ProjectCommentService {
         entity.setTimeSpentMinutes(timeSpent);
         entity.setReactions(new HashMap<>());
         if (request.getAttachment() != null) {
+            if (!attachmentsEnabled) {
+                // Server-side gate, so a crafted request cannot slip an attachment past the
+                // disabled UI and start filling the disk.
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Attachments are temporarily disabled while we work on storage limits.");
+            }
             entity.setAttachment(toAttachment(request.getAttachment()));
         }
 

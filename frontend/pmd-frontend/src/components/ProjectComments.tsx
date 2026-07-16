@@ -29,6 +29,9 @@ const REACTIONS: { type: CommentReactionType; label: string }[] = [
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 const MAX_IMAGE_SIZE_MB = 2
 const MAX_IMAGE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
+// Attachments are the one unbounded upload path — disabled until a storage quota exists. The
+// backend enforces this too (a disabled button is not a security control); keep both in step.
+const ATTACHMENTS_ENABLED = false
 
 function formatTimestamp(value?: string | null) {
   if (!value) return ''
@@ -258,11 +261,22 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
         ) : null}
         <div className="comment-actions">
           <div className="comment-actions-left">
-            <label className="btn btn-ghost comment-attach">
-              {uploading ? 'Uploading...' : 'Attach image'}
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} />
-            </label>
-            <span className="comment-attach-hint">PNG/JPG/WEBP - up to {MAX_IMAGE_SIZE_MB}MB</span>
+            {ATTACHMENTS_ENABLED ? (
+              <>
+                <label className="btn btn-ghost comment-attach">
+                  {uploading ? 'Uploading...' : 'Attach image'}
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} />
+                </label>
+                <span className="comment-attach-hint">PNG/JPG/WEBP - up to {MAX_IMAGE_SIZE_MB}MB</span>
+              </>
+            ) : (
+              <>
+                <button type="button" className="btn btn-ghost comment-attach" disabled title="Attachments are temporarily disabled">
+                  Attach image
+                </button>
+                <span className="comment-attach-hint">Attachments are under construction</span>
+              </>
+            )}
             <button
               type="button"
               className={`btn btn-ghost${timeSpentEnabled ? ' is-active' : ''}`}

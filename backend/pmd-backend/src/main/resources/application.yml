@@ -30,6 +30,10 @@ pmd:
   audit:
     retention:
       days: ${PMD_AUDIT_RETENTION_DAYS:365}
+  uploads:
+    # Comment attachments are the one unbounded upload path and the real disk-fill risk on the
+    # Pi's SD card. Disabled until a per-user/per-workspace storage quota exists.
+    attachments-enabled: ${PMD_UPLOADS_ATTACHMENTS_ENABLED:false}
   mail:
     from: no-reply@pmd.local
   jwt:
