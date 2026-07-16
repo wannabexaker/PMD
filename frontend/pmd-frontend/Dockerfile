@@ -18,7 +18,7 @@ COPY frontend/pmd-frontend/ ./
 COPY docs/legal/ /app/docs/legal/
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 COPY frontend/pmd-frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/frontend/pmd-frontend/dist /usr/share/nginx/html
