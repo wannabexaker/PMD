@@ -444,6 +444,11 @@ worse than none:
 - **It is best-effort.** Recording is deliberately not allowed to break the request it
   observes, so if the write fails it is logged on the server and the request still proceeds.
   It is a good record, not a guaranteed one.
+- **The chain catches edits, not a total rewrite.** The hash chain makes a *selective*
+  change — altering or deleting a single entry — detectable, and there is code that checks
+  for exactly that. It does **not** defend against the operator, who holds the database,
+  rewriting the whole chain from the beginning. Piecemeal tampering shows; wholesale
+  reconstruction by the host does not.
 - **It does not stop him.** Nothing here prevents access. It makes access visible to the
   people it concerns, which is a different and lesser thing.
 
