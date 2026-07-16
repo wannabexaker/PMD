@@ -723,6 +723,13 @@ function AppView({
           setAuthError(`${base} (${API_BASE_URL}).`)
         } else if (err.status >= 500) {
           setAuthError(getAuthNotification('login_server_error').message)
+        } else if (err.status === 400) {
+          // The only 400 the Google endpoint returns is "terms not accepted" on a brand-new
+          // account — reachable from the login page, which has no checkbox. Turn the dead-end
+          // into a clear next step instead of a raw error the user cannot act on.
+          setAuthError(
+            "This Google account isn't registered yet. Choose Register, then \"Sign up with Google\" to accept the terms and create your account.",
+          )
         } else {
           setAuthError(err.message || 'Google sign-in failed')
         }
