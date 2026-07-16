@@ -47,6 +47,21 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         apply("2026-02-26-invite-notification-indexes-v1", this::applyInviteNotificationIndexes);
         apply("2026-02-26-client-metadata-redaction-v1", this::applyClientMetadataRedactionV1);
         apply("2026-07-15-core-identity-indexes-v1", this::applyCoreIdentityIndexes);
+        apply("2026-07-16-audit-chain-linearity-v1", this::applyAuditChainLinearityIndex);
+    }
+
+    /**
+     * Forces the audit hash-chain to stay a line rather than forking into a tree. Two concurrent
+     * events in one workspace cannot both claim the same predecessor; the writer catches the
+     * resulting DuplicateKeyException and retries against the new tail. One genesis per workspace
+     * carries a null predecessor, which this composite index permits (one null per workspaceId).
+     */
+    private void applyAuditChainLinearityIndex() {
+        ensureIndex("workspace_audit_events", new Index()
+            .on("workspaceId", Sort.Direction.ASC)
+            .on("prevEventHash", Sort.Direction.ASC)
+            .unique()
+            .named("uniq_workspace_audit_workspace_prev_hash"));
     }
 
     /**
