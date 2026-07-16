@@ -6,7 +6,7 @@
 # because the legal pages inline docs/legal/*.md at build time via ?raw. That
 # folder lives outside frontend/pmd-frontend, so a frontend-only context cannot
 # resolve the import and `npm run build` fails.
-FROM --platform=$BUILDPLATFORM node:20-alpine AS build
+FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 
 WORKDIR /app/frontend/pmd-frontend
 COPY frontend/pmd-frontend/package.json frontend/pmd-frontend/package-lock.json ./
