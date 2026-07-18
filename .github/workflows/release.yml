@@ -21,6 +21,9 @@ env:
   REGISTRY: ghcr.io
   IMAGE_FRONTEND: ${{ github.repository_owner }}/pmd-frontend
   IMAGE_BACKEND: ${{ github.repository_owner }}/pmd-backend
+  # build-push-action uploads a .dockerbuild record artifact per image by
+  # default. They are never read back and accumulate one per build.
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
 
 jobs:
   build-and-push:
