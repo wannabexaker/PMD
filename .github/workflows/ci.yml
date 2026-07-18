@@ -75,18 +75,10 @@ jobs:
         run: npm audit --audit-level=high
         continue-on-error: true
 
-      - name: Build
-        run: npm run build
-
-      - name: Upload frontend dist
-        # Skip on pull_request: PR builds are verified by the job status, not by
-        # a downloadable bundle. Uploading here burned ~3.5 GB of Actions storage.
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/pmd-frontend/dist
-          retention-days: 5
+      # The build output is deliberately not uploaded. Nothing consumes it: no
+      # workflow downloads it, and Release builds its images from source. The
+      # signal we want from this job is whether the build succeeds, which the
+      # job status already carries.
 
   backend:
     runs-on: ubuntu-latest
@@ -131,13 +123,6 @@ jobs:
 
       - name: Package
         run: ./mvnw -q -Dmaven.test.skip=true package
-
-      - name: Upload backend jar
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-jar
-          path: backend/pmd-backend/target/*.jar
-          retention-days: 5
+      # The jar is deliberately not uploaded — see the note in the frontend job.
 
 
