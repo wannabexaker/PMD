@@ -20,14 +20,23 @@ jobs:
           docker compose -f docker-compose.yml config >/dev/null
           docker compose -f docker-compose.deps.yml config >/dev/null
           docker compose -f docker-compose.local.yml config >/dev/null
-          MONGO_INITDB_ROOT_USERNAME=ci-root \
-          MONGO_INITDB_ROOT_PASSWORD=ci-root-pass \
-          PMD_MONGO_APP_USER=ci-pmd \
-          PMD_MONGO_APP_PASSWORD=ci-pmd-pass \
-          PMD_ALLOWED_ORIGINS=http://ci.example.com \
-          PMD_APP_BASE_URL=http://ci.example.com \
-          PMD_JWT_SECRET=ci-compose-validation-secret-32bytes \
+          # Throwaway values, only so the ${VAR:?} guards in the deploy stacks resolve. Those
+          # stacks fail fast on a missing secret by design, so every required var must be listed
+          # here — otherwise adding one only breaks at deploy time, on the box.
+          export MONGO_INITDB_ROOT_USERNAME=ci-root
+          export MONGO_INITDB_ROOT_PASSWORD=ci-root-pass
+          export PMD_MONGO_APP_USER=ci-pmd
+          export PMD_MONGO_APP_PASSWORD=ci-pmd-pass
+          export PMD_ALLOWED_ORIGINS=http://ci.example.com
+          export PMD_APP_BASE_URL=http://ci.example.com
+          export PMD_JWT_SECRET=ci-compose-validation-secret-32bytes
+          export PMD_SECURITY_CLIENT_METADATA_HASH_SALT=ci-compose-validation-salt-32bytes
+          export PMD_SECURITY_ADMIN_EMAILS=ci-admin@example.com
+          export CLOUDFLARE_TUNNEL_TOKEN=ci-tunnel-token
           docker compose -f docker-compose.prod.yml config >/dev/null
+          # The Pi stack carries the same required secrets plus the tunnel token and was not
+          # validated here at all, so a broken interpolation could only surface on the Pi.
+          docker compose -f docker-compose.pi.yml config >/dev/null
 
       - name: Validate nginx config
         run: |
