@@ -3,7 +3,7 @@
 # Build stage pinned to the native builder arch (BUILDPLATFORM) so the Maven
 # build runs natively instead of under slow arm64 emulation. The produced JAR is
 # architecture-independent, so it runs unchanged on every target platform.
-FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk AS build
 
 WORKDIR /app
 COPY .mvn/ .mvn
@@ -16,7 +16,7 @@ RUN ./mvnw -q -Dmaven.test.skip=true package
 
 # Runtime stage is materialised per target platform (linux/amd64, linux/arm64)
 # by buildx, so the RPi4 (aarch64) can pull a matching image.
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 # curl for the container healthcheck; a dedicated non-root user for the
