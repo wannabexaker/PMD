@@ -5,6 +5,8 @@ import { useToast } from '../shared/ui/toast/ToastProvider'
 import { getAuthNotification } from '../auth/authNotificationMatrix'
 import { GoogleSignInButton } from './auth/GoogleSignInButton'
 import { TurnstileWidget } from './auth/TurnstileWidget'
+import { BackendOfflineNotice } from './auth/BackendOfflineNotice'
+import { useBackendStatus } from './auth/useBackendStatus'
 import { isGoogleEnabled, isTurnstileEnabled } from '../lib/authProviders'
 
 type LoginFormProps = {
@@ -58,8 +60,15 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
     setForm((prev) => ({ ...prev, [name]: checked }))
   }
 
+  // A demo whose backend is switched off should say so, not let a sign-in fail with a 502.
+  const { status: backendStatus, recheck: recheckBackend } = useBackendStatus()
+  const backendOffline = backendStatus === 'offline'
+
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault()
+    if (backendOffline) {
+      return
+    }
     setFieldErrors({})
     setPasswordTouched(true)
 
@@ -111,6 +120,7 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
         PMD is in <strong>beta</strong>. Expect rough edges — and there are <strong>no backups</strong>:
         don&apos;t keep anything here you can&apos;t afford to lose.
       </p>
+      <BackendOfflineNotice status={backendStatus} onRecheck={recheckBackend} />
       <form className="form auth-form" onSubmit={handleSubmit}>
         <div className="form-grid">
           <div className="form-field">
@@ -169,10 +179,10 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
             <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />
           </div>
         ) : null}
-        <button type="submit" className="btn btn-primary full-width" disabled={loading}>
+        <button type="submit" className="btn btn-primary full-width" disabled={loading || backendOffline}>
           {loading ? 'Signing in...' : 'Login'}
         </button>
-        {isGoogleEnabled && onGoogleLogin ? (
+        {isGoogleEnabled && onGoogleLogin && !backendOffline ? (
           <>
             <div className="auth-divider"><span>or</span></div>
             <div className="auth-google">

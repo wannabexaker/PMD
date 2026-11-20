@@ -14,6 +14,14 @@ vi.mock('../lib/authProviders', () => ({
   isTurnstileEnabled: false,
 }))
 
+// The form probes the backend on mount. Pin the answer so tests never depend on the network,
+// and let individual tests flip it to exercise the demo-offline state.
+const backend = vi.hoisted(() => ({ status: 'online' as 'online' | 'offline' }))
+vi.mock('../api/backendStatus', () => ({
+  getBackendStatus: () => Promise.resolve(backend.status),
+  recheckBackendStatus: () => Promise.resolve(backend.status),
+}))
+
 function renderLogin(onLogin = vi.fn().mockResolvedValue(undefined)) {
   const utils = render(
     <ToastProvider>
@@ -25,7 +33,27 @@ function renderLogin(onLogin = vi.fn().mockResolvedValue(undefined)) {
 }
 
 describe('LoginForm', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    backend.status = 'online'
+  })
+
+  it('says the demo backend is offline and blocks sign-in instead of failing', async () => {
+    backend.status = 'offline'
+    const { onLogin, form } = renderLogin()
+    expect(await screen.findByText(/backend is offline/i)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText(/^password/i), { target: { value: 'secret' } })
+    fireEvent.submit(form)
+    expect(onLogin).not.toHaveBeenCalled()
+    expect((screen.getByRole('button', { name: /^login$/i }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('shows no offline notice when the backend answers', async () => {
+    renderLogin()
+    await Promise.resolve()
+    expect(screen.queryByText(/backend is offline/i)).toBeNull()
+  })
   afterEach(() => cleanup())
 
   it('does not submit and shows field errors when empty', () => {
