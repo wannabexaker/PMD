@@ -1,9 +1,13 @@
 # PMD — Raspberry Pi 4 (architecture B): backend + MongoDB + Cloudflare Tunnel.
 #
 # The React frontend is served by Vercel (pmd.olamov.com); ONLY the API lives
-# here and is reachable exclusively through the outbound-only Cloudflare Tunnel
-# (api-pmd.olamov.com). There are NO published host ports — nothing on the Pi is
-# directly reachable from the internet, and Mongo stays on an internal network.
+# here and is reachable exclusively through Cloudflare (api-pmd.olamov.com).
+# The backend publishes 127.0.0.1:8080 on the host — loopback only, so the
+# Pi's host-level Cloudflare Tunnel can reach it and nothing on the LAN or the
+# internet can. Mongo is not published at all and stays on an internal network.
+#
+# This file mirrors what actually runs on the Pi (~/pmd). The cloudflared service
+# below is a leftover: the Pi uses its one host tunnel for every project.
 #
 # Usage on the Pi:
 #   cp .env.pi.example .env.production   # then fill in the real secrets
@@ -36,6 +40,10 @@ services:
 
   backend:
     image: ghcr.io/${GHCR_OWNER:-wannabexaker}/pmd-backend:latest
+    # Loopback only: Docker bypasses the Pi's firewall, so 0.0.0.0 would expose the
+    # API to the whole home network. The host tunnel connects to 127.0.0.1:8080.
+    ports:
+      - "127.0.0.1:8080:8080"
     restart: unless-stopped
     depends_on:
       mongo:
@@ -105,8 +113,10 @@ volumes:
 networks:
   # Non-internal: gives cloudflared outbound access to the Cloudflare edge.
   egress:
-  # Internal: no direct internet ingress/egress for backend and mongo.
+  # Not internal: Docker cannot publish a port for a container attached only to
+  # internal networks, and the backend's loopback port is how the host tunnel
+  # reaches it. Ingress is still limited to 127.0.0.1 by the port binding above.
   app:
-    internal: true
+  # Internal: Mongo has no route in or out.
   data:
     internal: true
