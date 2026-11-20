@@ -1,10 +1,12 @@
 # PMD — Project Management Dashboard
 
-Windows-native project management web app with workspace-based task tracking, multi-user auth, and a batch-script dev launcher
+A web app for running small-team projects: create a workspace, invite people, split them into teams with roles, and track projects, assignments and comments, with an audit trail of who changed what. Users can export or erase their own data (GDPR).
+
+**Live demo:** <https://pmd.olamov.com>. It is a demo with no real users, so its backend is usually switched off; the site then says so instead of failing at sign-in.
 
 ## Overview
 
-Full-stack application combining a React/Vite frontend, a Spring Boot REST API, and MongoDB. Designed to run on Windows with minimal setup: a double-click batch launcher (PMD Control) handles service orchestration, health checks, and dynamic port assignment. Docker provides MongoDB and MailHog for development; the same stack can run fully containerized for review or production.
+Full-stack application combining a React/Vite frontend, a Spring Boot REST API, and MongoDB. In production the frontend is on Vercel and the API runs on a Raspberry Pi behind a Cloudflare Tunnel (see [docs/OPERATIONS.md](docs/OPERATIONS.md)). For local development on Windows, a double-click batch launcher (PMD Control) handles service orchestration, health checks, and dynamic port assignment. Docker provides MongoDB and MailHog for development; the same stack can run fully containerized for review.
 
 ## Features
 
