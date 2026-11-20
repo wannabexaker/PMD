@@ -1,4 +1,4 @@
-# PMD — Raspberry Pi 4 (architecture B): backend + MongoDB + Cloudflare Tunnel.
+# PMD — Raspberry Pi 4 (architecture B): backend + MongoDB.
 #
 # The React frontend is served by Vercel (pmd.olamov.com); ONLY the API lives
 # here and is reachable exclusively through Cloudflare (api-pmd.olamov.com).
@@ -6,8 +6,9 @@
 # Pi's host-level Cloudflare Tunnel can reach it and nothing on the LAN or the
 # internet can. Mongo is not published at all and stays on an internal network.
 #
-# This file mirrors what actually runs on the Pi (~/pmd). The cloudflared service
-# below is a leftover: the Pi uses its one host tunnel for every project.
+# This file mirrors what actually runs on the Pi. There is no tunnel service here:
+# the Pi runs one host-level Cloudflare Tunnel for every project, and it maps
+# api-pmd.olamov.com to http://localhost:8080.
 #
 # Usage on the Pi:
 #   cp .env.pi.example .env.production   # then fill in the real secrets
@@ -91,28 +92,11 @@ services:
       - app
       - data
 
-  # Outbound-only connector to the Cloudflare edge. Reaches the backend over the
-  # internal `app` network; reaches Cloudflare over `egress`. The public hostname
-  # (api-pmd.olamov.com -> http://backend:8080) is configured in the Cloudflare
-  # Zero Trust dashboard and encoded in CLOUDFLARE_TUNNEL_TOKEN.
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?create a tunnel in Cloudflare Zero Trust and paste its token}
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - app
-      - egress
-
 volumes:
   mongo_data:
   uploads:
 
 networks:
-  # Non-internal: gives cloudflared outbound access to the Cloudflare edge.
-  egress:
   # Not internal: Docker cannot publish a port for a container attached only to
   # internal networks, and the backend's loopback port is how the host tunnel
   # reaches it. Ingress is still limited to 127.0.0.1 by the port binding above.

@@ -36,8 +36,8 @@ browser → pmd.olamov.com (Vercel SPA)
               → host Cloudflare Tunnel on the Pi → backend on 127.0.0.1:8080 → Mongo (internal network)
 ```
 
-The Pi runs one host-level tunnel for all projects. `docker-compose.pi.yml` still defines its own
-`cloudflared` service; it is not the one in use and is due to be removed.
+The Pi runs one host-level Cloudflare Tunnel for all projects; it maps `api-pmd.olamov.com` to
+`http://localhost:8080`. The compose files define no tunnel service of their own.
 
 ## Running it locally
 
@@ -105,6 +105,9 @@ copy. Platform admin is granted on demand with `scripts/pi/admin-mode.sh on|off|
 
 ## Further reading
 
-`docs/PRODUCTION_ARCHITECTURE.md`, `docs/DEPLOY_OLAMOV.md`, `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md`
-(aspirational — no backups are scheduled yet), `docs/db-runbook.md`, `docs/legal/README.md`,
-`.scratch/2026-11-20-from-netsentry-proposed-fixes.md` (the shared direction for all projects).
+In the repo: `docs/PRODUCTION_ARCHITECTURE.md`, `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md`
+(aspirational — no backups are scheduled yet), `docs/db-runbook.md`, `docs/legal/README.md`.
+
+Local only (gitignored, present on the owner's machine): `docs/DEPLOY_OLAMOV.md` (the go-live
+runbook) and `.scratch/2026-11-20-from-netsentry-proposed-fixes.md` (the shared direction for all
+projects).
