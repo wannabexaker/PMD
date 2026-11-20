@@ -3,7 +3,7 @@
 #
 # The account is a normal user by default; admin is switched on for the task that
 # needs it and off again after. The email is hardcoded on purpose — it must match
-# PMD_SECURITY_ADMIN_EMAILS in .env.production, and nobody else is ever promoted
+# PMD_SECURITY_ADMIN_EMAILS in the Pi's .env, and nobody else is ever promoted
 # this way. Run on the Pi:   ./admin-mode.sh on|off|status
 #
 # Credentials never leave the mongo container: the shell inside it reads its own

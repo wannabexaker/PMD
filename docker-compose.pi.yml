@@ -11,9 +11,15 @@
 # api-pmd.olamov.com to http://localhost:8080.
 #
 # Usage on the Pi:
-#   cp .env.pi.example .env.production   # then fill in the real secrets
-#   docker compose -f docker-compose.pi.yml --env-file .env.production pull
-#   docker compose -f docker-compose.pi.yml --env-file .env.production up -d
+#   cp .env.pi.example .env && chmod 600 .env   # then fill in the real secrets
+#   docker compose -f docker-compose.pi.yml pull
+#   docker compose -f docker-compose.pi.yml up -d
+#
+# Compose loads .env from this file's directory by itself — no --env-file flag.
+# The project name is fixed below, so containers and volumes stay pmd-* / pmd_*
+# whatever the folder is called (~/pmd today, ~/projects/pmd as the target).
+name: pmd
+
 services:
   mongo:
     # Pinned to 4.4.18: the Raspberry Pi 4 CPU (Cortex-A72) is ARMv8.0-A, but
@@ -23,11 +29,11 @@ services:
     restart: unless-stopped
     command: ["mongod", "--auth", "--bind_ip_all"]
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?set in .env.production}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?set in .env.production}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?set in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?set in .env}
       PMD_MONGO_APP_DB: ${PMD_MONGO_APP_DB:-pmd}
-      PMD_MONGO_APP_USER: ${PMD_MONGO_APP_USER:?set in .env.production}
-      PMD_MONGO_APP_PASSWORD: ${PMD_MONGO_APP_PASSWORD:?set in .env.production}
+      PMD_MONGO_APP_USER: ${PMD_MONGO_APP_USER:?set in .env}
+      PMD_MONGO_APP_PASSWORD: ${PMD_MONGO_APP_PASSWORD:?set in .env}
     volumes:
       - mongo_data:/data/db
       - ./scripts/mongo/init/01-init-pmd-user.sh:/docker-entrypoint-initdb.d/01-init-pmd-user.sh:ro
@@ -59,7 +65,7 @@ services:
       # (otherwise /actuator/health reports DOWN on the refused SMTP connection).
       MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
       PMD_APP_BASE_URL: ${PMD_APP_BASE_URL:?public SPA origin, e.g. https://pmd.olamov.com}
-      PMD_JWT_SECRET: ${PMD_JWT_SECRET:?set in .env.production}
+      PMD_JWT_SECRET: ${PMD_JWT_SECRET:?set in .env}
       PMD_JWT_EXPIRATIONSECONDS: ${PMD_JWT_EXPIRATIONSECONDS:-900}
       PMD_AUTH_SESSION_COOKIE_SECURE: ${PMD_AUTH_SESSION_COOKIE_SECURE:-true}
       PMD_AUTH_SESSION_COOKIE_SAME_SITE: ${PMD_AUTH_SESSION_COOKIE_SAME_SITE:-Lax}

@@ -65,20 +65,24 @@ on every push to `main`; it does not deploy to the Pi.
 
 ## Deploying to the Pi
 
-On the Pi the project lives in `~/pmd` (target: `~/projects/pmd`). Compose needs the env file
-passed explicitly:
+`docker-compose.pi.yml` in this repo is the source of truth. It fixes the project name
+(`name: pmd`) and reads secrets from a `.env` next to it, which compose loads by itself.
+
+**Target layout** (`~/projects/pmd`, one `.env`):
 
 ```bash
-cd ~/pmd
-docker compose --env-file .env.production -f docker-compose.pi.yml pull backend
-docker compose --env-file .env.production -f docker-compose.pi.yml up -d backend
+cd ~/projects/pmd
+docker compose -f docker-compose.pi.yml pull backend
+docker compose -f docker-compose.pi.yml up -d backend
 curl -fsS http://127.0.0.1:8080/actuator/health
 ```
 
-`docker-compose.pi.yml` in this repo is the source of truth. It requires
-`PMD_SECURITY_CLIENT_METADATA_HASH_SALT` and `PMD_SECURITY_ADMIN_EMAILS`; the Pi's
-`.env.production` did not have the admin allowlist yet, so add it before switching the Pi to this
-copy. Platform admin is granted on demand with `scripts/pi/admin-mode.sh on|off|status`.
+**Today the Pi still uses the old layout** — `~/pmd`, secrets in `.env.production`, its own older
+copy of the compose file — so there you still need `--env-file .env.production`. The one-time
+move, and what has to be added to the env file first (`PMD_SECURITY_ADMIN_EMAILS`), is in
+`docs/OPERATIONS.md`. It is the owner's call; do not apply it unasked.
+
+Platform admin is granted on demand with `scripts/pi/admin-mode.sh on|off|status`.
 
 ## Things that bite
 
