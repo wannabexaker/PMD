@@ -1,6 +1,7 @@
 @echo off
 setlocal
-set "ROOT=%~dp0"
+rem Lives in scripts\, so ROOT is the repo root (one level up).
+for %%I in ("%~dp0..") do set "ROOT=%%~fI\"
 
 if "%~1"=="" goto menu
 
@@ -51,15 +52,15 @@ if /I "%action%"=="ops" (
 
 echo Usage:
 
- echo pmd.bat up        ^(start all^)
- echo pmd.bat down      ^(stop all^)
- echo pmd.bat deps      ^(start mongo+mailhog only^)
- echo pmd.bat backend   ^(start backend only^)
- echo pmd.bat frontend  ^(start frontend only^)
- echo pmd.bat status    ^(status^)
- echo pmd.bat docker-up   ^(start full docker stack^)
- echo pmd.bat docker-down ^(stop full docker stack^)
- echo pmd.bat ops       ^(open PMD Ops cockpit^)
+ echo scripts\pmd.bat up        ^(start all^)
+ echo scripts\pmd.bat down      ^(stop all^)
+ echo scripts\pmd.bat deps      ^(start mongo+mailhog only^)
+ echo scripts\pmd.bat backend   ^(start backend only^)
+ echo scripts\pmd.bat frontend  ^(start frontend only^)
+ echo scripts\pmd.bat status    ^(status^)
+ echo scripts\pmd.bat docker-up   ^(start full docker stack^)
+ echo scripts\pmd.bat docker-down ^(stop full docker stack^)
+ echo scripts\pmd.bat ops       ^(open PMD Ops cockpit^)
  exit /b 1
 
 :menu
@@ -78,14 +79,14 @@ echo [9] Open PMD Ops cockpit
 echo.
 set /p choice=Select: 
 
-if "%choice%"=="1" call "%ROOT%pmd.bat" up & pause & goto menu
-if "%choice%"=="2" call "%ROOT%pmd.bat" down & pause & goto menu
-if "%choice%"=="3" call "%ROOT%pmd.bat" deps & pause & goto menu
-if "%choice%"=="4" call "%ROOT%pmd.bat" backend & pause & goto menu
-if "%choice%"=="5" call "%ROOT%pmd.bat" frontend & pause & goto menu
-if "%choice%"=="6" call "%ROOT%pmd.bat" status & pause & goto menu
-if "%choice%"=="7" call "%ROOT%pmd.bat" docker-up & pause & goto menu
-if "%choice%"=="8" call "%ROOT%pmd.bat" docker-down & pause & goto menu
-if "%choice%"=="9" call "%ROOT%pmd.bat" ops & pause & goto menu
+if "%choice%"=="1" call "%ROOT%scripts\pmd.bat" up & pause & goto menu
+if "%choice%"=="2" call "%ROOT%scripts\pmd.bat" down & pause & goto menu
+if "%choice%"=="3" call "%ROOT%scripts\pmd.bat" deps & pause & goto menu
+if "%choice%"=="4" call "%ROOT%scripts\pmd.bat" backend & pause & goto menu
+if "%choice%"=="5" call "%ROOT%scripts\pmd.bat" frontend & pause & goto menu
+if "%choice%"=="6" call "%ROOT%scripts\pmd.bat" status & pause & goto menu
+if "%choice%"=="7" call "%ROOT%scripts\pmd.bat" docker-up & pause & goto menu
+if "%choice%"=="8" call "%ROOT%scripts\pmd.bat" docker-down & pause & goto menu
+if "%choice%"=="9" call "%ROOT%scripts\pmd.bat" ops & pause & goto menu
 
 goto menu

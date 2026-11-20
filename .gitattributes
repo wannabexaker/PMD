@@ -7,3 +7,6 @@ docker-compose*.yml text eol=lf
 *.env.example   text eol=lf
 .env.pi.example text eol=lf
 Dockerfile      text eol=lf
+# cmd.exe mis-parses labels/goto in LF-only batch files; the launchers stay CRLF.
+scripts/pmd.bat        text eol=crlf
+scripts/PMD_cooler.bat text eol=crlf

@@ -36,7 +36,7 @@ PMD Control enforces a single active runtime mode (`dev`, `deps`, or `reviewer`)
 | `docker-compose.deps.yml` | MongoDB + MailHog for hybrid dev |
 | `docker-compose.local.yml` | Full reviewer stack — all services in Docker with Nginx proxy |
 | `docker-compose.prod.yml` | Production compose — fail-fast on missing vars |
-| `pmd.bat` | PMD Control launcher — entry point for all dev operations |
+| `scripts/pmd.bat` | PMD Control launcher — entry point for all dev operations |
 | `scripts/pmd_dev_up.bat` | Starts deps, backend (dynamic port), and frontend; waits for health |
 | `scripts/pmd_dev_down.bat` | Stops Maven/Node processes via `.pmd-dev-pids.json` |
 | `scripts/db_backup.ps1` | MongoDB backup helper |
@@ -73,16 +73,16 @@ Docker must be running before starting any PMD mode.
 ## Usage
 
 ```
-pmd.bat
+scripts\pmd.bat
 ```
 
 Opens PMD Control. Select `[1] Start ALL` to bring up MongoDB, MailHog, backend, and frontend. The script waits for all health checks before printing the ready URLs.
 
 ```
-pmd.bat up        # start everything (non-interactive)
-pmd.bat down      # stop everything
-pmd.bat deps      # start MongoDB + MailHog only
-pmd.bat status    # print service status
+scripts\pmd.bat up        # start everything (non-interactive)
+scripts\pmd.bat down      # stop everything
+scripts\pmd.bat deps      # start MongoDB + MailHog only
+scripts\pmd.bat status    # print service status
 ```
 
 For the full Docker reviewer stack:
@@ -121,7 +121,7 @@ PMD/
 ├── docker-compose.deps.yml    — MongoDB + MailHog
 ├── docker-compose.local.yml   — full reviewer stack
 ├── docker-compose.prod.yml    — production stack
-├── pmd.bat                    — PMD Control entry point
+├── scripts/pmd.bat            — PMD Control entry point
 ├── .env.example               — dev env template
 └── .env.production.example    — production env template
 ```
