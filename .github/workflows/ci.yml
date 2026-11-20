@@ -17,7 +17,6 @@ jobs:
 
       - name: Validate compose files
         run: |
-          docker compose -f docker-compose.yml config >/dev/null
           docker compose -f docker-compose.deps.yml config >/dev/null
           docker compose -f docker-compose.local.yml config >/dev/null
           # Throwaway values, only so the ${VAR:?} guards in the deploy stacks resolve. Those

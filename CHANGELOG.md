@@ -27,6 +27,7 @@ Everything since `v0.1.9` (2026-04-29).
   `.env`, and a fixed compose project name.
 - Shared avatar crop dialog with a reworked UX; the crop is baked into the uploaded file.
 - `pmd.bat` and `PMD_cooler.bat` moved to `scripts/`.
+- Removed `docker-compose.yml`, a duplicate of `docker-compose.deps.yml` (same containers).
 
 ### Fixed
 - Security: client-IP handling, a role privilege ceiling, confirmed email changes, CSP
