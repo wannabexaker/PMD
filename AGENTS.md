@@ -109,7 +109,8 @@ Platform admin is granted on demand with `scripts/pi/admin-mode.sh on|off|status
 
 ## Further reading
 
-In the repo: `docs/PRODUCTION_ARCHITECTURE.md`, `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md`
+In the repo: `docs/OPERATIONS.md` (Pi runbook: layout, move, backups), `docs/PRODUCTION_ARCHITECTURE.md`,
+`docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md`
 (aspirational — no backups are scheduled yet), `docs/db-runbook.md`, `docs/legal/README.md`.
 
 Local only (gitignored, present on the owner's machine): `docs/DEPLOY_OLAMOV.md` (the go-live
