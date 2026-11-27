@@ -3,38 +3,64 @@
    - Keep contextual windows visible inside viewport.
    - Avoid horizontal overflow in topbar identities/actions. */
 @media (max-width: 1100px) {
+  /* Tablet header: one 56 px row, like the phone one. Long names truncate; nothing wraps. */
   .topbar {
-    height: auto;
+    height: 56px;
   }
 
   .topbar-inner {
-    height: auto;
-    min-height: 56px;
-    padding: 8px 14px;
+    height: 56px;
+    min-height: 0;
+    padding: 0 14px;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+  }
+
+  .topbar-start {
+    flex: 0 0 auto;
   }
 
   .topbar-actions {
-    width: 100%;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
     justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
   }
 
   .topbar-identities {
+    flex: 1 1 auto;
+    min-width: 0;
     max-width: 100%;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
   }
 
   .workspace-identity,
   .user-identity {
+    flex: 0 1 auto;
+    min-width: 0;
     max-width: 100%;
   }
 
+  .workspace-identity {
+    flex-shrink: 1;
+  }
+
+  .user-identity .identity-name {
+    max-width: 160px;
+    min-width: 0;
+  }
+
   .workspace-switcher {
-    max-width: min(70vw, 320px);
+    flex: 1 1 auto;
+    max-width: 260px;
+  }
+
+  .topbar-theme,
+  .burger {
+    flex: 0 0 auto;
   }
 
   .dashboard-split,
@@ -186,6 +212,18 @@
 
   .burger {
     flex: 0 0 auto;
+  }
+
+  /* The beta note spans the header on phones instead of hanging off the badge (it overflowed the page). */
+  .beta-badge-wrap {
+    position: static;
+  }
+
+  .beta-badge-note {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
   }
 
   .topbar-theme,
