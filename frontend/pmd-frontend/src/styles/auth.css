@@ -1114,6 +1114,19 @@ p.muted {
   min-height: 65px;
 }
 
+.turnstile-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.turnstile-failed {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;
