@@ -518,28 +518,41 @@
   white-space: nowrap;
 }
 
-.status-NOT_STARTED {
-  background: rgba(148, 163, 184, 0.15);
-  color: var(--muted);
-  border-color: rgba(148, 163, 184, 0.35);
+/* Semantic project status tones: neutral = not started, info = in progress, success = completed,
+   danger = canceled. Used by .status-badge and by the inline .status-select. Mixing the tone into
+   --text keeps the label readable in both themes. */
+.status-NOT_STARTED,
+.status-IN_PROGRESS,
+.status-COMPLETED,
+.status-CANCELED {
+  --status-tone: var(--status-neutral);
+  background: color-mix(in srgb, var(--status-tone) 15%, transparent);
+  color: color-mix(in srgb, var(--status-tone) 55%, var(--text));
+  border-color: color-mix(in srgb, var(--status-tone) 42%, transparent);
 }
 
 .status-IN_PROGRESS {
-  background: color-mix(in srgb, var(--primary) 20%, transparent);
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  --status-tone: var(--status-info);
 }
 
 .status-COMPLETED {
-  background: rgba(34, 197, 94, 0.18);
-  color: #86efac;
-  border-color: rgba(34, 197, 94, 0.45);
+  --status-tone: var(--status-success);
 }
 
 .status-CANCELED {
-  background: rgba(239, 68, 68, 0.15);
-  color: #fecaca;
-  border-color: rgba(239, 68, 68, 0.35);
+  --status-tone: var(--danger);
+}
+
+.status-select.status-NOT_STARTED,
+.status-select.status-IN_PROGRESS,
+.status-select.status-COMPLETED,
+.status-select.status-CANCELED {
+  background-color: color-mix(in srgb, var(--status-tone) 15%, var(--surface2));
+}
+
+.status-select option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 .assigned-me {
@@ -2560,3 +2573,16 @@ body[data-theme='dark'] .profile-avatar-overlay-icon {
   }
 }
 
+
+/* Small empty state with one action (e.g. "No projects yet" + Create project). */
+.empty-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 4px 2px;
+}
+
+.empty-state p {
+  margin: 0;
+}

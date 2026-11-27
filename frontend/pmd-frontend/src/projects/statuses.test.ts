@@ -4,6 +4,8 @@ import {
   formatStatusLabel,
   PROJECT_STATUS_FLOW,
   PROJECT_STATUS_SELECTABLE,
+  PROJECT_STATUS_CHART_COLORS,
+  projectStatusChartColor,
 } from './statuses'
 
 describe('statuses (single source of truth)', () => {
@@ -30,5 +32,19 @@ describe('statuses (single source of truth)', () => {
   it('keeps ARCHIVED out of the user-selectable set but in the flow', () => {
     expect(PROJECT_STATUS_SELECTABLE).not.toContain('ARCHIVED')
     expect(PROJECT_STATUS_FLOW).toContain('ARCHIVED')
+  })
+})
+
+describe('projectStatusChartColor', () => {
+  it('maps status keys and backend labels to the same semantic colour', () => {
+    expect(projectStatusChartColor('COMPLETED')).toBe(PROJECT_STATUS_CHART_COLORS.COMPLETED)
+    expect(projectStatusChartColor('In progress')).toBe(PROJECT_STATUS_CHART_COLORS.IN_PROGRESS)
+    expect(projectStatusChartColor('Canceled')).toBe(PROJECT_STATUS_CHART_COLORS.CANCELED)
+    expect(projectStatusChartColor('Not started')).toBe(PROJECT_STATUS_CHART_COLORS.NOT_STARTED)
+  })
+
+  it('falls back to the not-started colour', () => {
+    expect(projectStatusChartColor(null)).toBe(PROJECT_STATUS_CHART_COLORS.NOT_STARTED)
+    expect(projectStatusChartColor('whatever')).toBe(PROJECT_STATUS_CHART_COLORS.NOT_STARTED)
   })
 })

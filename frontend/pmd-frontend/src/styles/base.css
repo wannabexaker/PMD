@@ -94,6 +94,10 @@ body[data-theme='dark'] {
   --primaryText: #140a26;
   --danger: #ef4444;
   --dangerText: #fff1f2;
+  /* Project status tones (same hues as before; canceled uses --danger). */
+  --status-success: #22c55e;
+  --status-info: #38bdf8;
+  --status-neutral: #94a3b8;
   --btnDisabledBg: #2a2f38;
   --btnDisabledText: #9ca3af;
   --shadow: 0 18px 38px rgba(0, 0, 0, 0.45);
@@ -110,6 +114,9 @@ body[data-theme='light'] {
   --primaryText: #ffffff;
   --danger: #dc2626;
   --dangerText: #ffffff;
+  --status-success: #16a34a;
+  --status-info: #0284c7;
+  --status-neutral: #64748b;
   --btnDisabledBg: #e5e7eb;
   --btnDisabledText: #9ca3af;
   --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
@@ -123,18 +130,6 @@ body[data-theme='light'] .card {
 
 body[data-theme='light'] .muted {
   color: #475569;
-}
-
-body[data-theme='light'] .status-COMPLETED {
-  color: #166534;
-  background: rgba(34, 197, 94, 0.14);
-  border-color: rgba(22, 163, 74, 0.38);
-}
-
-body[data-theme='light'] .status-CANCELED {
-  color: #b91c1c;
-  background: rgba(239, 68, 68, 0.12);
-  border-color: rgba(220, 38, 38, 0.34);
 }
 
 body[data-theme='light'] .assigned-pill {
