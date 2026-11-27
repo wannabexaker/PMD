@@ -18,6 +18,7 @@ import { useMentionOptions } from '../mentions/useMentionOptions'
 import { MentionText } from '../mentions/MentionText'
 import { useNavigate } from 'react-router-dom'
 import { navigateFromMention } from '../mentions/mentionNavigation'
+import { formatDateTime } from '../shared/formatDateTime'
 
 const REACTIONS: { type: CommentReactionType; label: string }[] = [
   { type: 'LIKE', label: 'Like' },
@@ -32,13 +33,6 @@ const MAX_IMAGE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 // Attachments are the one unbounded upload path — disabled until a storage quota exists. The
 // backend enforces this too (a disabled button is not a security control); keep both in step.
 const ATTACHMENTS_ENABLED = false
-
-function formatTimestamp(value?: string | null) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString()
-}
 
 function hasUserReacted(reactions: ProjectComment['reactions'], type: CommentReactionType, userId: string) {
   const users = reactions?.[type] ?? []
@@ -316,7 +310,7 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
               <strong className="truncate" title={item.authorName}>
                 {item.authorName}
               </strong>
-              <span className="muted">{formatTimestamp(item.createdAt)}</span>
+              <span className="muted">{formatDateTime(item.createdAt)}</span>
               {canDelete(item) ? (
                 <button type="button" className="btn btn-ghost" onClick={() => handleDelete(item)}>
                   Delete

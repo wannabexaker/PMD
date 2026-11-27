@@ -1,3 +1,4 @@
+import { formatDateTime } from '../shared/formatDateTime'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CreateProjectPayload, Project, UserSummary } from '../types'
 import { fetchProject, updateProject } from '../api/projects'
@@ -19,7 +20,7 @@ function formatDate(value?: string | null) {
   if (Number.isNaN(date.getTime())) {
     return '-'
   }
-  return date.toLocaleString()
+  return formatDateTime(date)
 }
 
 type ProjectDetailsProps = {
