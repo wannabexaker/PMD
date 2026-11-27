@@ -27,7 +27,8 @@ type WorkspaceContextValue = {
   setActiveWorkspaceId: (id: string | null) => void
   refresh: () => Promise<void>
   createWorkspace: (name: string, initialTeams?: string[]) => Promise<Workspace | null>
-  joinWorkspace: (token: string, inviteAnswer?: string) => Promise<Workspace | null>
+  /** Resolves to null on failure; `onError` receives the backend's reason (e.g. "Invite expired"). */
+  joinWorkspace: (token: string, inviteAnswer?: string, onError?: (message: string) => void) => Promise<Workspace | null>
   enterDemo: () => Promise<Workspace | null>
   resetDemo: () => Promise<boolean>
 }
@@ -182,7 +183,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [setActiveWorkspaceId])
 
-  const joinWorkspace = useCallback(async (token: string, inviteAnswer?: string) => {
+  const joinWorkspace = useCallback(async (token: string, inviteAnswer?: string, onError?: (message: string) => void) => {
     const trimmed = token.trim()
     if (!trimmed) {
       setError('Invite token is required.')
@@ -201,7 +202,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
       setError(null)
       return joined
-    } catch {
+    } catch (err) {
+      onError?.(getErrorMessage(err, 'Failed to join workspace.'))
       return null
     }
   }, [setActiveWorkspaceId])

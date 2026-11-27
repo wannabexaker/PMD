@@ -486,7 +486,10 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       return
     }
     setWorkspaceBusy(true)
-    const joined = await joinWorkspace(token, inviteAnswer || undefined)
+    let joinError = 'Failed to join workspace.'
+    const joined = await joinWorkspace(token, inviteAnswer || undefined, (message) => {
+      joinError = message
+    })
     setWorkspaceBusy(false)
     if (joined?.id) {
       setJoinValue('')
@@ -501,7 +504,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
         message: joined.status === 'PENDING' ? 'Join request sent for approval.' : 'Workspace joined.',
       })
     } else {
-      showToast({ type: 'error', message: 'Failed to join workspace.' })
+      showToast({ type: 'error', message: joinError })
     }
   }
 
