@@ -19,6 +19,7 @@ import { MentionText } from '../mentions/MentionText'
 import { useNavigate } from 'react-router-dom'
 import { navigateFromMention } from '../mentions/mentionNavigation'
 import { formatDateTime } from '../shared/formatDateTime'
+import { useConfirmDialog } from './common/useConfirmDialog'
 
 const REACTIONS: { type: CommentReactionType; label: string }[] = [
   { type: 'LIKE', label: 'Like' },
@@ -65,6 +66,7 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
   const mentionOptions = useMentionOptions(mentionUsers)
+  const { confirmDestructive, dialog: confirmDialog } = useConfirmDialog()
 
   const canDelete = useMemo(() => {
     const currentUserId = currentUser.id ?? ''
@@ -156,6 +158,12 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
         setError('Select a workspace to continue.')
         return
       }
+      const confirmed = await confirmDestructive({
+        title: 'Delete comment?',
+        message: 'The comment and its reactions are removed for everyone. This cannot be undone.',
+        confirmLabel: 'Delete comment',
+      })
+      if (!confirmed) return
       await deleteComment(activeWorkspaceId, comment.id)
       setComments((prev) => prev.filter((item) => item.id !== comment.id))
     } catch (err) {
@@ -358,6 +366,7 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
       </div>
 
       {previewUrl ? <ImageModal src={previewUrl} onClose={() => setPreviewUrl(null)} /> : null}
+      {confirmDialog}
     </div>
   )
 }
