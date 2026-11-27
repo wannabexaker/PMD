@@ -37,6 +37,7 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
   const [teamFilter, setTeamFilter] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; teamId?: string }>({})
   const [showNewTeam, setShowNewTeam] = useState(false)
   const [newTeamName, setNewTeamName] = useState('')
   const [creatingTeam, setCreatingTeam] = useState(false)
@@ -46,6 +47,9 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
   > = (event) => {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
+    if (name === 'name' || name === 'teamId') {
+      setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
+    }
   }
 
   const eligibleUsers = useMemo(() => {
@@ -95,17 +99,21 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault()
     setError(null)
+    setFieldErrors({})
 
     if (!activeWorkspaceId) {
       setError('Select a workspace to continue.')
       return
     }
+    const nextFieldErrors: { name?: string; teamId?: string } = {}
     if (!form.name.trim()) {
-      setError('Name is required.')
-      return
+      nextFieldErrors.name = 'Name is required.'
     }
     if (requireTeamOnCreate && !form.teamId) {
-      setError('Team is required.')
+      nextFieldErrors.teamId = 'Team is required.'
+    }
+    if (nextFieldErrors.name || nextFieldErrors.teamId) {
+      setFieldErrors(nextFieldErrors)
       return
     }
 
@@ -135,7 +143,7 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
     currentUser?.displayName ?? currentUser?.email ?? currentUser?.username ?? 'You'
 
   return (
-    <form className="form create-project-form" onSubmit={handleSubmit}>
+    <form className="form create-project-form" onSubmit={handleSubmit} noValidate>
       <div className="form-grid two-col">
         <div className="form-field">
           <label htmlFor="name">Name</label>
@@ -146,7 +154,10 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
             onChange={handleChange}
             maxLength={MAX_PROJECT_TITLE_LENGTH}
             required
+            aria-invalid={fieldErrors.name ? true : undefined}
+            aria-describedby={fieldErrors.name ? 'name-error' : undefined}
           />
+          {fieldErrors.name ? <span id="name-error" className="field-error">{fieldErrors.name}</span> : null}
         </div>
         <div className="form-field">
           <label htmlFor="status">Status</label>
@@ -167,6 +178,8 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
               value={form.teamId ?? ''}
               onChange={handleChange}
               disabled={teamsLoading && teams.length === 0}
+              aria-invalid={fieldErrors.teamId ? true : undefined}
+              aria-describedby={fieldErrors.teamId ? 'teamId-error' : undefined}
             >
               <option value="">{teamsLoading ? 'Loading teams...' : requireTeamOnCreate ? 'Select team' : 'No team'}</option>
               {teams.map((team) => (
@@ -186,6 +199,7 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
               </button>
             ) : null}
           </div>
+          {fieldErrors.teamId ? <span id="teamId-error" className="field-error">{fieldErrors.teamId}</span> : null}
           {teams.length === 0 ? (
             <p className="muted">
               No teams yet. Create one in <a href="/settings">Settings</a>.
