@@ -150,6 +150,11 @@
   gap: 8px;
 }
 
+/* Pinned right, so the buttons do not move when the hint on the left appears or goes. */
+.form-actions .actions-right {
+  margin-left: auto;
+}
+
 .form-field {
   display: grid;
   gap: 6px;

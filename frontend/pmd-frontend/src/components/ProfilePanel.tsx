@@ -11,6 +11,7 @@ import { getAvatarFrameStyle } from '../shared/avatarFrame'
 import { AVATAR_ACCEPT, validateAvatarFile } from '../shared/avatarCrop'
 import { AvatarCropDialog, type AvatarCrop } from './avatar/AvatarCropDialog'
 import { CloseIcon } from '../shared/ui/CloseIcon'
+import { useToast } from '../shared/ui/toast/ToastProvider'
 
 type ProfilePanelProps = {
   user: User
@@ -35,6 +36,7 @@ function loadSavedCropMap(storageKey: string): Record<string, SavedCropState> {
 export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   const { teams, loading: teamsLoading } = useTeams()
   const { activeWorkspaceId } = useWorkspace()
+  const { showToast } = useToast()
   const [form, setForm] = useState<UpdateProfilePayload>({
     email: user.email ?? user.username ?? '',
     firstName: user.firstName ?? '',
@@ -118,8 +120,16 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
         bio: form.bio?.trim() || '',
         avatarUrl: (avatarUrlDraft ?? '').trim(),
       })
+      // Stay on the profile: sync the form to what the server stored so the form is clean again.
+      setForm({
+        email: updated.email ?? updated.username ?? '',
+        firstName: updated.firstName ?? '',
+        lastName: updated.lastName ?? '',
+        teamId: updated.teamId ?? '',
+        bio: updated.bio ?? '',
+      })
       onSaved(updated)
-      onClose()
+      showToast({ type: 'success', message: 'Profile saved.' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save profile')
     } finally {
@@ -150,6 +160,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
       }))
       onSaved(updated)
       setAvatarEditorOpen(false)
+      showToast({ type: 'success', message: 'Profile picture updated.' })
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : 'Failed to save avatar')
     } finally {
