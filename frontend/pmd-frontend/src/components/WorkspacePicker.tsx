@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
-import { DEMO_PILL_TITLE, demoPillLabel } from '../workspaces/demoExpiry'
 
 export function WorkspacePicker() {
   const {
@@ -44,7 +43,6 @@ export function WorkspacePicker() {
               title={workspace.name ?? ''}
             >
               <div className="workspace-name truncate">{workspace.name ?? 'Untitled'}</div>
-              {workspace.demo ? <span className="pill" title={DEMO_PILL_TITLE}>{demoPillLabel(workspace)}</span> : null}
             </button>
           ))}
         </div>

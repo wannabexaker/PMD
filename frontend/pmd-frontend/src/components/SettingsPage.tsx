@@ -1349,16 +1349,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             {workspace.name ?? 'Untitled'}
                           </div>
                           <div className="workspace-badges">
-                            {workspace.demo ? (
-                              <span className="pill pill-with-icon pill-demo">
-                                <span className="pill-icon" aria-hidden="true">
-                                  <svg viewBox="0 0 24 24">
-                                    <path d="M7 6h10v2H7zM9 10h6v8H9z" />
-                                  </svg>
-                                </span>
-                                <span>Demo</span>
-                              </span>
-                            ) : null}
                             {workspace.status === 'PENDING' ? <span className="pill">Pending</span> : null}
                             {activeWorkspace?.id === workspace.id ? <span className="pill">Current</span> : null}
                             {isWorkspaceCreator(workspace) ? (

@@ -40,7 +40,6 @@ import {
   setDashboardSelectedProjectId,
 } from './ui/uiSelectionStore'
 import { getAvatarFrameStyle } from './shared/avatarFrame'
-import { DEMO_PILL_TITLE, demoPillLabel } from './workspaces/demoExpiry'
 import { BetaBadge } from './components/common/BetaBadge'
 import './App.css'
 
@@ -1097,9 +1096,6 @@ function AppView({
                       </span>
                     ) : null}
                   </div>
-                  {activeWorkspace?.demo ? (
-                    <span className="pill" title={DEMO_PILL_TITLE}>{demoPillLabel(activeWorkspace)}</span>
-                  ) : null}
                 </div>
                 <div className="identity-pill user-identity">
                   <div className="avatar-menu">
@@ -1162,9 +1158,6 @@ function AppView({
         </div>
         {/* On phones the header keeps only logo, workspace, avatar and burger; what does not fit lives here. */}
         <div className="drawer-mobile-extras">
-          {isAuthed && activeWorkspace?.demo ? (
-            <span className="pill" title={DEMO_PILL_TITLE}>{demoPillLabel(activeWorkspace)}</span>
-          ) : null}
           <div className="drawer-theme-row">
             <span className="muted">Theme</span>
             <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
