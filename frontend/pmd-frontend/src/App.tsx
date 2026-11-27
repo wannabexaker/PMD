@@ -6,7 +6,7 @@ import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
 import { fetchMe, googleLogin, login, logoutSession, register } from './api/auth'
 import { API_BASE_URL, getAuthToken, isApiError, refreshAccessToken, resolveAssetUrl as resolveStoredAssetUrl } from './api/http'
-import { loginRedirectState, readReturnPath } from './auth/returnPath'
+import { loginRedirectState, readRegisteredEmail, readReturnPath, withRegisteredEmail } from './auth/returnPath'
 import { LoginForm } from './components/LoginForm'
 // Route-level code splitting: the heavy authed pages load on demand so the
 // initial bundle stays small. lazy() needs a default export, so the named
@@ -322,6 +322,9 @@ function AppView({
   const [tourHighlightRect, setTourHighlightRect] = useState<DOMRect | null>(null)
   const [tourCardPosition, setTourCardPosition] = useState<{ top: number; left: number } | null>(null)
   const [workspaceWarpActive, setWorkspaceWarpActive] = useState(false)
+  // `authLoading` is the boot-time session check only (it swaps the page for a loader).
+  // A login or register submit uses this instead, so the form stays mounted while it runs.
+  const [authSubmitting, setAuthSubmitting] = useState(false)
   const tourCardRef = useRef<HTMLDivElement | null>(null)
   const activeTourStep = tourOpen ? ONBOARDING_TOUR_STEPS[tourStepIndex] : null
   const resolveAssetUrl = useCallback((url?: string | null) => resolveStoredAssetUrl(url), [])
@@ -668,7 +671,7 @@ function AppView({
   const handleLogin = async (payload: LoginPayload) => {
     setAuthError(null)
     try {
-      setAuthLoading(true)
+      setAuthSubmitting(true)
       const response = await login(payload)
       setCurrentUser(response.user ?? null)
       setDashboardSelectedProjectIdState(null)
@@ -700,14 +703,14 @@ function AppView({
       // Re-throw so LoginForm can react to the failure (e.g. reset the single-use Turnstile token).
       throw err
     } finally {
-      setAuthLoading(false)
+      setAuthSubmitting(false)
     }
   }
 
   const handleGoogleLogin = async (credential: string, remember: boolean, acceptedTerms = false) => {
     setAuthError(null)
     try {
-      setAuthLoading(true)
+      setAuthSubmitting(true)
       const response = await googleLogin(credential, remember, acceptedTerms)
       setCurrentUser(response.user ?? null)
       setDashboardSelectedProjectIdState(null)
@@ -735,14 +738,14 @@ function AppView({
         setAuthError(err instanceof Error ? err.message : 'Google sign-in failed')
       }
     } finally {
-      setAuthLoading(false)
+      setAuthSubmitting(false)
     }
   }
 
   const handleRegister = async (payload: RegisterPayload): Promise<RegisterResponse> => {
     setAuthError(null)
     try {
-      setAuthLoading(true)
+      setAuthSubmitting(true)
       return await register(payload)
     } catch (err) {
       let message = 'Registration failed'
@@ -765,7 +768,7 @@ function AppView({
       setAuthError(message)
       throw new Error(message)
     } finally {
-      setAuthLoading(false)
+      setAuthSubmitting(false)
     }
   }
 
@@ -1444,7 +1447,8 @@ function AppView({
                   onLogin={handleLogin}
                   onGoogleLogin={handleGoogleLogin}
                   error={authError}
-                  loading={authLoading}
+                  loading={authSubmitting}
+                  initialEmail={readRegisteredEmail(location.state)}
                   onSwitchToRegister={() => navigate('/register', { state: location.state })}
                 />
               )
@@ -1454,13 +1458,13 @@ function AppView({
             path="/register"
             element={
               isAuthed ? (
-                <Navigate to={preferredAuthedRoute} replace />
+                <Navigate to={loginReturnPath ?? preferredAuthedRoute} replace />
               ) : (
                 <RegisterForm
                   onRegister={handleRegister}
                   onGoogleLogin={handleGoogleLogin}
-                  loading={authLoading}
-                  onSwitchToLogin={() => navigate('/login')}
+                  loading={authSubmitting}
+                  onSwitchToLogin={(email) => navigate('/login', { state: withRegisteredEmail(location.state, email) })}
                 />
               )
             }

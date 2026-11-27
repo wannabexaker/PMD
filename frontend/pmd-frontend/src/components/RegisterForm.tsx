@@ -13,7 +13,16 @@ type RegisterFormProps = {
   onRegister: (payload: RegisterPayload) => Promise<RegisterResponse>
   onGoogleLogin?: (credential: string, remember: boolean, acceptedTerms?: boolean) => Promise<void>
   loading: boolean
-  onSwitchToLogin: () => void
+  // Called with the new account's email after a successful sign-up, to prefill the login form.
+  onSwitchToLogin: (email?: string) => void
+}
+
+type RegisterOutcome = {
+  email: string
+  // 'ready': the account can sign in now. 'confirm': check the inbox first.
+  // 'email-failed': verification is required but the email did not go out.
+  kind: 'ready' | 'confirm' | 'email-failed'
+  message: string
 }
 
 const PASSWORD_REQUIREMENTS = [
@@ -59,25 +68,14 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
+  // Stays on screen until the user moves on: a timed redirect cut the message short.
+  const [outcome, setOutcome] = useState<RegisterOutcome | null>(null)
   const [confirmTouched, setConfirmTouched] = useState(false)
   const [showPasswordHints, setShowPasswordHints] = useState(false)
   const passwordHintsRef = useRef<HTMLDivElement | null>(null)
 
   // Keep the bot-check hidden until the user actually engages with the password.
   const showTurnstile = isTurnstileEnabled && (passwordTouched || form.password.length > 0)
-
-  useEffect(() => {
-    if (!showSuccess) {
-      return
-    }
-    const timeout = window.setTimeout(() => {
-      onSwitchToLogin()
-    }, 2500)
-    return () => {
-      window.clearTimeout(timeout)
-    }
-  }, [showSuccess, onSwitchToLogin])
 
   useEffect(() => {
     if (!showPasswordHints) {
@@ -173,15 +171,19 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
       if (!result.accountCreated) {
         throw new Error(result.message || 'Registration failed')
       }
-      if (result.verificationEmailSent) {
-        setShowSuccess(true)
-        showToast({
-          type: 'success',
+      const email = form.email.trim()
+      if (result.emailVerificationRequired === false) {
+        setOutcome({ email, kind: 'ready', message: 'Account created. You can sign in now.' })
+      } else if (result.verificationEmailSent) {
+        setOutcome({
+          email,
+          kind: 'confirm',
           message: result.message || getAuthNotification('register_created_email_sent').message,
         })
       } else {
-        showToast({
-          type: 'info',
+        setOutcome({
+          email,
+          kind: 'email-failed',
           message: result.message || getAuthNotification('register_created_email_failed').message,
         })
       }
@@ -218,19 +220,32 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
           </div>
           <h2>Register</h2>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={onSwitchToLogin}>
+        <button type="button" className="btn btn-secondary" onClick={() => onSwitchToLogin(outcome?.email)}>
           Back to login
         </button>
       </div>
       <BackendOfflineNotice status={backendStatus} onRecheck={recheckBackend} />
-      {showSuccess ? (
-        <div className="auth-success">
+      {outcome ? (
+        <div className="auth-success" role="status">
           <div className="banner info">
-            <strong>Check your email to confirm your account.</strong>
-            <div className="muted">If you don't see it, check your spam folder.</div>
+            {outcome.kind === 'ready' ? (
+              <>
+                <strong>{outcome.message}</strong>
+                <div className="muted">Sign in with {outcome.email} and the password you just chose.</div>
+              </>
+            ) : outcome.kind === 'confirm' ? (
+              <>
+                <strong>Check your email to confirm your account.</strong>
+                <div className="muted">
+                  We sent a link to {outcome.email}. If you don't see it, check your spam folder.
+                </div>
+              </>
+            ) : (
+              <strong>{outcome.message}</strong>
+            )}
           </div>
-          <button type="button" className="btn btn-primary full-width" onClick={onSwitchToLogin}>
-            Back to login
+          <button type="button" className="btn btn-primary full-width" onClick={() => onSwitchToLogin(outcome.email)}>
+            {outcome.kind === 'ready' ? 'Sign in' : 'Back to login'}
           </button>
         </div>
       ) : (

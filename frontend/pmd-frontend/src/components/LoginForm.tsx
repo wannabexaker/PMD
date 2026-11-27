@@ -15,6 +15,8 @@ type LoginFormProps = {
   error: string | null
   loading: boolean
   onSwitchToRegister: () => void
+  // The email of an account that was just created, to prefill the form.
+  initialEmail?: string
 }
 
 const EMAIL_KEY = 'pmd_login_email'
@@ -27,8 +29,12 @@ function getSavedEmail() {
   }
 }
 
-export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRegister }: LoginFormProps) {
-  const [form, setForm] = useState<LoginPayload>(() => ({ username: getSavedEmail(), password: '', remember: false }))
+export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRegister, initialEmail }: LoginFormProps) {
+  const [form, setForm] = useState<LoginPayload>(() => ({
+    username: initialEmail || getSavedEmail(),
+    password: '',
+    remember: false,
+  }))
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState('')
@@ -145,6 +151,8 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
                 value={form.password}
                 onChange={handleChange}
                 onFocus={() => setPasswordTouched(true)}
+                // Fresh from registering: the email is filled in, the password is next.
+                autoFocus={Boolean(initialEmail)}
                 required
               />
               <button

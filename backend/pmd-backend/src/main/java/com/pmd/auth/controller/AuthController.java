@@ -180,10 +180,16 @@ public class AuthController {
         } catch (Exception ex) {
             logger.warn("Failed to provision demo workspace for user {}", saved.getId(), ex);
         }
-        String message = emailSent
-            ? "Account created. Check your email to confirm."
-            : "Account created, but verification email could not be sent. Please retry later.";
-        return new RegisterResponse(true, emailSent, message);
+        boolean verificationRequired = authSessionService.requiresVerifiedEmail();
+        String message;
+        if (!verificationRequired) {
+            message = "Account created. You can sign in now.";
+        } else if (emailSent) {
+            message = "Account created. Check your email to confirm.";
+        } else {
+            message = "Account created, but verification email could not be sent. Please retry later.";
+        }
+        return new RegisterResponse(true, emailSent, message, verificationRequired);
     }
 
     @PostMapping("/google")
