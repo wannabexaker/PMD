@@ -20,8 +20,19 @@ Everything since `v0.1.9` (2026-04-29).
   of a failed sign-in.
 - `AGENTS.md` for AI sessions, `docs/OPERATIONS.md` for the Pi, and a prepared (not scheduled)
   backup script, `scripts/pi/backup.sh`.
+- Public-demo bounds: demo workspaces expire after 7 days (and can be re-created); caps on
+  accounts, owned workspaces, projects/members/teams per workspace; text-length limits and a
+  256 KB JSON body cap; a 200 MB uploads cap with a nightly orphan-upload sweep.
+- `scripts/pi/demo.sh up|down|status|logs`; the Pi stack has CPU limits, log rotation, a fixed
+  JVM heap and a pinned backend image tag.
+- CI typechecks and builds the frontend and runs the backend tests on mongo 7 and 4.4.18.
 
 ### Changed
+- The SPA calls the API host directly, so per-IP limits see each visitor's own IP; the CSRF
+  cookie is shared on the parent domain and refresh/logout check the Origin.
+- Preset avatars are 256px WebP (44 MB -> 144 KB).
+- Removed the old VPS deploy path (prod compose, SSH deploy job, frontend image build), about
+  25 unused scripts and 8 stale docs; dependabot runs monthly with grouped updates.
 - The Pi stack (`docker-compose.pi.yml`) matches what runs on the Pi: backend on
   `127.0.0.1:8080` for the Pi's host-level tunnel, no `cloudflared` service of its own, one
   `.env`, and a fixed compose project name.
@@ -37,6 +48,7 @@ Everything since `v0.1.9` (2026-04-29).
 - Privacy: salted IP fingerprints, avatars deleted on replacement and erasure, comment author
   names anonymised on erasure.
 - Uploads: per-account rate limit; comment attachments off until a storage quota exists.
+- Deleting a workspace also removes its comments and people (and a demo's seed users).
 - API: duplicate keys return 409, identity indexes are created by migration.
 
 ## [0.1.9] - 2026-04-29
