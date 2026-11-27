@@ -15,6 +15,7 @@ import { ImageModal } from './common/ImageModal'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { MentionTextarea } from './common/MentionTextarea'
 import { useMentionOptions } from '../mentions/useMentionOptions'
+import { useToast } from '../shared/ui/toast/ToastProvider'
 import { MentionText } from '../mentions/MentionText'
 import { useNavigate } from 'react-router-dom'
 import { navigateFromMention } from '../mentions/mentionNavigation'
@@ -58,6 +59,7 @@ type ProjectCommentsProps = {
 export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: ProjectCommentsProps) {
   const navigate = useNavigate()
   const { activeWorkspaceId } = useWorkspace()
+  const { showToast } = useToast()
   const [comments, setComments] = useState<ProjectComment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -164,6 +166,7 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
       }
       await deleteComment(activeWorkspaceId, comment.id)
       setComments((prev) => prev.filter((item) => item.id !== comment.id))
+      showToast({ type: 'success', message: 'Comment deleted.' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete comment')
     }

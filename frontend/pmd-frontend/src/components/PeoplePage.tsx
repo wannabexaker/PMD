@@ -17,6 +17,7 @@ import type { PeoplePageWidgets } from '../types'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
+import { useToast } from '../shared/ui/toast/ToastProvider'
 import { createPerson, deletePerson, listPeople, updatePerson } from '../api/people'
 import {
   clearPeopleSelection,
@@ -116,6 +117,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
   const { user: currentUser } = useAuth()
   const { teams, teamById } = useTeams()
   const { activeWorkspaceId } = useWorkspace()
+  const { showToast } = useToast()
   const isAdmin = Boolean(currentUser?.isAdmin)
   const [widgets, setWidgets] = useState<PeoplePageWidgets>(() => mergeWidgetDefaults(currentUser?.peoplePageWidgets))
   const [widgetsEditing, setWidgetsEditing] = useState(false)
@@ -549,6 +551,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
       setWidgets(mergeWidgetDefaults(saved))
       setWidgetsEditing(false)
       setWidgetsDraft(null)
+      showToast({ type: 'success', message: 'Widgets saved.' })
     } catch (err) {
       setStatsError(err instanceof Error ? err.message : 'Failed to save widgets')
     } finally {
@@ -605,6 +608,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                   })
                   setNewPersonName('')
                   setNewPersonEmail('')
+                  showToast({ type: 'success', message: 'Person created.' })
                 } catch (err) {
                   setPeopleError(err instanceof Error ? err.message : 'Failed to create person')
                 } finally {
@@ -670,6 +674,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                               setEditingPersonId(null)
                               setEditingPersonName('')
                               setEditingPersonEmail('')
+                              showToast({ type: 'success', message: 'Person updated.' })
                             } catch (err) {
                               setPeopleError(err instanceof Error ? err.message : 'Failed to update person')
                             } finally {
@@ -719,6 +724,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                               setSavingPerson(true)
                               await deletePerson(activeWorkspaceId, person.id)
                               setPeopleRecords((prev) => prev.filter((item) => item.id !== person.id))
+                              showToast({ type: 'success', message: 'Person deleted.' })
                             } catch (err) {
                               setPeopleError(err instanceof Error ? err.message : 'Failed to delete person')
                             } finally {

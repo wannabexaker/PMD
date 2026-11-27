@@ -6,6 +6,7 @@ import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { MentionTextarea } from './common/MentionTextarea'
 import { useMentionOptions } from '../mentions/useMentionOptions'
+import { useToast } from '../shared/ui/toast/ToastProvider'
 
 type CreateProjectFormProps = {
   users: UserSummary[]
@@ -20,6 +21,7 @@ const STATUSES: ProjectStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'C
 export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = false, onCreated }: CreateProjectFormProps) {
   const { teams, teamById, createTeam, loading: teamsLoading } = useTeams()
   const { activeWorkspaceId, activeWorkspace } = useWorkspace()
+  const { showToast } = useToast()
   const mentionOptions = useMentionOptions(users)
   const isAdmin = Boolean(currentUser?.isAdmin)
   const canManageTeams = Boolean(activeWorkspace?.permissions?.manageTeams) || isAdmin
@@ -119,6 +121,7 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
       setSearch('')
       setTeamFilter('')
       onCreated(created)
+      showToast({ type: 'success', message: 'Project created.' })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create project'
       setError(message)
@@ -208,6 +211,7 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
                       setNewTeamName('')
                       setShowNewTeam(false)
                       setError(null)
+                      showToast({ type: 'success', message: 'Team created.' })
                     }
                   } catch (err) {
                     setError(getErrorMessage(err, 'Failed to create team.'))

@@ -8,6 +8,7 @@ import { isApiError } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
+import { useToast } from '../shared/ui/toast/ToastProvider'
 import {
   PROJECT_FOLDERS,
   PROJECT_STATUS_SELECTABLE,
@@ -132,6 +133,7 @@ export function AssignPage({
 }: AssignPageProps) {
   const { teams, teamById } = useTeams()
   const { activeWorkspaceId } = useWorkspace()
+  const { showToast } = useToast()
   const [selectedMembers, setSelectedMembers] = useState<UserSummary[]>([])
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
@@ -666,6 +668,7 @@ export function AssignPage({
       setSaving(true)
       await deleteProject(activeWorkspaceId, selectedProject.id)
       setToast(null)
+      showToast({ type: 'success', message: 'Project deleted.' })
       await onRefresh?.()
       await refreshAssignedToMe()
       onClearSelection?.()
