@@ -288,11 +288,13 @@
   width: auto;
 }
 
+/* Bottom-right, so toasts never cover the header controls. */
 .toast-container {
   position: fixed;
-  top: 18px;
   right: 18px;
+  bottom: 18px;
   display: grid;
+  justify-items: end;
   gap: 10px;
   z-index: 1200;
   pointer-events: none;
@@ -300,14 +302,58 @@
 
 .toast {
   pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   min-width: 240px;
-  max-width: 360px;
-  padding: 12px 14px;
+  max-width: 380px;
+  padding: 12px 10px 12px 14px;
   border-radius: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   font-size: 0.9rem;
+}
+
+.toast-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: -2px 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.toast-close:hover,
+.toast-close:focus-visible {
+  color: var(--text);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.toast-close:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 65%, transparent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 640px) {
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    justify-items: stretch;
+  }
+
+  .toast {
+    min-width: 0;
+    max-width: none;
+  }
 }
 
 .toast-success {
@@ -323,7 +369,10 @@
 }
 
 .toast-message {
-  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .field-error {
