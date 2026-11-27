@@ -4,8 +4,9 @@ import { AuthProvider } from './auth/AuthContext'
 import type { LoginPayload, Project, RegisterPayload, RegisterResponse, User, UserSummary } from './types'
 import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
-import { fetchMe, googleLogin, login, logoutSession, refreshSession, register } from './api/auth'
-import { API_BASE_URL, getAuthToken, isApiError, resolveAssetUrl as resolveStoredAssetUrl } from './api/http'
+import { fetchMe, googleLogin, login, logoutSession, register } from './api/auth'
+import { API_BASE_URL, getAuthToken, isApiError, refreshAccessToken, resolveAssetUrl as resolveStoredAssetUrl } from './api/http'
+import { loginRedirectState, readRegisteredEmail, readReturnPath, withRegisteredEmail } from './auth/returnPath'
 import { LoginForm } from './components/LoginForm'
 // Route-level code splitting: the heavy authed pages load on demand so the
 // initial bundle stays small. lazy() needs a default export, so the named
@@ -331,6 +332,8 @@ function AppView({
   const landingPath = toLandingPath(uiPreferences)
   const preferredAuthedRoute =
     uiPreferences.defaultLandingPage === 'lastVisited' ? (readLastAppRoute() ?? '/dashboard') : landingPath
+  // The page that bounced the visitor to /login (a deep link or an expired session).
+  const loginReturnPath = readReturnPath(location.state)
   const onboardingKey = currentUser?.id ? `${ONBOARDING_TOUR_KEY_PREFIX}${currentUser.id}` : null
   const teamBannerKey = currentUser?.id ? `${TEAM_BANNER_DISMISSED_KEY_PREFIX}${currentUser.id}` : null
   const [teamBannerDismissedKey, setTeamBannerDismissedKey] = useState<string | null>(null)
@@ -345,6 +348,9 @@ function AppView({
   // The step whose target lookup has finished (found or missing); the card stays hidden until then.
   const [tourResolvedStepId, setTourResolvedStepId] = useState<string | null>(null)
   const [workspaceWarpActive, setWorkspaceWarpActive] = useState(false)
+  // `authLoading` is the boot-time session check only (it swaps the page for a loader).
+  // A login or register submit uses this instead, so the form stays mounted while it runs.
+  const [authSubmitting, setAuthSubmitting] = useState(false)
   const tourCardRef = useRef<HTMLDivElement | null>(null)
   const activeTourStep = tourOpen ? ONBOARDING_TOUR_STEPS[tourStepIndex] : null
   const resolveAssetUrl = useCallback((url?: string | null) => resolveStoredAssetUrl(url), [])
@@ -354,11 +360,9 @@ function AppView({
     setAuthLoading(true)
     let token = getAuthToken()
     if (!token) {
-      const refreshed = await refreshSession()
-      token = refreshed?.token ?? null
-      if (refreshed?.user) {
-        setCurrentUser(refreshed.user)
-      }
+      // Through the shared single-flight refresh: a second bootstrap (StrictMode, or a 401
+      // retry) must reuse this rotation, or the loser logs the user out and the deep link is lost.
+      token = await refreshAccessToken()
     }
     if (!token) {
         setCurrentUser(null)
@@ -504,7 +508,7 @@ function AppView({
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
       setActiveWorkspaceId(null)
-      navigate('/login')
+      navigate('/login', { state: loginRedirectState(window.location) })
     }
     window.addEventListener('pmd:unauthorized', handleUnauthorized)
     return () => {
@@ -693,13 +697,13 @@ function AppView({
   const handleLogin = async (payload: LoginPayload) => {
     setAuthError(null)
     try {
-      setAuthLoading(true)
+      setAuthSubmitting(true)
       const response = await login(payload)
       setCurrentUser(response.user ?? null)
       setDashboardSelectedProjectIdState(null)
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
-      navigate(landingPath)
+      navigate(loginReturnPath ?? landingPath, { replace: true })
     } catch (err) {
       if (isApiError(err)) {
         if (err.status === 401) {
@@ -725,20 +729,20 @@ function AppView({
       // Re-throw so LoginForm can react to the failure (e.g. reset the single-use Turnstile token).
       throw err
     } finally {
-      setAuthLoading(false)
+      setAuthSubmitting(false)
     }
   }
 
   const handleGoogleLogin = async (credential: string, remember: boolean, acceptedTerms = false) => {
     setAuthError(null)
     try {
-      setAuthLoading(true)
+      setAuthSubmitting(true)
       const response = await googleLogin(credential, remember, acceptedTerms)
       setCurrentUser(response.user ?? null)
       setDashboardSelectedProjectIdState(null)
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
-      navigate(landingPath)
+      navigate(loginReturnPath ?? landingPath, { replace: true })
     } catch (err) {
       if (isApiError(err)) {
         if (err.status === 0) {
@@ -760,14 +764,14 @@ function AppView({
         setAuthError(err instanceof Error ? err.message : 'Google sign-in failed')
       }
     } finally {
-      setAuthLoading(false)
+      setAuthSubmitting(false)
     }
   }
 
   const handleRegister = async (payload: RegisterPayload): Promise<RegisterResponse> => {
     setAuthError(null)
     try {
-      setAuthLoading(true)
+      setAuthSubmitting(true)
       return await register(payload)
     } catch (err) {
       let message = 'Registration failed'
@@ -790,7 +794,7 @@ function AppView({
       setAuthError(message)
       throw new Error(message)
     } finally {
-      setAuthLoading(false)
+      setAuthSubmitting(false)
     }
   }
 
@@ -1405,7 +1409,7 @@ function AppView({
                   noWorkspaceState
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1446,7 +1450,7 @@ function AppView({
                   noWorkspaceState
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1476,7 +1480,7 @@ function AppView({
                   noWorkspaceState
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1492,7 +1496,7 @@ function AppView({
                   <Navigate to="/dashboard" replace />
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1509,7 +1513,7 @@ function AppView({
                   noWorkspaceState
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1519,7 +1523,7 @@ function AppView({
               isAuthed ? (
                 <SettingsPage preferences={uiPreferences} onChange={handlePreferencesChange} />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1527,14 +1531,15 @@ function AppView({
             path="/login"
             element={
               isAuthed ? (
-                <Navigate to={preferredAuthedRoute} replace />
+                <Navigate to={loginReturnPath ?? preferredAuthedRoute} replace />
               ) : (
                 <LoginForm
                   onLogin={handleLogin}
                   onGoogleLogin={handleGoogleLogin}
                   error={authError}
-                  loading={authLoading}
-                  onSwitchToRegister={() => navigate('/register')}
+                  loading={authSubmitting}
+                  initialEmail={readRegisteredEmail(location.state)}
+                  onSwitchToRegister={() => navigate('/register', { state: location.state })}
                 />
               )
             }
@@ -1543,13 +1548,13 @@ function AppView({
             path="/register"
             element={
               isAuthed ? (
-                <Navigate to={preferredAuthedRoute} replace />
+                <Navigate to={loginReturnPath ?? preferredAuthedRoute} replace />
               ) : (
                 <RegisterForm
                   onRegister={handleRegister}
                   onGoogleLogin={handleGoogleLogin}
-                  loading={authLoading}
-                  onSwitchToLogin={() => navigate('/login')}
+                  loading={authSubmitting}
+                  onSwitchToLogin={(email) => navigate('/login', { state: withRegisteredEmail(location.state, email) })}
                 />
               )
             }

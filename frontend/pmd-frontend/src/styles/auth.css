@@ -1056,7 +1056,8 @@ button {
   animation: fade-in 120ms ease;
 }
 
-.confirm-password-field input[aria-invalid='true'] {
+.confirm-password-field input[aria-invalid='true'],
+.auth-form input[aria-invalid='true'] {
   border-color: color-mix(in srgb, #f87171 70%, var(--border));
 }
 
@@ -1168,6 +1169,19 @@ p.muted {
   min-height: 65px;
 }
 
+.turnstile-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.turnstile-failed {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;
@@ -1269,7 +1283,8 @@ p.muted {
 
 
 /* Terms acceptance. A checkbox, not a styled div: the native control keeps keyboard
-   and screen-reader behaviour, and the browser's own required-validation blocks submit. */
+   and screen-reader behaviour. The form validates itself (noValidate) and shows the
+   error inline below the label. */
 .auth-consent {
   display: flex;
   align-items: flex-start;
@@ -1298,5 +1313,27 @@ p.muted {
 
 .auth-consent a:hover {
   text-decoration-thickness: 2px;
+}
+
+.auth-consent-error {
+  margin: -8px 0 12px 26px;
+}
+
+.auth-consent-error:empty {
+  display: none;
+}
+
+/* Error on the left, character count on the right, on one line under the field. */
+.auth-field-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth-field-count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
 

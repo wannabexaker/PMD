@@ -266,6 +266,9 @@ export type RegisterResponse = {
   accountCreated: boolean
   verificationEmailSent: boolean
   message: string
+  // False when the server lets the new account sign in before confirming its email.
+  // Missing from older backends: treat as true.
+  emailVerificationRequired?: boolean
 }
 
 export type ConfirmEmailStatus = 'CONFIRMED' | 'ALREADY_CONFIRMED' | 'INVALID_TOKEN' | 'EXPIRED_TOKEN'

@@ -4,17 +4,22 @@ export type BackendStatus = 'checking' | 'online' | 'offline'
 
 const PROBE_TIMEOUT_MS = 6000
 
+// The states Spring Boot's health endpoint reports. Any of them means the API itself answered.
+const SPRING_HEALTH_STATES = new Set(['UP', 'DOWN', 'OUT_OF_SERVICE', 'UNKNOWN'])
+
 /**
- * Asks the backend whether it is up.
+ * Asks whether the API can be reached at all.
  *
  * PMD is a demo and its backend is sometimes switched off on purpose. When it is, the public
- * frontend still loads, but every sign-in fails (Cloudflare answers 502). This probe lets the
- * auth screens say so up front instead of letting people type credentials into a dead form.
+ * frontend still loads, but every sign-in fails (Cloudflare answers 502 or 530 with an HTML
+ * page). This probe lets the auth screens say so up front instead of letting people type
+ * credentials into a dead form.
  *
- * Online only when the health endpoint answers 200 with `{"status":"UP"}`. Everything else counts
- * as offline: a network error, a timeout, a 5xx from the proxy or tunnel, a health check that
- * reports DOWN, or an HTML page where JSON was expected (a missing proxy rule falls through to
- * the SPA shell, which is also a backend PMD cannot use).
+ * Offline means the API did not answer: a network error, a timeout, or a response that is not
+ * Spring's health JSON (the HTML error page of the proxy or tunnel, or the SPA shell when a
+ * proxy rule is missing). A health body that says DOWN or OUT_OF_SERVICE came from the API
+ * itself: one indicator is unhealthy (a mail server, say), but sign-in may well work, so that
+ * counts as online. Spring sends it with a 503, so the status code alone cannot decide.
  */
 export async function probeBackend(
   fetchImpl: typeof fetch = fetch,
@@ -28,13 +33,9 @@ export async function probeBackend(
       credentials: 'omit',
       signal: controller.signal,
     })
-    if (!response.ok) {
-      return 'offline'
-    }
     const body: unknown = await response.json()
-    return body && typeof body === 'object' && (body as { status?: unknown }).status === 'UP'
-      ? 'online'
-      : 'offline'
+    const state = body && typeof body === 'object' ? (body as { status?: unknown }).status : undefined
+    return typeof state === 'string' && SPRING_HEALTH_STATES.has(state) ? 'online' : 'offline'
   } catch {
     return 'offline'
   } finally {

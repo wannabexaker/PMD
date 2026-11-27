@@ -10,17 +10,26 @@ function respond(status: number, body: unknown, json = true): typeof fetch {
 }
 
 describe('probeBackend', () => {
-  it('is online only for a 200 with status UP', async () => {
+  it('is online for a 200 with status UP', async () => {
     expect(await probeBackend(respond(200, { status: 'UP' }))).toBe('online')
   })
 
-  it('treats the proxy 502 of a stopped demo backend as offline', async () => {
+  it('treats the HTML 502/530 of a stopped demo backend as offline', async () => {
     expect(await probeBackend(respond(502, null, false))).toBe('offline')
+    expect(await probeBackend(respond(530, null, false))).toBe('offline')
   })
 
-  it('treats a health check reporting DOWN as offline', async () => {
-    expect(await probeBackend(respond(503, { status: 'DOWN' }))).toBe('offline')
-    expect(await probeBackend(respond(200, { status: 'DOWN' }))).toBe('offline')
+  it('treats a health check reporting DOWN or OUT_OF_SERVICE as online (degraded, not unreachable)', async () => {
+    // Spring answers a failing indicator (say, no SMTP server) with a JSON 503.
+    expect(await probeBackend(respond(503, { status: 'DOWN' }))).toBe('online')
+    expect(await probeBackend(respond(503, { status: 'OUT_OF_SERVICE' }))).toBe('online')
+    expect(await probeBackend(respond(200, { status: 'DOWN' }))).toBe('online')
+  })
+
+  it('treats JSON that is not a Spring health body as offline', async () => {
+    expect(await probeBackend(respond(502, { error: 'bad gateway' }))).toBe('offline')
+    expect(await probeBackend(respond(200, { status: 'whatever' }))).toBe('offline')
+    expect(await probeBackend(respond(200, null))).toBe('offline')
   })
 
   it('treats an HTML page where JSON was expected as offline', async () => {

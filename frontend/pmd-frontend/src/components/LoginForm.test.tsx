@@ -64,6 +64,31 @@ describe('LoginForm', () => {
     expect(screen.getByText('Password is required.')).toBeTruthy()
   })
 
+  it('checks the email itself (noValidate) and says so inline', () => {
+    const { onLogin, form } = renderLogin()
+    expect(form.noValidate).toBe(true)
+    fireEvent.change(screen.getByLabelText(/^Email/i), { target: { value: 'nope' } })
+    fireEvent.change(screen.getByLabelText(/^Password/i), { target: { value: 'secret' } })
+    fireEvent.submit(form)
+    expect(onLogin).not.toHaveBeenCalled()
+    expect(screen.getByText('Enter a valid email address.')).toBeTruthy()
+  })
+
+  it('prefills the email of a just-created account', () => {
+    render(
+      <ToastProvider>
+        <LoginForm
+          onLogin={vi.fn()}
+          error={null}
+          loading={false}
+          onSwitchToRegister={() => {}}
+          initialEmail="new@example.com"
+        />
+      </ToastProvider>,
+    )
+    expect((screen.getByLabelText(/^Email/i) as HTMLInputElement).value).toBe('new@example.com')
+  })
+
   it('submits trimmed credentials when valid', () => {
     const onLogin = vi.fn().mockResolvedValue(undefined)
     const { form } = renderLogin(onLogin)
