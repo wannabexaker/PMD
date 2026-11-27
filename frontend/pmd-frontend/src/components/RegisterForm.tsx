@@ -5,6 +5,7 @@ import { useToast } from '../shared/ui/toast/ToastProvider'
 import { getAuthNotification } from '../auth/authNotificationMatrix'
 import { GoogleSignInButton } from './auth/GoogleSignInButton'
 import { TurnstileWidget } from './auth/TurnstileWidget'
+import { useTurnstileToken } from './auth/useTurnstileToken'
 import { BackendOfflineNotice } from './auth/BackendOfflineNotice'
 import { useBackendStatus } from './auth/useBackendStatus'
 import { isGoogleEnabled, isTurnstileEnabled } from '../lib/authProviders'
@@ -54,7 +55,8 @@ const COMMON_PASSWORDS = new Set([
 
 export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLogin }: RegisterFormProps) {
   const { showToast } = useToast()
-  const [turnstileToken, setTurnstileToken] = useState('')
+  const { token: turnstileToken, setToken: setTurnstileToken, waitForToken } = useTurnstileToken()
+  const [verifying, setVerifying] = useState(false)
   const [turnstileNonce, setTurnstileNonce] = useState(0)
   const [passwordTouched, setPasswordTouched] = useState(false)
   // Acceptance of the terms — deliberately not GDPR consent: the account runs on the
@@ -151,9 +153,16 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
       showToast({ type: 'error', message: getAuthNotification('register_form_invalid').message })
       return
     }
-    if (isTurnstileEnabled && !turnstileToken) {
-      showToast({ type: 'error', message: 'Please complete the verification below.' })
-      return
+    let verifiedToken = turnstileToken
+    if (isTurnstileEnabled && !verifiedToken) {
+      // The check started when the form opened; if it is still running, wait for it.
+      setVerifying(true)
+      verifiedToken = await waitForToken()
+      setVerifying(false)
+      if (!verifiedToken) {
+        showToast({ type: 'error', message: 'Verification is taking longer than usual. Please try again.' })
+        return
+      }
     }
 
     try {
@@ -164,7 +173,7 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         bio: form.bio?.trim() || '',
-        turnstileToken,
+        turnstileToken: verifiedToken,
         acceptedTerms,
       })
       if (!result.accountCreated) {
@@ -431,13 +440,13 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
             <span id="acceptedTerms-error" className="field-error auth-consent-error">
               {fieldErrors.acceptedTerms ?? ''}
             </span>
-            {showTurnstile ? (
-              <div className="auth-turnstile auth-reveal">
+            {isTurnstileEnabled ? (
+              <div className={`auth-turnstile ${showTurnstile ? 'auth-reveal' : 'is-collapsed'}`}>
                 <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />
               </div>
             ) : null}
-            <button type="submit" className="btn btn-primary full-width" disabled={loading || backendOffline}>
-              {loading ? 'Creating...' : 'Create account'}
+            <button type="submit" className="btn btn-primary full-width" disabled={loading || verifying || backendOffline}>
+              {verifying ? 'Verifying...' : loading ? 'Creating...' : 'Create account'}
             </button>
             {isGoogleEnabled && onGoogleLogin && !backendOffline ? (
               <>

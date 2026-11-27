@@ -1337,3 +1337,13 @@ p.muted {
   font-variant-numeric: tabular-nums;
 }
 
+
+/* Turnstile runs from the moment the form opens, but stays out of sight until the user starts
+   on the password; collapsed rather than display:none so the check can complete meanwhile. */
+.auth-turnstile.is-collapsed {
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}

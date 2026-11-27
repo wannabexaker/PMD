@@ -564,25 +564,6 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
           </div>
         </div>
       </form>
-      <div className="card profile-data-card">
-        <div className="panel-header">
-          <h4>Your data</h4>
-        </div>
-        <p className="muted">
-          Download everything PMD holds about you, or remove your account for good. Deleting
-          erases your account, sessions, photo, preferences and memberships. Anything you wrote
-          inside someone else&apos;s workspace stays there, shown as &quot;Deleted user&quot;.
-        </p>
-        {dataError ? <p className="error">{dataError}</p> : null}
-        <div className="actions-right">
-          <button type="button" className="btn btn-secondary" onClick={() => void handleExportData()} disabled={dataBusy !== null}>
-            {dataBusy === 'export' ? 'Preparing...' : 'Download my data'}
-          </button>
-          <button type="button" className="btn btn-danger" onClick={() => void handleDeleteAccount()} disabled={dataBusy !== null}>
-            {dataBusy === 'delete' ? 'Deleting...' : 'Delete my account'}
-          </button>
-        </div>
-      </div>
       <div className="card profile-stats-card">
         <div className="panel-header">
           <h4>My stats</h4>
@@ -631,6 +612,26 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
           </div>
         )}
       </div>
+      {/* Export and erasure stay available but out of the way: a small "My data" toggle at the very bottom. */}
+      <details className="profile-mydata">
+        <summary className="profile-mydata-toggle">My data</summary>
+        <div className="profile-mydata-body">
+            <p className="muted">
+              Download everything PMD holds about you, or remove your account for good. Deleting
+              erases your account, sessions, photo, preferences and memberships. Anything you wrote
+              inside someone else&apos;s workspace stays there, shown as &quot;Deleted user&quot;.
+            </p>
+            {dataError ? <p className="error">{dataError}</p> : null}
+            <div className="actions-right">
+              <button type="button" className="btn btn-secondary" onClick={() => void handleExportData()} disabled={dataBusy !== null}>
+                {dataBusy === 'export' ? 'Preparing...' : 'Download my data'}
+              </button>
+              <button type="button" className="btn btn-danger" onClick={() => void handleDeleteAccount()} disabled={dataBusy !== null}>
+                {dataBusy === 'delete' ? 'Deleting...' : 'Delete my account'}
+              </button>
+            </div>
+        </div>
+      </details>
       {confirmDialog}
     </div>
   )

@@ -2586,3 +2586,41 @@ body[data-theme='dark'] .profile-avatar-overlay-icon {
 .empty-state p {
   margin: 0;
 }
+
+/* "My data" (export / delete account): a small, quiet toggle at the bottom of the profile. */
+.profile-mydata {
+  margin-top: 4px;
+}
+
+.profile-mydata-toggle {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.profile-mydata-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.profile-mydata-toggle:hover,
+.profile-mydata[open] .profile-mydata-toggle {
+  color: var(--text);
+}
+
+.profile-mydata-body {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.profile-mydata-body .muted {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+}

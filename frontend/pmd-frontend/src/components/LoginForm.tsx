@@ -5,6 +5,7 @@ import { useToast } from '../shared/ui/toast/ToastProvider'
 import { getAuthNotification } from '../auth/authNotificationMatrix'
 import { GoogleSignInButton } from './auth/GoogleSignInButton'
 import { TurnstileWidget } from './auth/TurnstileWidget'
+import { useTurnstileToken } from './auth/useTurnstileToken'
 import { BackendOfflineNotice } from './auth/BackendOfflineNotice'
 import { useBackendStatus } from './auth/useBackendStatus'
 import { isGoogleEnabled, isTurnstileEnabled } from '../lib/authProviders'
@@ -37,7 +38,8 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
   }))
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
-  const [turnstileToken, setTurnstileToken] = useState('')
+  const { token: turnstileToken, setToken: setTurnstileToken, waitForToken } = useTurnstileToken()
+  const [verifying, setVerifying] = useState(false)
   const [turnstileNonce, setTurnstileNonce] = useState(0)
   const [passwordTouched, setPasswordTouched] = useState(false)
   const { showToast } = useToast()
@@ -93,13 +95,20 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
       showToast({ type: 'error', message: getAuthNotification('login_form_invalid').message })
       return
     }
-    if (isTurnstileEnabled && !turnstileToken) {
-      showToast({ type: 'error', message: 'Please complete the verification below.' })
-      return
+    let verifiedToken = turnstileToken
+    if (isTurnstileEnabled && !verifiedToken) {
+      // The check started when the form opened; if it is still running, wait for it.
+      setVerifying(true)
+      verifiedToken = await waitForToken()
+      setVerifying(false)
+      if (!verifiedToken) {
+        showToast({ type: 'error', message: 'Verification is taking longer than usual. Please try again.' })
+        return
+      }
     }
 
     try {
-      await onLogin({ username: form.username.trim(), password: form.password, remember: form.remember, turnstileToken })
+      await onLogin({ username: form.username.trim(), password: form.password, remember: form.remember, turnstileToken: verifiedToken })
     } catch {
       // Login failed; the single-use Turnstile token is now spent — re-challenge for the retry.
       if (isTurnstileEnabled) {
@@ -187,13 +196,13 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
             Stay signed in
           </label>
         </div>
-        {showTurnstile ? (
-          <div className="auth-turnstile auth-reveal">
+        {isTurnstileEnabled ? (
+          <div className={`auth-turnstile ${showTurnstile ? 'auth-reveal' : 'is-collapsed'}`}>
             <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />
           </div>
         ) : null}
-        <button type="submit" className="btn btn-primary full-width" disabled={loading || backendOffline}>
-          {loading ? 'Signing in...' : 'Login'}
+        <button type="submit" className="btn btn-primary full-width" disabled={loading || verifying || backendOffline}>
+          {verifying ? 'Verifying...' : loading ? 'Signing in...' : 'Login'}
         </button>
         {isGoogleEnabled && onGoogleLogin && !backendOffline ? (
           <>
