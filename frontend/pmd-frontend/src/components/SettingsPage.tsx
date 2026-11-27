@@ -1035,7 +1035,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     setEditingRoleBadgeColor((role.badge?.color ?? '#3B82F6').trim() || '#3B82F6')
     setEditingRoleColorPickerOpen(false)
     setEditingRolePermissions(normalizePermissions(role.permissions))
-    setEditingRoleAction(null)
+    setEditingRoleAction('permissions')
   }
 
   const handleCancelEditRole = () => {
@@ -2511,20 +2511,20 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                   <div className="workspace-inline-actions">
                     <button
                       type="button"
-                      className={`btn btn-ghost${editingRoleAction === 'rename' ? ' assign-toggle is-active' : ''}`}
-                      onClick={() => setEditingRoleAction('rename')}
-                      disabled={Boolean(editingRole.system)}
-                      title={editingRole.system ? 'Demo/System role name is fixed.' : undefined}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
                       className={`btn btn-ghost${editingRoleAction === 'permissions' ? ' assign-toggle is-active' : ''}`}
                       onClick={() => setEditingRoleAction('permissions')}
                     >
                       Permissions
                     </button>
+                    {editingRole.system ? null : (
+                      <button
+                        type="button"
+                        className={`btn btn-ghost${editingRoleAction === 'rename' ? ' assign-toggle is-active' : ''}`}
+                        onClick={() => setEditingRoleAction('rename')}
+                      >
+                        Rename
+                      </button>
+                    )}
                     {editingRole.system ? (
                       <button
                         type="button"
@@ -2535,13 +2535,12 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       </button>
                     ) : null}
                   </div>
-                  {editingRoleAction === 'rename' ? (
+                  {editingRoleAction === 'rename' && !editingRole.system ? (
                     <div className="team-edit-rename">
                       <input
                         value={editingRoleName}
                         onChange={(event) => setEditingRoleName(event.target.value)}
                         placeholder="Role name"
-                        disabled={Boolean(editingRole.system)}
                       />
                       <div className="workspace-inline-actions color-picker-toggle-row">
                         <button
