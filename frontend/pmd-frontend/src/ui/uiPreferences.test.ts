@@ -30,15 +30,11 @@ describe('loadUiPreferences', () => {
       JSON.stringify({
         defaultLandingPage: 'nonsense',
         dateTimeFormat: 'weird',
-        autoRefreshIntervalSeconds: 999,
-        settingsDefaultView: 'bogus',
       }),
     )
     const prefs = loadUiPreferences()
     expect(prefs.defaultLandingPage).toBe('dashboard')
     expect(prefs.dateTimeFormat).toBe('24h')
-    expect(prefs.autoRefreshIntervalSeconds).toBe(0)
-    expect(prefs.settingsDefaultView).toBe('grid')
   })
 
   it('preserves valid stored values', () => {
@@ -47,15 +43,11 @@ describe('loadUiPreferences', () => {
       JSON.stringify({
         defaultLandingPage: 'people',
         dateTimeFormat: '12h',
-        autoRefreshIntervalSeconds: 60,
-        settingsDefaultView: 'tabs',
       }),
     )
     const prefs = loadUiPreferences()
     expect(prefs.defaultLandingPage).toBe('people')
     expect(prefs.dateTimeFormat).toBe('12h')
-    expect(prefs.autoRefreshIntervalSeconds).toBe(60)
-    expect(prefs.settingsDefaultView).toBe('tabs')
   })
 
   it('falls back to defaults on corrupt JSON', () => {

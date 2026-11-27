@@ -46,8 +46,7 @@ function browserPermissionLabel(state: BrowserPermissionState): string {
 /**
  * The "Mail" section of the Settings > Notifications panel: the email-notification
  * toggles plus the browser-notification enable control. The surrounding panel
- * chrome (drag/resize/order/coming-soon) stays in SettingsPage since it is shared
- * by every panel.
+ * chrome stays in SettingsPage since it is shared by every panel.
  */
 export function NotificationMailSettings({
   preferences,

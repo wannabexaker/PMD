@@ -26,7 +26,6 @@ import { uploadImage } from '../api/uploads'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
 import { AVATAR_ACCEPT, validateAvatarFile } from '../shared/avatarCrop'
 import { AvatarCropDialog, type AvatarCrop } from './avatar/AvatarCropDialog'
-import { GripIcon } from '../shared/ui/GripIcon'
 import type {
   WorkspaceInvite,
   WorkspaceJoinRequest,
@@ -36,17 +35,13 @@ import type {
   NotificationPreferences,
   WorkspaceAuditEvent,
 } from '../types'
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   SETTINGS_PANEL_IDS,
-  SETTINGS_PANEL_ORDER_DEFAULT,
   SETTINGS_PANEL_LABELS,
   SETTINGS_PANEL_ICONS,
   TEAM_COLOR_PALETTE,
-  PANEL_MIN_HEIGHT,
-  PANEL_MAX_HEIGHT,
-  getDefaultPanelHeights,
   MAX_CUSTOM_ROLES_PER_WORKSPACE,
   ROLE_PERMISSION_GROUPS,
   SettingsEditIcon,
@@ -57,18 +52,10 @@ import {
   getSystemRoleDefaults,
   DEFAULT_NOTIFICATION_PREFERENCES,
   AUDIT_CATEGORIES,
-  DEFAULT_SETTINGS_GRID_BOUNDS,
   WORKSPACE_CROP_STORAGE_KEY,
   loadSavedCropMap,
 } from './settings/settingsConfig'
-import type {
-  SettingsPanelId,
-  SettingsViewMode,
-  SettingsGridStyleVars,
-  SettingsPageProps,
-  SavedCropState,
-  ComingSoonSectionId,
-} from './settings/settingsConfig'
+import type { SettingsPanelId, SettingsPageProps, SavedCropState } from './settings/settingsConfig'
 import { NotificationMailSettings } from './settings/NotificationMailSettings'
 import { SettingsPreferencesPanel } from './settings/SettingsPreferencesPanel'
 
@@ -167,51 +154,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences | null>(null)
   const [notificationBusy, setNotificationBusy] = useState(false)
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
-  const [panelOrder, setPanelOrder] = useState<SettingsPanelId[]>(SETTINGS_PANEL_ORDER_DEFAULT)
-  const [settingsViewMode, setSettingsViewMode] = useState<SettingsViewMode>(
-    preferences.settingsDefaultView === 'tabs' ? 'tabs' : 'grid'
-  )
-  const [settingsGridBounds, setSettingsGridBounds] = useState(DEFAULT_SETTINGS_GRID_BOUNDS)
   const [activeTabPanel, setActiveTabPanel] = useState<SettingsPanelId>('workspaces')
-  const [comingSoonExpanded, setComingSoonExpanded] = useState<Record<ComingSoonSectionId, boolean>>({
-    preferences: false,
-    notifications: false,
-    workspacesGrid: false,
-    workspacesTabs: false,
-  })
-  const [draggingPanel, setDraggingPanel] = useState<SettingsPanelId | null>(null)
-  const [dragOverPanel, setDragOverPanel] = useState<SettingsPanelId | 'end' | null>(null)
-  const [orderMenuPanel, setOrderMenuPanel] = useState<SettingsPanelId | null>(null)
-  const [orderTargetPosition, setOrderTargetPosition] = useState(1)
-  const [panelHeights, setPanelHeights] = useState<Record<SettingsPanelId, number>>(() => getDefaultPanelHeights())
-  const [panelRowSpans, setPanelRowSpans] = useState<Record<SettingsPanelId, number>>({
-    preferences: 1,
-    workspaces: 1,
-    teams: 1,
-    notifications: 1,
-    roles: 1,
-    audit: 1,
-  })
-  const [activeResize, setActiveResize] = useState<{
-    id: SettingsPanelId
-    edge: 'top' | 'bottom'
-    startY: number
-    startHeight: number
-  } | null>(null)
-  const panelRefs = useRef<Record<SettingsPanelId, HTMLDivElement | null>>({
-    preferences: null,
-    workspaces: null,
-    teams: null,
-    notifications: null,
-    roles: null,
-    audit: null,
-  })
-  const pendingFitPanelsRef = useRef<Set<SettingsPanelId>>(new Set())
-  const fitRafRef = useRef<number | null>(null)
-  const suspendGridAutoFitRef = useRef(false)
-  const gridBoundsRafRef = useRef<number | null>(null)
-  const pendingGridBoundsRef = useRef(DEFAULT_SETTINGS_GRID_BOUNDS)
-  const settingsPanelRootRef = useRef<HTMLElement | null>(null)
   const workspaceProfileAvatarFileRef = useRef<HTMLInputElement | null>(null)
   const lastResolvedJoinTokenRef = useRef('')
 
@@ -235,7 +178,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const canCreateTeamsByRole =
     isAdmin || workspaceRole.includes('owner') || workspaceRole.includes('manager') || workspaceRole.includes('admin')
   const canCreateTeams = canEditTeams && canCreateTeamsByRole
-  const gridResizeEnabled = settingsViewMode === 'grid' && preferences.settingsGridResizeEnabled
   const defaultInviteRoleId = useMemo(() => {
     const memberRole = roles.find((role) => `${role.name ?? ''}`.trim().toLocaleLowerCase() === 'member')
     return (memberRole?.id as string | undefined) ?? ''
@@ -254,10 +196,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     () => roles.find((role) => role.id === editingRoleId) ?? null,
     [roles, editingRoleId]
   )
-
-  const toggleComingSoon = useCallback((section: ComingSoonSectionId) => {
-    setComingSoonExpanded((prev) => ({ ...prev, [section]: !prev[section] }))
-  }, [])
 
   const isWorkspaceCreator = useCallback(
     (workspace: (typeof workspaces)[number] | null | undefined) => {
@@ -333,173 +271,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     const pool = available.length > 0 ? available : TEAM_COLOR_PALETTE
     return pool[Math.floor(Math.random() * pool.length)] ?? '#3B82F6'
   }, [usedTeamRoleColors])
-
-  const movePanel = useCallback((sourceId: SettingsPanelId, targetId: SettingsPanelId | 'end') => {
-    if (sourceId === targetId) return
-    setPanelOrder((prev) => {
-      const sourceIndex = prev.indexOf(sourceId)
-      if (sourceIndex === -1) return prev
-      const next = [...prev]
-      const [moved] = next.splice(sourceIndex, 1)
-      const targetIndex = targetId === 'end' ? next.length : next.indexOf(targetId)
-      if (targetIndex === -1) return prev
-      next.splice(targetIndex, 0, moved)
-      return next
-    })
-  }, [])
-
-  const movePanelToPosition = useCallback((sourceId: SettingsPanelId, targetPosition: number) => {
-    setPanelOrder((prev) => {
-      const sourceIndex = prev.indexOf(sourceId)
-      if (sourceIndex === -1) return prev
-      const targetIndex = Math.max(0, Math.min(prev.length - 1, targetPosition - 1))
-      if (sourceIndex === targetIndex) return prev
-      const next = [...prev]
-      const [moved] = next.splice(sourceIndex, 1)
-      next.splice(targetIndex, 0, moved)
-      return next
-    })
-  }, [])
-
-  const setPanelRef = useCallback(
-    (id: SettingsPanelId) => (node: HTMLDivElement | null) => {
-      panelRefs.current[id] = node
-    },
-    []
-  )
-
-  const panelCardStyle = useCallback(
-    (id: SettingsPanelId) =>
-      settingsViewMode === 'tabs'
-        ? {
-            order: 1,
-            height: 'auto',
-            gridRowEnd: 'span 1',
-          }
-        : {
-            order: panelOrder.indexOf(id) + 1,
-            height: `${panelHeights[id]}px`,
-            gridRowEnd: `span ${panelRowSpans[id]}`,
-          },
-    [panelHeights, panelOrder, panelRowSpans, settingsViewMode]
-  )
-
-  const settingsGridStyle = useMemo<SettingsGridStyleVars | undefined>(() => {
-    if (settingsViewMode !== 'grid') return undefined
-    return {
-      '--settings-col-1': `${settingsGridBounds.col1}px`,
-      '--settings-col-2': `${settingsGridBounds.col2}px`,
-      '--settings-col-3': `${settingsGridBounds.col3}px`,
-      '--settings-grid-gap': `${settingsGridBounds.gap}px`,
-    }
-  }, [settingsViewMode, settingsGridBounds])
-
-  const clampPanelHeight = useCallback((id: SettingsPanelId, rawHeight: number) => {
-    const minHeight = PANEL_MIN_HEIGHT[id]
-    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1080
-    const dynamicMax = Math.max(4000, Math.round(viewportHeight * 6))
-    const maxHeight = Math.min(PANEL_MAX_HEIGHT[id], dynamicMax)
-    return Math.max(minHeight, Math.min(maxHeight, Math.round(rawHeight)))
-  }, [])
-
-  const scheduleFitPanel = useCallback(
-    (id: SettingsPanelId) => {
-      if (settingsViewMode !== 'grid') return
-      if (activeResize || draggingPanel) return
-      if (suspendGridAutoFitRef.current) return
-      pendingFitPanelsRef.current.add(id)
-      if (fitRafRef.current != null) return
-      fitRafRef.current = window.requestAnimationFrame(() => {
-        fitRafRef.current = null
-        const pending = Array.from(pendingFitPanelsRef.current)
-        pendingFitPanelsRef.current.clear()
-        if (!pending.length) return
-        setPanelHeights((prev) => {
-          let next = prev
-          pending.forEach((panelId) => {
-            const card = panelRefs.current[panelId]
-            if (!card) return
-            const header = card.querySelector('.panel-header') as HTMLElement | null
-            const body = card.querySelector('.settings-card-body') as HTMLElement | null
-            if (!header || !body) return
-            const desired = header.offsetHeight + body.scrollHeight + 28
-            const nextHeight = clampPanelHeight(panelId, desired)
-            if (next[panelId] !== nextHeight) {
-              if (next === prev) {
-                next = { ...prev }
-              }
-              next[panelId] = nextHeight
-            }
-          })
-          return next
-        })
-      })
-    },
-    [activeResize, clampPanelHeight, draggingPanel, settingsViewMode]
-  )
-
-  const releaseGridBoundsDrag = useCallback(() => {
-    suspendGridAutoFitRef.current = false
-    SETTINGS_PANEL_IDS.forEach((id) => scheduleFitPanel(id))
-  }, [scheduleFitPanel])
-
-  const updateGridBounds = useCallback((key: 'col1' | 'col2' | 'col3' | 'gap', value: number) => {
-    const min = { col1: 320, col2: 260, col3: 260, gap: 8 }
-    const max = { col1: 780, col2: 620, col3: 620, gap: 28 }
-    const rootWidth =
-      settingsPanelRootRef.current?.querySelector('.settings-grid')?.getBoundingClientRect().width ??
-      settingsPanelRootRef.current?.getBoundingClientRect().width ??
-      window.innerWidth
-    const next = { ...pendingGridBoundsRef.current, [key]: Math.round(Math.max(min[key], Math.min(max[key], value))) }
-    const totalMin = min.col1 + min.col2 + min.col3 + min.gap * 2
-    const maxTotal = Math.max(totalMin, Math.floor(rootWidth) - 24)
-    const total = next.col1 + next.col2 + next.col3 + next.gap * 2
-    let overflow = total - maxTotal
-    if (overflow > 0) {
-      const keys: Array<'col1' | 'col2' | 'col3'> = ['col1', 'col2', 'col3'].filter((k) => k !== key) as Array<
-        'col1' | 'col2' | 'col3'
-      >
-      keys.forEach((k) => {
-        if (overflow <= 0) return
-        const reducible = next[k] - min[k]
-        if (reducible <= 0) return
-        const cut = Math.min(reducible, overflow)
-        next[k] -= cut
-        overflow -= cut
-      })
-      if (overflow > 0 && key !== 'gap') {
-        const reducible = next[key] - min[key]
-        const cut = Math.min(reducible, overflow)
-        next[key] -= cut
-        overflow -= cut
-      }
-    }
-    pendingGridBoundsRef.current = next
-    if (gridBoundsRafRef.current != null) return
-    gridBoundsRafRef.current = window.requestAnimationFrame(() => {
-      gridBoundsRafRef.current = null
-      setSettingsGridBounds({ ...pendingGridBoundsRef.current })
-    })
-  }, [])
-
-  const handleResizeStart = useCallback(
-    (id: SettingsPanelId, edge: 'top' | 'bottom') =>
-      (event: ReactMouseEvent<HTMLDivElement>) => {
-        if (!preferences.settingsGridResizeEnabled) {
-          return
-        }
-        event.preventDefault()
-        const card = event.currentTarget.closest('.settings-card') as HTMLElement | null
-        const fallbackHeight = card?.getBoundingClientRect().height ?? 700
-        setActiveResize({
-          id,
-          edge,
-          startY: event.clientY,
-          startHeight: panelHeights[id] ?? fallbackHeight,
-        })
-      },
-    [panelHeights, preferences.settingsGridResizeEnabled]
-  )
 
   const parseInviteToken = (value: string) => {
     const trimmed = value.trim()
@@ -1432,114 +1203,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   }
 
   useEffect(() => {
-    if (!activeResize) return
-    const handleMouseMove = (event: MouseEvent) => {
-      const delta = event.clientY - activeResize.startY
-      const rawHeight = activeResize.edge === 'bottom' ? activeResize.startHeight + delta : activeResize.startHeight - delta
-      const nextHeight = clampPanelHeight(activeResize.id, rawHeight)
-      setPanelHeights((prev) => ({ ...prev, [activeResize.id]: nextHeight }))
-    }
-    const handleMouseUp = () => setActiveResize(null)
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [activeResize, clampPanelHeight])
-
-  useEffect(() => {
-    if (settingsViewMode !== 'grid') return
-    if (activeResize || draggingPanel) return
-    SETTINGS_PANEL_IDS.forEach((id) => scheduleFitPanel(id))
-  }, [settingsViewMode, activeResize, draggingPanel, panelOrder, scheduleFitPanel])
-
-  useEffect(() => {
-    const nextMode: SettingsViewMode = preferences.settingsDefaultView === 'tabs' ? 'tabs' : 'grid'
-    setSettingsViewMode(nextMode)
-  }, [preferences.settingsDefaultView])
-
-  // Safety net: re-fit panels after any render (async data / toggles / conditional blocks)
-  // so content never spills outside cards when grid auto-resize is disabled.
-  useEffect(() => {
-    if (settingsViewMode !== 'grid') return
-    if (activeResize || draggingPanel) return
-    SETTINGS_PANEL_IDS.forEach((id) => scheduleFitPanel(id))
-  })
-
-  useEffect(() => {
-    if (settingsViewMode !== 'grid') return
-    if (preferences.settingsGridResizeEnabled) return
-    setActiveResize(null)
-  }, [preferences.settingsGridResizeEnabled, settingsViewMode])
-
-  useEffect(() => {
-    if (settingsViewMode !== 'grid') return
-    if (activeResize || draggingPanel) return
-    const observer = new ResizeObserver((entries) => {
-      entries.forEach((entry) => {
-        const element = entry.target as HTMLElement
-        const panelId = element.dataset.panelId as SettingsPanelId | undefined
-        if (!panelId) return
-        scheduleFitPanel(panelId)
-      })
-    })
-    SETTINGS_PANEL_IDS.forEach((id) => {
-      const card = panelRefs.current[id]
-      if (!card) return
-      observer.observe(card)
-    })
-    const pendingPanels = pendingFitPanelsRef.current
-    return () => {
-      observer.disconnect()
-      if (fitRafRef.current != null) {
-        window.cancelAnimationFrame(fitRafRef.current)
-        fitRafRef.current = null
-      }
-      pendingPanels.clear()
-    }
-  }, [activeResize, draggingPanel, scheduleFitPanel, settingsViewMode])
-
-  useEffect(() => {
-    if (!orderMenuPanel) return
-    const handleDocumentClick = () => setOrderMenuPanel(null)
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOrderMenuPanel(null)
-      }
-    }
-    window.addEventListener('click', handleDocumentClick)
-    window.addEventListener('keydown', handleEscape)
-    return () => {
-      window.removeEventListener('click', handleDocumentClick)
-      window.removeEventListener('keydown', handleEscape)
-    }
-  }, [orderMenuPanel])
-
-  useEffect(() => {
-    pendingGridBoundsRef.current = settingsGridBounds
-  }, [settingsGridBounds])
-
-  useEffect(() => {
-    return () => {
-      if (gridBoundsRafRef.current != null) {
-        window.cancelAnimationFrame(gridBoundsRafRef.current)
-        gridBoundsRafRef.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    const onPointerUp = () => {
-      if (suspendGridAutoFitRef.current) {
-        releaseGridBoundsDrag()
-      }
-    }
-    window.addEventListener('pointerup', onPointerUp)
-    return () => window.removeEventListener('pointerup', onPointerUp)
-  }, [releaseGridBoundsDrag])
-
-  useEffect(() => {
     if (!openInviteMenuId) return
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null
@@ -1560,402 +1223,56 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     }
   }, [openInviteMenuId])
 
-  useEffect(() => {
-    if (settingsViewMode === 'tabs') {
-      setPanelRowSpans({
-        preferences: 1,
-        workspaces: 1,
-        teams: 1,
-        notifications: 1,
-        roles: 1,
-        audit: 1,
-      })
-      return
-    }
-    const grid = document.querySelector('.settings-grid') as HTMLElement | null
-    if (!grid) return
-    const styles = window.getComputedStyle(grid)
-    const rowHeight = Number.parseFloat(styles.getPropertyValue('grid-auto-rows')) || 8
-    const rowGap = Number.parseFloat(styles.getPropertyValue('row-gap')) || 16
-    const nextSpans: Record<SettingsPanelId, number> = {
-      preferences: 1,
-      workspaces: 1,
-      teams: 1,
-      notifications: 1,
-      roles: 1,
-      audit: 1,
-    }
-    SETTINGS_PANEL_IDS.forEach((id) => {
-      const height = panelHeights[id]
-      const span = Math.max(1, Math.ceil((height + rowGap) / (rowHeight + rowGap)))
-      nextSpans[id] = span
-    })
-    setPanelRowSpans((prev) => {
-      const changed = SETTINGS_PANEL_IDS.some((id) => prev[id] !== nextSpans[id])
-      return changed ? nextSpans : prev
-    })
-  }, [panelHeights, panelOrder, draggingPanel, dragOverPanel, settingsViewMode])
-
-  const isTabVisible = useCallback(
-    (id: SettingsPanelId) => settingsViewMode === 'grid' || activeTabPanel === id,
-    [activeTabPanel, settingsViewMode]
-  )
-
-  const handlePanelDragStart = useCallback(
-    (id: SettingsPanelId) =>
-      (event: DragEvent<HTMLElement>) => {
-        setDraggingPanel(id)
-        setOrderMenuPanel(null)
-        event.dataTransfer.effectAllowed = 'move'
-        event.dataTransfer.setData('text/plain', id)
-      },
-    []
-  )
-
-  const handlePanelDragOver = useCallback(
-    (targetId: SettingsPanelId | 'end') =>
-      (event: DragEvent<HTMLDivElement>) => {
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'move'
-        // dragover fires continuously; only re-render when the target actually changes.
-        setDragOverPanel((prev) => (prev === targetId ? prev : targetId))
-      },
-    []
-  )
-
-  const handlePanelDragLeave = useCallback(
-    (targetId: SettingsPanelId | 'end') =>
-      (event: DragEvent<HTMLDivElement>) => {
-        // Ignore moves between a card's own children, which also fire dragleave.
-        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-        setDragOverPanel((prev) => (prev === targetId ? null : prev))
-      },
-    []
-  )
-
-  const handlePanelDrop = useCallback(
-    (targetId: SettingsPanelId | 'end') =>
-      (event: DragEvent<HTMLDivElement>) => {
-        event.preventDefault()
-        const sourceId = (event.dataTransfer.getData('text/plain') || draggingPanel) as SettingsPanelId | null
-        if (sourceId && sourceId !== targetId) {
-          movePanel(sourceId, targetId)
-        }
-        setDraggingPanel(null)
-        setDragOverPanel(null)
-      },
-    [draggingPanel, movePanel]
-  )
-
-  const openOrderMenu = useCallback(
-    (id: SettingsPanelId) => {
-      setOrderMenuPanel((prev) => (prev === id ? null : id))
-      setOrderTargetPosition(panelOrder.indexOf(id) + 1)
-    },
-    [panelOrder]
-  )
-
-  const applyOrderMove = useCallback(
-    (id: SettingsPanelId) => {
-      movePanelToPosition(id, orderTargetPosition)
-      setOrderMenuPanel(null)
-    },
-    [movePanelToPosition, orderTargetPosition]
-  )
-
-  const renderOrderControl = (id: SettingsPanelId, label: string) => (
-    <div className="settings-order-control">
-      <button
-        type="button"
-        className="settings-drag-icon"
-        draggable
-        onDragStart={handlePanelDragStart(id)}
-        onDragEnd={() => {
-          setDraggingPanel(null)
-          setDragOverPanel(null)
-        }}
-        onClick={(event) => {
-          event.stopPropagation()
-          openOrderMenu(id)
-        }}
-        title="Drag to reorder or click to set position"
-        aria-label={`Reorder ${label} panel`}
-      >
-        <GripIcon />
-      </button>
-      {orderMenuPanel === id ? (
-        <div
-          className={`settings-order-popover${settingsViewMode === 'grid' ? ' settings-order-popover-grid' : ''}`}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <label htmlFor={`panel-order-${id}`}>Position</label>
-          <div className="settings-order-row">
-            <select
-              id={`panel-order-${id}`}
-              value={orderTargetPosition}
-              onChange={(event) => setOrderTargetPosition(Number(event.target.value))}
-            >
-              {panelOrder.map((_, index) => (
-                <option key={`${id}-pos-${index + 1}`} value={index + 1}>
-                  {index + 1}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="btn btn-secondary" onClick={() => applyOrderMove(id)}>
-              Move
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setOrderMenuPanel(null)}>
-              Close
-            </button>
-          </div>
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-order-grid-controls">
-              <label htmlFor={`grid-col-1-${id}`}>Grid col 1</label>
-              <input
-                id={`grid-col-1-${id}`}
-                type="range"
-                min={320}
-                max={720}
-                value={settingsGridBounds.col1}
-                onPointerDown={() => {
-                  suspendGridAutoFitRef.current = true
-                }}
-                onPointerUp={releaseGridBoundsDrag}
-                onPointerCancel={releaseGridBoundsDrag}
-                onChange={(event) => updateGridBounds('col1', Number(event.target.value))}
-              />
-              <label htmlFor={`grid-col-2-${id}`}>Grid col 2</label>
-              <input
-                id={`grid-col-2-${id}`}
-                type="range"
-                min={260}
-                max={560}
-                value={settingsGridBounds.col2}
-                onPointerDown={() => {
-                  suspendGridAutoFitRef.current = true
-                }}
-                onPointerUp={releaseGridBoundsDrag}
-                onPointerCancel={releaseGridBoundsDrag}
-                onChange={(event) => updateGridBounds('col2', Number(event.target.value))}
-              />
-              <label htmlFor={`grid-col-3-${id}`}>Grid col 3</label>
-              <input
-                id={`grid-col-3-${id}`}
-                type="range"
-                min={260}
-                max={560}
-                value={settingsGridBounds.col3}
-                onPointerDown={() => {
-                  suspendGridAutoFitRef.current = true
-                }}
-                onPointerUp={releaseGridBoundsDrag}
-                onPointerCancel={releaseGridBoundsDrag}
-                onChange={(event) => updateGridBounds('col3', Number(event.target.value))}
-              />
-              <label htmlFor={`grid-gap-${id}`}>Gap</label>
-              <input
-                id={`grid-gap-${id}`}
-                type="range"
-                min={8}
-                max={28}
-                value={settingsGridBounds.gap}
-                onPointerDown={() => {
-                  suspendGridAutoFitRef.current = true
-                }}
-                onPointerUp={releaseGridBoundsDrag}
-                onPointerCancel={releaseGridBoundsDrag}
-                onChange={(event) => updateGridBounds('gap', Number(event.target.value))}
-              />
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={settingsGridBounds.showGuides}
-                  onChange={(event) =>
-                    setSettingsGridBounds((prev) => ({ ...prev, showGuides: event.target.checked }))
-                  }
-                />
-                <span>Show bounds</span>
-              </label>
-              <button
-                type="button"
-                className="btn btn-secondary team-edit-trigger"
-                onClick={() => {
-                  pendingGridBoundsRef.current = DEFAULT_SETTINGS_GRID_BOUNDS
-                  setSettingsGridBounds(DEFAULT_SETTINGS_GRID_BOUNDS)
-                  releaseGridBoundsDrag()
-                }}
-              >
-                Reset default
-              </button>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  )
-
-
   return (
-    <section
-      ref={(node) => {
-        settingsPanelRootRef.current = node
-      }}
-      className={`panel settings-page-panel${gridResizeEnabled ? '' : ' settings-resize-disabled'}`}
-    >
+    <section className="panel settings-page-panel">
       <div className="panel-header">
         <div>
           <h2>Settings</h2>
         </div>
-        <div className="settings-view-switch">
-          <button
-            type="button"
-            className={`btn btn-secondary settings-view-icon-btn${settingsViewMode === 'grid' ? ' assign-toggle is-active' : ''}`}
-            onClick={() => setSettingsViewMode('grid')}
-            title="Grid view"
-            aria-label="Grid view"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" className="settings-view-icon-svg" aria-hidden="true">
-              <rect x="3" y="3" width="8" height="8" rx="1.4" fill="currentColor" />
-              <rect x="13" y="3" width="8" height="8" rx="1.4" fill="currentColor" />
-              <rect x="3" y="13" width="8" height="8" rx="1.4" fill="currentColor" />
-              <rect x="13" y="13" width="8" height="8" rx="1.4" fill="currentColor" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className={`btn btn-secondary settings-view-icon-btn${settingsViewMode === 'tabs' ? ' assign-toggle is-active' : ''}`}
-            onClick={() => setSettingsViewMode('tabs')}
-            title="Tab view"
-            aria-label="Tab view"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" className="settings-view-icon-svg" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="3" rx="1.2" fill="currentColor" />
-              <rect x="3" y="10.5" width="18" height="3" rx="1.2" fill="currentColor" />
-              <rect x="3" y="17" width="18" height="3" rx="1.2" fill="currentColor" />
-            </svg>
-          </button>
-        </div>
       </div>
-      {settingsViewMode === 'tabs' ? (
-        <div className="settings-tabs-bar" data-tour="settings-tabs-bar">
-          {SETTINGS_PANEL_IDS.map((id) => (
-            <button
-              key={`tab-${id}`}
-              type="button"
-              className={`btn btn-secondary${activeTabPanel === id ? ' assign-toggle is-active' : ''}`}
-              onClick={() => setActiveTabPanel(id)}
-            >
-              <span className="settings-tab-icon">{SETTINGS_PANEL_ICONS[id]}</span>
-              {SETTINGS_PANEL_LABELS[id]}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      <div
-        className={`settings-grid${settingsViewMode === 'tabs' ? ' settings-tabs-mode' : ''}${settingsViewMode === 'grid' && settingsGridBounds.showGuides ? ' settings-grid-guides' : ''}`}
-        style={settingsGridStyle}
-      >
+      <div className="settings-tabs-bar" data-tour="settings-tabs-bar">
+        {SETTINGS_PANEL_IDS.map((id) => (
+          <button
+            key={`tab-${id}`}
+            type="button"
+            className={`btn btn-secondary${activeTabPanel === id ? ' assign-toggle is-active' : ''}`}
+            onClick={() => setActiveTabPanel(id)}
+          >
+            <span className="settings-tab-icon">{SETTINGS_PANEL_ICONS[id]}</span>
+            {SETTINGS_PANEL_LABELS[id]}
+          </button>
+        ))}
+      </div>
+      <div className="settings-grid settings-tabs-mode">
         <div
-          className={`card settings-card settings-card-compact${draggingPanel === 'preferences' ? ' is-dragging' : ''}${dragOverPanel === 'preferences' ? ' is-drop-target' : ''}${isTabVisible('preferences') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card settings-card-compact${activeTabPanel === 'preferences' ? '' : ' settings-card-hidden'}`}
           data-panel-id="preferences"
-          ref={setPanelRef('preferences')}
-          style={panelCardStyle('preferences')}
-          onDragOver={handlePanelDragOver('preferences')}
-          onDragLeave={handlePanelDragLeave('preferences')}
-          onDrop={handlePanelDrop('preferences')}
         >
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle top" onMouseDown={handleResizeStart('preferences', 'top')} />
-          ) : null}
           <div className="panel-header settings-card-handle">
             <div>
               <h3>Preferences</h3>
             </div>
-            {settingsViewMode === 'grid' ? renderOrderControl('preferences', 'Preferences') : null}
           </div>
-          <div className={`settings-card-body roles-layout${settingsViewMode === 'tabs' ? ' roles-layout-tabs' : ''}`}>
+          <div className="settings-card-body roles-layout roles-layout-tabs">
             <div className="workspace-group roles-list-group">
               <div className="settings-tab-two-col">
-                <SettingsPreferencesPanel
-                  preferences={preferences}
-                  onChange={onChange}
-                  onSettingsViewModeChange={setSettingsViewMode}
-                />
-                <div className="settings-tab-side">
-                  <button
-                    type="button"
-                    className="coming-soon-toggle"
-                    onClick={() => toggleComingSoon('preferences')}
-                    aria-expanded={comingSoonExpanded.preferences}
-                  >
-                    <span>Coming soon</span>
-                    <span className={`coming-soon-chevron${comingSoonExpanded.preferences ? ' is-open' : ''}`} aria-hidden="true">
-                      <SettingsChevronIcon open={comingSoonExpanded.preferences} />
-                    </span>
-                  </button>
-                  {comingSoonExpanded.preferences ? (
-                    <>
-                      <div className="form-field coming-soon-control" title="Coming soon">
-                        <label className="checkbox-row">
-                          <input type="checkbox" checked={preferences.compactMode} disabled />
-                          <span>Compact mode</span>
-                        </label>
-                        <span className="pill coming-soon-pill">Soon</span>
-                      </div>
-                      <div className="form-field coming-soon-control" title="Coming soon">
-                        <label className="checkbox-row">
-                          <input type="checkbox" checked={preferences.rememberOpenPanels} disabled />
-                          <span>Remember open panels</span>
-                        </label>
-                        <span className="pill coming-soon-pill">Soon</span>
-                      </div>
-                      <div className="form-field coming-soon-control" title="Coming soon">
-                        <label className="checkbox-row">
-                          <input type="checkbox" checked={preferences.defaultFiltersPreset} disabled />
-                          <span>Default filters preset</span>
-                        </label>
-                        <span className="pill coming-soon-pill">Soon</span>
-                      </div>
-                      <div className="form-field coming-soon-control" title="Coming soon">
-                        <label htmlFor="prefAutoRefresh">Auto-refresh interval</label>
-                        <select id="prefAutoRefresh" value={preferences.autoRefreshIntervalSeconds} disabled>
-                          <option value={0}>Off</option>
-                          <option value={30}>30s</option>
-                          <option value={60}>60s</option>
-                        </select>
-                        <span className="pill coming-soon-pill">Soon</span>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
+                <SettingsPreferencesPanel preferences={preferences} onChange={onChange} />
               </div>
             </div>
           </div>
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('preferences', 'bottom')} />
-          ) : null}
         </div>
         <div
-          className={`card settings-card${draggingPanel === 'workspaces' ? ' is-dragging' : ''}${dragOverPanel === 'workspaces' ? ' is-drop-target' : ''}${isTabVisible('workspaces') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${activeTabPanel === 'workspaces' ? '' : ' settings-card-hidden'}`}
           data-panel-id="workspaces"
           data-tour="settings-workspaces-card"
-          ref={setPanelRef('workspaces')}
-          style={panelCardStyle('workspaces')}
-          onDragOver={handlePanelDragOver('workspaces')}
-          onDragLeave={handlePanelDragLeave('workspaces')}
-          onDrop={handlePanelDrop('workspaces')}
         >
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle top" onMouseDown={handleResizeStart('workspaces', 'top')} />
-          ) : null}
           <div className="panel-header settings-card-handle">
             <div>
               <h3>Workspaces</h3>
             </div>
-            {settingsViewMode === 'grid' ? renderOrderControl('workspaces', 'Workspaces') : null}
           </div>
           <div className="settings-card-body">
-            <div className={`workspace-main-layout${settingsViewMode === 'tabs' ? ' workspace-main-layout-tabs' : ''}`}>
+            <div className={`workspace-main-layout workspace-main-layout-tabs`}>
               <div className="workspace-group workspace-section-your">
                 <div className="workspace-group-header">
                   <h4>Your workspaces</h4>
@@ -2037,198 +1354,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                             ) : null}
                           </div>
                         </div>
-                        {settingsViewMode !== 'tabs' &&
-                        workspaceProfileTargetId === workspace.id &&
-                        canEditWorkspaceProfileFor(workspace) ? (
-                          <div className="workspace-inline-editor">
-                            <div className="workspace-inline-editor-header">
-                              <strong className="truncate" title={workspace.name ?? ''}>
-                                Workspace profile
-                              </strong>
-                            </div>
-                            <div className="workspace-actions">
-                              <div className="workspace-row">
-                                <input
-                                  value={workspaceProfileName}
-                                  onChange={(event) => setWorkspaceProfileName(event.target.value)}
-                                  placeholder="Workspace name"
-                                />
-                                <input
-                                  value={workspaceProfileSlug}
-                                  onChange={(event) => setWorkspaceProfileSlug(event.target.value)}
-                                  placeholder="Slug (e.g. product-team)"
-                                />
-                              </div>
-                              <div className="workspace-row">
-                                <input
-                                  value={workspaceProfileLanguage}
-                                  onChange={(event) => setWorkspaceProfileLanguage(event.target.value)}
-                                  placeholder="Language (e.g. en-US)"
-                                />
-                              </div>
-                              <div className="workspace-row">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={workspaceProfileMaxProjects}
-                                  onChange={(event) => setWorkspaceProfileMaxProjects(event.target.value)}
-                                  placeholder="Max projects (0/empty = unlimited)"
-                                />
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={workspaceProfileMaxMembers}
-                                  onChange={(event) => setWorkspaceProfileMaxMembers(event.target.value)}
-                                  placeholder="Max members (0/empty = unlimited)"
-                                />
-                              </div>
-                              <div className="workspace-row">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={workspaceProfileMaxTeams}
-                                  onChange={(event) => setWorkspaceProfileMaxTeams(event.target.value)}
-                                  placeholder="Max teams (0/empty = unlimited)"
-                                />
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={workspaceProfileMaxStorageMb}
-                                  onChange={(event) => setWorkspaceProfileMaxStorageMb(event.target.value)}
-                                  placeholder="Max storage MB (0/empty = unlimited)"
-                                />
-                              </div>
-                              <div className="workspace-profile-avatar-panel">
-                                <div className="workspace-profile-avatar-preview">
-                                  <span className="workspace-avatar workspace-avatar-xl workspace-avatar-edit-preview" aria-hidden="true">
-                                    {workspaceProfileAvatarUrl.trim() ? (
-                                      <img
-                                        src={resolveAssetUrl(workspaceProfileAvatarUrl.trim())}
-                                        alt=""
-                                        className="framed-avatar-image"
-                                        style={getAvatarFrameStyle(workspaceProfileAvatarUrl)}
-                                        draggable={false}
-                                        onContextMenu={(event) => event.preventDefault()}
-                                      />
-                                    ) : (
-                                      <span>{(workspaceProfileName.trim() || workspace.name || 'W').slice(0, 1).toUpperCase()}</span>
-                                    )}
-                                  </span>
-                                  {workspaceProfileAvatarUrl.trim() ? (
-                                    <button
-                                      type="button"
-                                      className="avatar-thumb-delete"
-                                      title="Delete photo"
-                                      aria-label="Delete photo"
-                                      onClick={() => {
-                                        const ok = window.confirm('Delete workspace photo?')
-                                        if (!ok) return
-                                        void handleDeleteWorkspaceAvatar()
-                                      }}
-                                    disabled={workspaceProfileAvatarUploading || settingsBusy}
-                                  >
-                                    <span className="settings-icon-glyph" aria-hidden="true">
-                                      <SettingsCloseIcon />
-                                    </span>
-                                  </button>
-                                ) : null}
-                                </div>
-                                <div className="workspace-profile-avatar-actions">
-                                  <div className="workspace-profile-avatar-actions-row">
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary team-edit-trigger"
-                                      onClick={() => workspaceProfileAvatarFileRef.current?.click()}
-                                      disabled={workspaceProfileAvatarUploading || settingsBusy}
-                                    >
-                                      {workspaceProfileAvatarUploading ? 'Uploading...' : 'Update photo'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary team-edit-trigger"
-                                      onClick={() => void handleOpenWorkspaceCropFromCurrentPhoto()}
-                                      disabled={workspaceProfileAvatarUploading || settingsBusy || !workspaceProfileAvatarUrl.trim()}
-                                    >
-                                      Adjust crop
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn btn-ghost team-edit-trigger"
-                                      onClick={() => setWorkspacePmdImagesOpen((prev) => !prev)}
-                                      disabled={workspaceProfileAvatarUploading || settingsBusy || pmdImages.length === 0}
-                                    >
-                                      PMD images
-                                    </button>
-                                  </div>
-                                  <div className="workspace-profile-avatar-link-row">
-                                    <input
-                                      value={workspaceProfileAvatarUrl}
-                                      onChange={(event) => setWorkspaceProfileAvatarUrl(event.target.value)}
-                                      placeholder="Photo from link"
-                                    />
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary team-edit-trigger"
-                                      onClick={handleApplyWorkspaceAvatarFromLink}
-                                      disabled={workspaceProfileAvatarUploading || settingsBusy}
-                                    >
-                                      Apply
-                                    </button>
-                                  </div>
-                                  <div className="workspace-profile-avatar-meta">
-                                    <span className="muted">PNG/JPG/WEBP up to 2MB</span>
-                                  </div>
-                                  {workspacePmdImagesOpen ? <p className="muted">Select from PMD images window.</p> : null}
-                                </div>
-                                <input
-                                  ref={workspaceProfileAvatarFileRef}
-                                  type="file"
-                                  accept={AVATAR_ACCEPT}
-                                  onChange={handleUploadWorkspaceProfileAvatar}
-                                  style={{ display: 'none' }}
-                                />
-                              </div>
-                              <textarea
-                                value={workspaceProfileDescription}
-                                onChange={(event) => setWorkspaceProfileDescription(event.target.value)}
-                                placeholder="Workspace description"
-                                rows={3}
-                              />
-                              <label className="checkbox-row">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(workspace.requireApproval)}
-                                  onChange={(event) => handleToggleApproval(event.target.checked)}
-                                  disabled={settingsBusy || activeWorkspace?.id !== workspace.id}
-                                />
-                                <span>Require approval to join</span>
-                              </label>
-                              {activeWorkspace?.id !== workspace.id ? (
-                                <span className="muted">Switch to this workspace to change join approval policy.</span>
-                              ) : null}
-                              <div className="workspace-inline-actions">
-                                <button
-                                  type="button"
-                                  className="btn btn-primary"
-                                  onClick={handleSaveWorkspaceProfile}
-                                  disabled={settingsBusy}
-                                >
-                                  Save profile
-                                </button>
-                                {workspace.demo ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-danger team-edit-trigger"
-                                    onClick={handleResetDemo}
-                                    disabled={settingsBusy}
-                                  >
-                                    Reset demo
-                                  </button>
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -2303,7 +1428,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                 </div>
               </div>
             </div>
-            {settingsViewMode === 'tabs' && workspaceProfileTargetId && profileWorkspace && canEditSelectedProfile ? (
+            {workspaceProfileTargetId && profileWorkspace && canEditSelectedProfile ? (
               <div className="workspace-profile-overlay" onClick={() => setWorkspaceProfileTargetId(null)}>
                 <div
                   className="workspace-inline-editor workspace-inline-editor-overlay workspace-inline-editor-overlay-workspace"
@@ -2713,93 +1838,19 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       ) : null}
                     </div>
                   ) : null}
-                  {settingsViewMode === 'tabs' ? (
-                    <div className="workspace-subpanel workspace-subpanel-coming">
-                      <button
-                        type="button"
-                        className="coming-soon-toggle"
-                        onClick={() => toggleComingSoon('workspacesTabs')}
-                        aria-expanded={comingSoonExpanded.workspacesTabs}
-                      >
-                        <span>Coming soon</span>
-                        <span className={`coming-soon-chevron${comingSoonExpanded.workspacesTabs ? ' is-open' : ''}`} aria-hidden="true">
-                          <SettingsChevronIcon open={comingSoonExpanded.workspacesTabs} />
-                        </span>
-                      </button>
-                      {comingSoonExpanded.workspacesTabs ? (
-                        <div className="workspace-actions workspace-actions-stack">
-                          <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                            Member lifecycle (suspend/remove/re-activate) - Coming soon
-                          </button>
-                          <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                            Default role on join invite - Coming soon
-                          </button>
-                          <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                            Workspace limits (projects/members/storage) - Coming soon
-                          </button>
-                          <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                            Export/backup data (admin only) - Coming soon
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
-            {settingsViewMode !== 'tabs' ? (
-              <>
-                <div className="workspace-divider" />
-                <div className="workspace-group roles-actions-group">
-                  <button
-                    type="button"
-                    className="coming-soon-toggle"
-                    onClick={() => toggleComingSoon('workspacesGrid')}
-                    aria-expanded={comingSoonExpanded.workspacesGrid}
-                  >
-                    <span>Coming soon</span>
-                    <span className={`coming-soon-chevron${comingSoonExpanded.workspacesGrid ? ' is-open' : ''}`} aria-hidden="true">
-                      <SettingsChevronIcon open={comingSoonExpanded.workspacesGrid} />
-                    </span>
-                  </button>
-                  {comingSoonExpanded.workspacesGrid ? (
-                    <div className="workspace-actions">
-                      <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                        Member lifecycle (suspend/remove/re-activate) - Coming soon
-                      </button>
-                      <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                        Default role on join invite - Coming soon
-                      </button>
-                      <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                        Workspace limits (projects/members/storage) - Coming soon
-                      </button>
-                      <button type="button" className="btn btn-danger coming-soon-button" disabled>
-                        Export/backup data (admin only) - Coming soon
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </>
-            ) : null}
           </div>
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('workspaces', 'bottom')} />
-          ) : null}
         </div>
         <div
-          className={`card settings-card${draggingPanel === 'audit' ? ' is-dragging' : ''}${dragOverPanel === 'audit' ? ' is-drop-target' : ''}${isTabVisible('audit') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${activeTabPanel === 'audit' ? '' : ' settings-card-hidden'}`}
           data-panel-id="audit"
-          ref={setPanelRef('audit')}
-          style={panelCardStyle('audit')}
-          onDragOver={handlePanelDragOver('audit')}
-          onDragLeave={handlePanelDragLeave('audit')}
-          onDrop={handlePanelDrop('audit')}
         >
           {/* Audit card stays pinned at top in grid mode; only bottom resize is allowed. */}
           <div className="panel-header settings-card-handle">
             <div>
               <h3>Audit</h3>
             </div>
-            {settingsViewMode === 'grid' ? renderOrderControl('audit', 'Audit') : null}
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
@@ -2941,27 +1992,15 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               ) : null}
             </div>
           </div>
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('audit', 'bottom')} />
-          ) : null}
         </div>
         <div
-          className={`card settings-card${draggingPanel === 'teams' ? ' is-dragging' : ''}${dragOverPanel === 'teams' ? ' is-drop-target' : ''}${isTabVisible('teams') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${activeTabPanel === 'teams' ? '' : ' settings-card-hidden'}`}
           data-panel-id="teams"
-          ref={setPanelRef('teams')}
-          style={panelCardStyle('teams')}
-          onDragOver={handlePanelDragOver('teams')}
-          onDragLeave={handlePanelDragLeave('teams')}
-          onDrop={handlePanelDrop('teams')}
         >
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle top" onMouseDown={handleResizeStart('teams', 'top')} />
-          ) : null}
           <div className="panel-header settings-card-handle">
             <div>
               <h3>Teams</h3>
             </div>
-            {settingsViewMode === 'grid' ? renderOrderControl('teams', 'Teams') : null}
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
@@ -2997,127 +2036,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                           ) : null}
                         </div>
                       </div>
-                      {settingsViewMode !== 'tabs' && editingTeamId === team.id && canEditTeams ? (
-                        <div className="team-edit-box">
-                          <div className="workspace-inline-actions">
-                            <button
-                              type="button"
-                              className={`btn btn-ghost${editingTeamAction === 'rename' ? ' assign-toggle is-active' : ''}`}
-                              onClick={() => setEditingTeamAction('rename')}
-                            >
-                              Rename
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn btn-ghost${editingTeamAction === 'toggle' ? ' assign-toggle is-active' : ''}`}
-                              onClick={() => setEditingTeamAction('toggle')}
-                            >
-                              {team.isActive === false ? 'Activate' : 'Deactivate'}
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn btn-secondary team-edit-trigger settings-icon-action settings-icon-delete${editingTeamAction === 'delete' ? ' assign-toggle is-active' : ''}`}
-                              onClick={() => setEditingTeamAction('delete')}
-                              title="Delete"
-                              aria-label="Delete"
-                            >
-                              <span className="settings-icon-glyph" aria-hidden="true">
-                                <SettingsCloseIcon />
-                              </span>
-                            </button>
-                          </div>
-                          {editingTeamAction === 'rename' ? (
-                            <div className="team-edit-rename">
-                              <input
-                                value={editingTeamName}
-                                onChange={(event) => {
-                                  setEditingTeamName(event.target.value)
-                                  if (teamError) setTeamError(null)
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter') {
-                                    event.preventDefault()
-                                    void handleConfirmTeamAction(team.id, team.isActive)
-                                  }
-                                  if (event.key === 'Escape') {
-                                    event.preventDefault()
-                                    handleCancelEditTeam()
-                                  }
-                                }}
-                                placeholder="New team name"
-                              />
-                              <div className="workspace-inline-actions color-picker-toggle-row">
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary team-edit-trigger settings-icon-action"
-                                  onClick={() => setEditingTeamColorPickerOpen((prev) => !prev)}
-                                  title={editingTeamColorPickerOpen ? 'Hide colors' : 'Choose color'}
-                                  aria-label={editingTeamColorPickerOpen ? 'Hide colors' : 'Choose color'}
-                                  aria-expanded={editingTeamColorPickerOpen}
-                                >
-                                  <span className="settings-icon-glyph" aria-hidden="true">
-                                    <SettingsChevronIcon open={editingTeamColorPickerOpen} />
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary team-edit-trigger settings-icon-action"
-                                  onClick={handleRandomEditingTeamColor}
-                                  title="Random unique color"
-                                  aria-label="Random unique color"
-                                >
-                                  <span className="settings-icon-glyph" aria-hidden="true">
-                                    <SettingsDiceIcon />
-                                  </span>
-                                </button>
-                                <span className="color-preview-swatch" style={{ backgroundColor: editingTeamColor }} title={editingTeamColor} />
-                              </div>
-                              {editingTeamColorPickerOpen ? (
-                                <div className="team-color-picker team-color-picker-edit" role="group" aria-label="Edit team color">
-                                  {TEAM_COLOR_PALETTE.map((color) => {
-                                    const selected = editingTeamColor === color
-                                    return (
-                                      <button
-                                        key={`edit-team-color-${team.id ?? team.name}-${color}`}
-                                        type="button"
-                                        className={`team-color-swatch${selected ? ' is-selected' : ''}`}
-                                        style={{ backgroundColor: color }}
-                                        onClick={() => {
-                                          setEditingTeamColor(color)
-                                          if (teamError) setTeamError(null)
-                                        }}
-                                        title={color}
-                                        aria-label={`Select color ${color}`}
-                                      />
-                                    )
-                                  })}
-                                </div>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <p className="muted team-edit-note">
-                              {editingTeamAction === 'delete'
-                                ? 'Delete will deactivate this team.'
-                                : editingTeamAction === 'toggle'
-                                  ? `This will ${team.isActive === false ? 'activate' : 'deactivate'} this team.`
-                                  : 'Choose an action.'}
-                            </p>
-                          )}
-                          <div className="workspace-inline-actions">
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={() => void handleConfirmTeamAction(team.id, team.isActive)}
-                              disabled={!editingTeamAction}
-                            >
-                              Confirm
-                            </button>
-                            <button type="button" className="btn btn-ghost" onClick={handleCancelEditTeam}>
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -3205,7 +2123,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               </div>
             </div>
           </div>
-          {settingsViewMode === 'tabs' && editingTeam && canEditTeams ? (
+          {editingTeam && canEditTeams ? (
             <div className="workspace-profile-overlay" onClick={handleCancelEditTeam}>
               <div
                 className="workspace-inline-editor workspace-inline-editor-overlay workspace-inline-editor-overlay-team"
@@ -3340,27 +2258,15 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               </div>
             </div>
           ) : null}
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('teams', 'bottom')} />
-          ) : null}
         </div>
         <div
-          className={`card settings-card${draggingPanel === 'notifications' ? ' is-dragging' : ''}${dragOverPanel === 'notifications' ? ' is-drop-target' : ''}${isTabVisible('notifications') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${activeTabPanel === 'notifications' ? '' : ' settings-card-hidden'}`}
           data-panel-id="notifications"
-          ref={setPanelRef('notifications')}
-          style={panelCardStyle('notifications')}
-          onDragOver={handlePanelDragOver('notifications')}
-          onDragLeave={handlePanelDragLeave('notifications')}
-          onDrop={handlePanelDrop('notifications')}
         >
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle top" onMouseDown={handleResizeStart('notifications', 'top')} />
-          ) : null}
           <div className="panel-header settings-card-handle">
             <div>
               <h3>Notifications</h3>
             </div>
-            {settingsViewMode === 'grid' ? renderOrderControl('notifications', 'Notifications') : null}
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
@@ -3376,85 +2282,21 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                     onToggle={handleNotificationToggle}
                     onEnableBrowser={handleEnableBrowserNotifications}
                   />
-                  <div className="settings-tab-side">
-                    <button
-                      type="button"
-                      className="coming-soon-toggle"
-                      onClick={() => toggleComingSoon('notifications')}
-                      aria-expanded={comingSoonExpanded.notifications}
-                    >
-                      <span>Coming soon</span>
-                      <span className={`coming-soon-chevron${comingSoonExpanded.notifications ? ' is-open' : ''}`} aria-hidden="true">
-                        <SettingsChevronIcon open={comingSoonExpanded.notifications} />
-                      </span>
-                    </button>
-                    {comingSoonExpanded.notifications ? (
-                      <>
-                        <div className="form-field coming-soon-control" title="Coming soon">
-                          <label className="checkbox-row">
-                            <input type="checkbox" disabled />
-                            <span>Digest mode (hourly/daily)</span>
-                          </label>
-                          <span className="pill coming-soon-pill">Soon</span>
-                        </div>
-                        <div className="form-field coming-soon-control" title="Coming soon">
-                          <label className="checkbox-row">
-                            <input type="checkbox" disabled />
-                            <span>In-app notification center</span>
-                          </label>
-                          <span className="pill coming-soon-pill">Soon</span>
-                        </div>
-                        <div className="form-field coming-soon-control" title="Coming soon">
-                          <label className="checkbox-row">
-                            <input type="checkbox" disabled />
-                            <span>Per-workspace notification profile</span>
-                          </label>
-                          <span className="pill coming-soon-pill">Soon</span>
-                        </div>
-                        <div className="form-field coming-soon-control" title="Coming soon">
-                          <label className="checkbox-row">
-                            <input type="checkbox" disabled />
-                            <span>Quiet hours</span>
-                          </label>
-                          <span className="pill coming-soon-pill">Soon</span>
-                        </div>
-                        <div className="form-field coming-soon-control" title="Coming soon">
-                          <label className="checkbox-row">
-                            <input type="checkbox" disabled />
-                            <span>Snooze notifications</span>
-                          </label>
-                          <span className="pill coming-soon-pill">Soon</span>
-                        </div>
-                      </>
-                    ) : null}
-                  </div>
                 </div>
               ) : (
                 <p className="muted">Loading preferences...</p>
               )}
             </div>
           </div>
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('notifications', 'bottom')} />
-          ) : null}
         </div>
         <div
-          className={`card settings-card${draggingPanel === 'roles' ? ' is-dragging' : ''}${dragOverPanel === 'roles' ? ' is-drop-target' : ''}${isTabVisible('roles') ? '' : ' settings-card-hidden'}`}
+          className={`card settings-card${activeTabPanel === 'roles' ? '' : ' settings-card-hidden'}`}
           data-panel-id="roles"
-          ref={setPanelRef('roles')}
-          style={panelCardStyle('roles')}
-          onDragOver={handlePanelDragOver('roles')}
-          onDragLeave={handlePanelDragLeave('roles')}
-          onDrop={handlePanelDrop('roles')}
         >
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle top" onMouseDown={handleResizeStart('roles', 'top')} />
-          ) : null}
           <div className="panel-header settings-card-handle">
             <div>
               <h3>Roles</h3>
             </div>
-            {settingsViewMode === 'grid' ? renderOrderControl('roles', 'Roles') : null}
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
@@ -3500,130 +2342,6 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                           ) : null}
                         </div>
                       </div>
-                      {settingsViewMode !== 'tabs' && editingRoleId === role.id && canEditRoles ? (
-                        <div className="team-edit-box">
-                          <div className="workspace-inline-actions">
-                            <button
-                              type="button"
-                              className={`btn btn-ghost${editingRoleAction === 'rename' ? ' assign-toggle is-active' : ''}`}
-                              onClick={() => setEditingRoleAction('rename')}
-                              disabled={Boolean(role.system)}
-                              title={role.system ? 'Demo/System role name is fixed.' : undefined}
-                            >
-                              Rename
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn btn-ghost${editingRoleAction === 'permissions' ? ' assign-toggle is-active' : ''}`}
-                              onClick={() => setEditingRoleAction('permissions')}
-                            >
-                              Permissions
-                            </button>
-                            {role.system ? (
-                              <button
-                                type="button"
-                                className={`btn btn-ghost${editingRoleAction === 'reset' ? ' assign-toggle is-active' : ''}`}
-                                onClick={() => setEditingRoleAction('reset')}
-                              >
-                                Reset default
-                              </button>
-                            ) : null}
-                          </div>
-                          {editingRoleAction === 'rename' ? (
-                            <div className="team-edit-rename">
-                              <input
-                                value={editingRoleName}
-                                onChange={(event) => setEditingRoleName(event.target.value)}
-                                placeholder="Role name"
-                                disabled={Boolean(role.system)}
-                              />
-                              <div className="workspace-inline-actions color-picker-toggle-row">
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary team-edit-trigger settings-icon-action"
-                                  onClick={() => setEditingRoleColorPickerOpen((prev) => !prev)}
-                                  title={editingRoleColorPickerOpen ? 'Hide colors' : 'Choose color'}
-                                  aria-label={editingRoleColorPickerOpen ? 'Hide colors' : 'Choose color'}
-                                  aria-expanded={editingRoleColorPickerOpen}
-                                >
-                                  <span className="settings-icon-glyph" aria-hidden="true">
-                                    <SettingsChevronIcon open={editingRoleColorPickerOpen} />
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary team-edit-trigger settings-icon-action"
-                                  onClick={handleRandomEditingRoleColor}
-                                  title="Random unique color"
-                                  aria-label="Random unique color"
-                                >
-                                  <span className="settings-icon-glyph" aria-hidden="true">
-                                    <SettingsDiceIcon />
-                                  </span>
-                                </button>
-                                <span className="color-preview-swatch" style={{ backgroundColor: editingRoleBadgeColor }} title={editingRoleBadgeColor} />
-                              </div>
-                              {editingRoleColorPickerOpen ? (
-                                <div className="team-color-picker role-badge-color-picker" role="group" aria-label="Edit role color">
-                                  {TEAM_COLOR_PALETTE.map((color) => {
-                                    const selected = editingRoleBadgeColor === color
-                                    return (
-                                      <button
-                                        key={`edit-role-color-${role.id ?? role.name}-${color}`}
-                                        type="button"
-                                        className={`team-color-swatch${selected ? ' is-selected' : ''}`}
-                                        style={{ backgroundColor: color }}
-                                        onClick={() => setEditingRoleBadgeColor(color)}
-                                        title={color}
-                                        aria-label={`Select role color ${color}`}
-                                      />
-                                    )
-                                  })}
-                                </div>
-                              ) : null}
-                            </div>
-                          ) : null}
-                          {editingRoleAction === 'permissions' ? (
-                            <div className="settings-permissions">
-                              {ROLE_PERMISSION_GROUPS.map((group) => (
-                                <div key={`inline-edit-${group.label}`} className="settings-permission-group">
-                                  <div className="settings-permission-title">{group.label}</div>
-                                  {group.items.map((item) => (
-                                    <label key={item.key} className="checkbox-row">
-                                      <input
-                                        type="checkbox"
-                                        checked={Boolean(editingRolePermissions?.[item.key])}
-                                        onChange={() =>
-                                          setEditingRolePermissions((prev) => toggleRolePermission(prev, item.key))
-                                        }
-                                      />
-                                      <span>{item.label}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                          {editingRoleAction === 'reset' ? (
-                            <p className="muted team-edit-note">
-                              This will restore the default permission set for this {activeWorkspace?.demo ? 'demo' : 'system'} role.
-                            </p>
-                          ) : null}
-                          <div className="workspace-inline-actions">
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={() => void handleConfirmRoleAction()}
-                              disabled={!editingRoleAction}
-                            >
-                              Confirm
-                            </button>
-                            <button type="button" className="btn btn-ghost" onClick={handleCancelEditRole}>
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -3767,7 +2485,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               </div>
             </div>
           </div>
-          {settingsViewMode === 'tabs' && editingRole && canEditRoles ? (
+          {editingRole && canEditRoles ? (
             <div className="workspace-profile-overlay" onClick={handleCancelEditRole}>
               <div
                 className="workspace-inline-editor workspace-inline-editor-overlay workspace-inline-editor-overlay-role"
@@ -3912,21 +2630,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
               </div>
             </div>
           ) : null}
-          {settingsViewMode === 'grid' ? (
-            <div className="settings-resize-handle bottom" onMouseDown={handleResizeStart('roles', 'bottom')} />
-          ) : null}
         </div>
-        {draggingPanel && settingsViewMode === 'grid' ? (
-          <div
-            className={`settings-empty-slot${draggingPanel ? ' is-active' : ''}${dragOverPanel === 'end' ? ' is-drop-target' : ''}`}
-            style={{ order: panelOrder.length + 1 }}
-            onDragOver={handlePanelDragOver('end')}
-            onDragLeave={handlePanelDragLeave('end')}
-            onDrop={handlePanelDrop('end')}
-          >
-            Drop Here
-          </div>
-        ) : null}
       </div>
       {workspacePmdImagesOpen ? (
         <div className="modal-overlay profile-avatar-context-overlay" onClick={() => setWorkspacePmdImagesOpen(false)}>

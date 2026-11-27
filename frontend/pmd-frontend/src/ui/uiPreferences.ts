@@ -6,13 +6,7 @@ export type UiPreferences = {
   confirmDestructiveActions: boolean
   keyboardShortcutsEnabled: boolean
   dateTimeFormat: '24h' | '12h'
-  compactMode: boolean
-  rememberOpenPanels: boolean
-  defaultFiltersPreset: boolean
-  autoRefreshIntervalSeconds: 0 | 30 | 60
   requireTeamOnProjectCreate: boolean
-  settingsGridResizeEnabled: boolean
-  settingsDefaultView: 'grid' | 'tabs'
 }
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -23,13 +17,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   confirmDestructiveActions: true,
   keyboardShortcutsEnabled: true,
   dateTimeFormat: '24h',
-  compactMode: false,
-  rememberOpenPanels: false,
-  defaultFiltersPreset: false,
-  autoRefreshIntervalSeconds: 0,
   requireTeamOnProjectCreate: false,
-  settingsGridResizeEnabled: false,
-  settingsDefaultView: 'grid',
 }
 
 const STORAGE_KEY = 'pmd_ui_preferences_v2'
@@ -41,14 +29,6 @@ function normalizeLandingPage(value: unknown): UiPreferences['defaultLandingPage
 
 function normalizeDateTimeFormat(value: unknown): UiPreferences['dateTimeFormat'] {
   return value === '12h' ? '12h' : '24h'
-}
-
-function normalizeAutoRefresh(value: unknown): UiPreferences['autoRefreshIntervalSeconds'] {
-  return value === 30 || value === 60 ? value : 0
-}
-
-function normalizeSettingsDefaultView(value: unknown): UiPreferences['settingsDefaultView'] {
-  return value === 'tabs' ? 'tabs' : 'grid'
 }
 
 export function loadUiPreferences(): UiPreferences {
@@ -71,13 +51,7 @@ export function loadUiPreferences(): UiPreferences {
       keyboardShortcutsEnabled:
         parsed.keyboardShortcutsEnabled === undefined ? true : Boolean(parsed.keyboardShortcutsEnabled),
       dateTimeFormat: normalizeDateTimeFormat(parsed.dateTimeFormat),
-      compactMode: Boolean(parsed.compactMode),
-      rememberOpenPanels: Boolean(parsed.rememberOpenPanels),
-      defaultFiltersPreset: Boolean(parsed.defaultFiltersPreset),
-      autoRefreshIntervalSeconds: normalizeAutoRefresh(parsed.autoRefreshIntervalSeconds),
       requireTeamOnProjectCreate: Boolean(parsed.requireTeamOnProjectCreate),
-      settingsGridResizeEnabled: Boolean(parsed.settingsGridResizeEnabled),
-      settingsDefaultView: normalizeSettingsDefaultView(parsed.settingsDefaultView),
     }
   } catch {
     return { ...DEFAULT_UI_PREFERENCES }

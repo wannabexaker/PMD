@@ -1,19 +1,16 @@
 import type { UiPreferences } from '../../ui/uiPreferences'
-import type { SettingsViewMode } from './settingsConfig'
 
 type SettingsPreferencesPanelProps = {
   preferences: UiPreferences
   onChange: (next: UiPreferences) => void
-  onSettingsViewModeChange: (mode: SettingsViewMode) => void
 }
 
 /**
- * Body of the Settings > Preferences panel (landing page, default view,
- * remember toggles, keyboard shortcuts, require-team, grid-resize, date/time
- * format). The shared panel chrome and the "Coming soon" side stay in
- * SettingsPage; this body is pure: it reads preferences and emits onChange.
+ * Body of the Settings > Preferences panel (landing page, remember toggles,
+ * keyboard shortcuts, require-team, date/time format). The shared panel chrome
+ * stays in SettingsPage; this body is pure: it reads preferences and emits onChange.
  */
-export function SettingsPreferencesPanel({ preferences, onChange, onSettingsViewModeChange }: SettingsPreferencesPanelProps) {
+export function SettingsPreferencesPanel({ preferences, onChange }: SettingsPreferencesPanelProps) {
   return (
                 <div className="settings-tab-main">
                   <div className="form-field">
@@ -33,24 +30,6 @@ export function SettingsPreferencesPanel({ preferences, onChange, onSettingsView
                       <option value="people">People</option>
                       <option value="settings">Settings</option>
                       <option value="lastVisited">Last visited route</option>
-                    </select>
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="prefSettingsDefaultView">Default settings view</label>
-                    <select
-                      id="prefSettingsDefaultView"
-                      value={preferences.settingsDefaultView}
-                      onChange={(event) => {
-                        const nextView = (event.target.value === 'tabs' ? 'tabs' : 'grid') as UiPreferences['settingsDefaultView']
-                        onChange({
-                          ...preferences,
-                          settingsDefaultView: nextView,
-                        })
-                        onSettingsViewModeChange(nextView)
-                      }}
-                    >
-                      <option value="grid">Grid view</option>
-                      <option value="tabs">Tab view</option>
                     </select>
                   </div>
                   <div className="form-field">
@@ -141,21 +120,6 @@ export function SettingsPreferencesPanel({ preferences, onChange, onSettingsView
                         }
                       />
                       <span>Require team when creating project</span>
-                    </label>
-                  </div>
-                  <div className="form-field">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={preferences.settingsGridResizeEnabled}
-                        onChange={(event) =>
-                          onChange({
-                            ...preferences,
-                            settingsGridResizeEnabled: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>Enable settings grid panel resize</span>
                     </label>
                   </div>
                   <div className="form-field">

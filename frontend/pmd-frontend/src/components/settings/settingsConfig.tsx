@@ -6,29 +6,13 @@
  * rule is disabled because this module intentionally colocates the small panel
  * icons with their config (same pattern as ToastProvider).
  */
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { WorkspacePermissions, NotificationPreferences } from '../../types'
 import type { UiPreferences } from '../../ui/uiPreferences'
 
 export type SettingsPanelId = 'preferences' | 'workspaces' | 'teams' | 'notifications' | 'roles' | 'audit'
-export type SettingsViewMode = 'grid' | 'tabs'
-export type SettingsGridStyleVars = CSSProperties & {
-  '--settings-col-1': string
-  '--settings-col-2': string
-  '--settings-col-3': string
-  '--settings-grid-gap': string
-}
 
 export const SETTINGS_PANEL_IDS: SettingsPanelId[] = ['workspaces', 'teams', 'roles', 'audit', 'preferences', 'notifications']
-
-export const SETTINGS_PANEL_ORDER_DEFAULT: SettingsPanelId[] = [
-  'workspaces',
-  'teams',
-  'roles',
-  'audit',
-  'preferences',
-  'notifications',
-]
 
 export const SETTINGS_PANEL_LABELS: Record<SettingsPanelId, string> = {
   workspaces: 'Workspaces',
@@ -96,36 +80,6 @@ export const TEAM_COLOR_PALETTE: string[] = [
   '#0EA5A4', '#22D3EE', '#38BDF8', '#60A5FA', '#818CF8', '#A78BFA', '#C084FC', '#5EEAD4',
 ]
 
-export const PANEL_MIN_HEIGHT: Record<SettingsPanelId, number> = {
-  preferences: 200,
-  workspaces: 200,
-  teams: 200,
-  notifications: 200,
-  roles: 200,
-  audit: 200,
-}
-
-export const PANEL_MAX_HEIGHT: Record<SettingsPanelId, number> = {
-  preferences: 12000,
-  workspaces: 12000,
-  teams: 12000,
-  notifications: 12000,
-  roles: 12000,
-  audit: 12000,
-}
-
-export const getDefaultPanelHeights = (): Record<SettingsPanelId, number> => {
-  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1080
-  const baseHeight = Math.max(560, Math.round(viewportHeight * 0.72))
-  return {
-    preferences: Math.max(PANEL_MIN_HEIGHT.preferences, Math.min(PANEL_MAX_HEIGHT.preferences, baseHeight)),
-    workspaces: Math.max(PANEL_MIN_HEIGHT.workspaces, Math.min(PANEL_MAX_HEIGHT.workspaces, baseHeight)),
-    teams: Math.max(PANEL_MIN_HEIGHT.teams, Math.min(PANEL_MAX_HEIGHT.teams, baseHeight)),
-    notifications: Math.max(PANEL_MIN_HEIGHT.notifications, Math.min(PANEL_MAX_HEIGHT.notifications, baseHeight)),
-    roles: Math.max(PANEL_MIN_HEIGHT.roles, Math.min(PANEL_MAX_HEIGHT.roles, baseHeight)),
-    audit: Math.max(PANEL_MIN_HEIGHT.audit, Math.min(PANEL_MAX_HEIGHT.audit, baseHeight)),
-  }
-}
 export const MAX_CUSTOM_ROLES_PER_WORKSPACE = 10
 
 export const ROLE_PERMISSION_GROUPS: { label: string; items: { key: keyof WorkspacePermissions; label: string }[] }[] = [
@@ -291,21 +245,12 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 
 export const AUDIT_CATEGORIES = ['WORKSPACE', 'MEMBERSHIP', 'INVITE', 'REQUEST', 'TEAM', 'ROLE', 'PROJECT', 'GENERAL']
 
-export const DEFAULT_SETTINGS_GRID_BOUNDS = {
-  col1: 430,
-  col2: 320,
-  col3: 320,
-  gap: 16,
-  showGuides: true,
-}
-
 export type SettingsPageProps = {
   preferences: UiPreferences
   onChange: (next: UiPreferences) => void
 }
 
 export type SavedCropState = { x: number; y: number; zoom: number }
-export type ComingSoonSectionId = 'preferences' | 'notifications' | 'workspacesGrid' | 'workspacesTabs'
 export const WORKSPACE_CROP_STORAGE_KEY = 'pmd.workspacePictureCropByUrl'
 
 export function loadSavedCropMap(storageKey: string): Record<string, SavedCropState> {
