@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Logo } from './Logo'
 import type { RegisterPayload, RegisterResponse } from '../types'
 import { useToast } from '../shared/ui/toast/ToastProvider'
@@ -32,6 +32,9 @@ const PASSWORD_REQUIREMENTS = [
   { key: 'digit', label: 'One number', test: (value: string) => /\d/.test(value) },
   { key: 'symbol', label: 'One symbol', test: (value: string) => /[^A-Za-z0-9]/.test(value) },
 ]
+
+// A light shape check: the form uses noValidate, so the browser no longer checks type="email".
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const COMMON_PASSWORDS = new Set([
   '123456',
@@ -72,35 +75,30 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
   const [outcome, setOutcome] = useState<RegisterOutcome | null>(null)
   const [confirmTouched, setConfirmTouched] = useState(false)
   const [showPasswordHints, setShowPasswordHints] = useState(false)
-  const passwordHintsRef = useRef<HTMLDivElement | null>(null)
 
   // Keep the bot-check hidden until the user actually engages with the password.
   const showTurnstile = isTurnstileEnabled && (passwordTouched || form.password.length > 0)
-
-  useEffect(() => {
-    if (!showPasswordHints) {
-      return
-    }
-    const onMouseDown = (event: MouseEvent) => {
-      if (!passwordHintsRef.current) {
-        return
-      }
-      if (!passwordHintsRef.current.contains(event.target as Node)) {
-        setShowPasswordHints(false)
-      }
-    }
-    document.addEventListener('mousedown', onMouseDown)
-    return () => {
-      document.removeEventListener('mousedown', onMouseDown)
-    }
-  }, [showPasswordHints])
 
   const handleChange: React.ChangeEventHandler<
     HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
   > = (event) => {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
+    setFieldErrors((prev) => (prev[name] ? { ...prev, [name]: '' } : prev))
   }
+
+  // The requirements popover overlaps the fields below it, so it closes as soon as focus
+  // leaves the password field (Tab to the next field, or a click anywhere else).
+  const handlePasswordFieldBlur: React.FocusEventHandler<HTMLDivElement> = (event) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setShowPasswordHints(false)
+    }
+  }
+
+  const invalidProps = (name: string) =>
+    fieldErrors[name]
+      ? { 'aria-invalid': true as const, 'aria-describedby': `${name}-error` }
+      : {}
 
   // A demo whose backend is switched off should say so, not let a sign-up fail with a 502.
   const { status: backendStatus, recheck: recheckBackend } = useBackendStatus()
@@ -117,6 +115,8 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
     const errors: Record<string, string> = {}
     if (!form.email.trim()) {
       errors.email = 'Email is required.'
+    } else if (!EMAIL_PATTERN.test(form.email.trim())) {
+      errors.email = 'Enter a valid email address.'
     }
     if (!form.password.trim()) {
       errors.password = 'Password is required.'
@@ -142,14 +142,13 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
     if ((form.bio ?? '').length > 256) {
       errors.bio = 'Bio must be 256 characters or less.'
     }
+    if (!acceptedTerms) {
+      errors.acceptedTerms = 'Please accept the Terms of Use and Privacy Policy to continue.'
+    }
     if (Object.keys(errors).length > 0) {
       setConfirmTouched(true)
       setFieldErrors(errors)
       showToast({ type: 'error', message: getAuthNotification('register_form_invalid').message })
-      return
-    }
-    if (!acceptedTerms) {
-      showToast({ type: 'error', message: 'Please accept the Terms of Use and Privacy Policy to continue.' })
       return
     }
     if (isTurnstileEnabled && !turnstileToken) {
@@ -200,13 +199,16 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
 
   const trimmedPassword = form.password.trim()
   const trimmedConfirm = form.confirmPassword.trim()
+  const confirmMatches = trimmedConfirm.length > 0 && trimmedPassword.length > 0 && trimmedPassword === trimmedConfirm
+  // Say it as soon as it is a real mismatch: once the confirmation is as long as the password,
+  // or the user has left the field. Not on every keystroke of a half-typed confirmation.
   const passwordMismatch =
-    confirmTouched &&
     trimmedConfirm.length > 0 &&
     trimmedPassword.length > 0 &&
-    trimmedPassword !== trimmedConfirm
-  const confirmMatches = trimmedConfirm.length > 0 && trimmedPassword.length > 0 && !passwordMismatch
-  const mismatchId = 'confirm-password-mismatch'
+    !confirmMatches &&
+    (confirmTouched || trimmedConfirm.length >= trimmedPassword.length)
+  const confirmError = fieldErrors.confirmPassword || (passwordMismatch ? 'Passwords do not match.' : '')
+  const mismatchId = 'confirmPassword-error'
 
   return (
     <section className="panel auth-card">
@@ -249,7 +251,7 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
           </button>
         </div>
       ) : (
-        <form className="form auth-form" onSubmit={handleSubmit}>
+        <form className="form auth-form" onSubmit={handleSubmit} noValidate>
           <div className="form-grid two-col">
             <div className="form-field form-span-2">
               <label htmlFor="email">
@@ -261,11 +263,13 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
                 type="email"
                 value={form.email}
                 onChange={handleChange}
+                autoComplete="email"
                 required
+                {...invalidProps('email')}
               />
-              <span className="field-error">{fieldErrors.email ?? ''}</span>
+              <span id="email-error" className="field-error">{fieldErrors.email ?? ''}</span>
             </div>
-            <div className="form-field password-field-with-hints" ref={passwordHintsRef}>
+            <div className="form-field password-field-with-hints" onBlur={handlePasswordFieldBlur}>
               <label htmlFor="password">
                 Password <span className="required">*</span>
               </label>
@@ -281,8 +285,9 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
                     setPasswordTouched(true)
                   }}
                   onClick={() => setShowPasswordHints(true)}
-                  minLength={10}
+                  autoComplete="new-password"
                   required
+                  {...invalidProps('password')}
                 />
                 <button
                   type="button"
@@ -293,7 +298,7 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
                   {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
               </div>
-              <span className="field-error">{fieldErrors.password ?? ''}</span>
+              <span id="password-error" className="field-error">{fieldErrors.password ?? ''}</span>
               {showPasswordHints ? (
                 <div className="password-requirements-popover" aria-live="polite" role="dialog" aria-label="Password requirements">
                   <div className="password-requirements-header">Password requirements</div>
@@ -325,15 +330,11 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={form.confirmPassword}
-                  onChange={(event) => {
-                    handleChange(event)
-                    if (!confirmTouched) {
-                      setConfirmTouched(true)
-                    }
-                  }}
-                  minLength={10}
-                  aria-invalid={passwordMismatch}
-                  aria-describedby={passwordMismatch ? mismatchId : undefined}
+                  onChange={handleChange}
+                  onBlur={() => setConfirmTouched(true)}
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(confirmError)}
+                  aria-describedby={confirmError ? mismatchId : undefined}
                   required
                 />
                 <button
@@ -346,40 +347,74 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
                 </button>
               </div>
               <span id={mismatchId} className="field-error" aria-live="polite">
-                {fieldErrors.confirmPassword ?? ''}
+                {confirmError}
               </span>
             </div>
             <div className="form-field">
               <label htmlFor="firstName">
                 Name <span className="required">*</span>
               </label>
-              <input id="firstName" name="firstName" value={form.firstName} onChange={handleChange} required />
-              <span className="field-error">{fieldErrors.firstName ?? ''}</span>
+              <input
+                id="firstName"
+                name="firstName"
+                value={form.firstName}
+                onChange={handleChange}
+                autoComplete="given-name"
+                required
+                {...invalidProps('firstName')}
+              />
+              <span id="firstName-error" className="field-error">{fieldErrors.firstName ?? ''}</span>
             </div>
             <div className="form-field">
               <label htmlFor="lastName">
                 Surname <span className="required">*</span>
               </label>
-              <input id="lastName" name="lastName" value={form.lastName} onChange={handleChange} required />
-              <span className="field-error">{fieldErrors.lastName ?? ''}</span>
+              <input
+                id="lastName"
+                name="lastName"
+                value={form.lastName}
+                onChange={handleChange}
+                autoComplete="family-name"
+                required
+                {...invalidProps('lastName')}
+              />
+              <span id="lastName-error" className="field-error">{fieldErrors.lastName ?? ''}</span>
             </div>
             <div className="form-field form-span-2">
               <label htmlFor="bio">Bio</label>
-              <textarea id="bio" name="bio" value={form.bio} onChange={handleChange} rows={3} maxLength={256} />
-              <span className="muted">{(form.bio ?? '').length}/256</span>
-              <span className="field-error">{fieldErrors.bio ?? ''}</span>
+              <textarea
+                id="bio"
+                name="bio"
+                value={form.bio}
+                onChange={handleChange}
+                rows={3}
+                maxLength={256}
+                aria-describedby="bio-count"
+              />
+              <div className="auth-field-foot">
+                <span id="bio-error" className="field-error">{fieldErrors.bio ?? ''}</span>
+                <span id="bio-count" className="muted auth-field-count">{(form.bio ?? '').length}/256</span>
+              </div>
             </div>
           </div>
           <div className="form-field">
             {/* Opens in a new tab on purpose: reading the terms must not discard a half-filled form. */}
             <label className="auth-consent">
               <input
+                id="acceptedTerms"
+                name="acceptedTerms"
                 type="checkbox"
                 checked={acceptedTerms}
-                onChange={(event) => setAcceptedTerms(event.target.checked)}
+                onChange={(event) => {
+                  setAcceptedTerms(event.target.checked)
+                  setFieldErrors((prev) => (prev.acceptedTerms ? { ...prev, acceptedTerms: '' } : prev))
+                }}
+                aria-label="I accept the Terms of Use and Privacy Policy"
+                aria-describedby="acceptedTerms-text acceptedTerms-error"
+                aria-invalid={fieldErrors.acceptedTerms ? true : undefined}
                 required
               />
-              <span>
+              <span id="acceptedTerms-text">
                 I have read and accept the{' '}
                 <a href="/terms" target="_blank" rel="noreferrer">
                   Terms of Use
@@ -393,6 +428,9 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
                 content I add and how I use it.
               </span>
             </label>
+            <span id="acceptedTerms-error" className="field-error auth-consent-error">
+              {fieldErrors.acceptedTerms ?? ''}
+            </span>
             {showTurnstile ? (
               <div className="auth-turnstile auth-reveal">
                 <TurnstileWidget onToken={setTurnstileToken} resetSignal={turnstileNonce} />

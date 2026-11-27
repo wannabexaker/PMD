@@ -81,6 +81,9 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
     const errors: Record<string, string> = {}
     if (!form.username.trim()) {
       errors.username = 'Email is required.'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.username.trim())) {
+      // noValidate turns off the browser's type="email" check, so do a light one here.
+      errors.username = 'Enter a valid email address.'
     }
     if (!form.password) {
       errors.password = 'Password is required.'
@@ -123,7 +126,7 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
         </button>
       </div>
       <BackendOfflineNotice status={backendStatus} onRecheck={recheckBackend} />
-      <form className="form auth-form" onSubmit={handleSubmit}>
+      <form className="form auth-form" onSubmit={handleSubmit} noValidate>
         <div className="form-grid">
           <div className="form-field">
             <label htmlFor="username">
@@ -135,9 +138,12 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
               type="email"
               value={form.username}
               onChange={handleChange}
+              autoComplete="username"
               required
+              aria-invalid={fieldErrors.username ? true : undefined}
+              aria-describedby={fieldErrors.username ? 'username-error' : undefined}
             />
-            <span className="field-error">{fieldErrors.username ?? ''}</span>
+            <span id="username-error" className="field-error">{fieldErrors.username ?? ''}</span>
           </div>
           <div className="form-field">
             <label htmlFor="password">
@@ -153,7 +159,10 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
                 onFocus={() => setPasswordTouched(true)}
                 // Fresh from registering: the email is filled in, the password is next.
                 autoFocus={Boolean(initialEmail)}
+                autoComplete="current-password"
                 required
+                aria-invalid={fieldErrors.password ? true : undefined}
+                aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
               />
               <button
                 type="button"
@@ -164,7 +173,7 @@ export function LoginForm({ onLogin, onGoogleLogin, error, loading, onSwitchToRe
                 {showPassword ? <EyeOffIcon /> : <EyeIcon />}
               </button>
             </div>
-            <span className="field-error">{fieldErrors.password ?? ''}</span>
+            <span id="login-password-error" className="field-error">{fieldErrors.password ?? ''}</span>
           </div>
         </div>
         <div className="form-meta">
