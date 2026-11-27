@@ -1307,6 +1307,21 @@
   min-width: 72px;
 }
 
+/* Role badges share one neutral, quiet style on every page. The per-role badge colour (the seeded
+   Owner is red, and red reads as an error) is overridden here on purpose, which is why these beat
+   the inline colours the pages set. Team colours are untouched. */
+.role-badge-pill,
+.member-badge-label-role {
+  background-color: color-mix(in srgb, var(--muted) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--muted) 45%, var(--border)) !important;
+  color: var(--text) !important;
+}
+
+.member-drawer-dot-role {
+  background-color: color-mix(in srgb, var(--muted) 30%, transparent) !important;
+  border-color: var(--muted) !important;
+}
+
 .team-color-swatch {
   width: 100%;
   aspect-ratio: 1 / 1;
