@@ -20,8 +20,10 @@
 # whatever the folder is called (~/pmd today, ~/projects/pmd as the target).
 name: pmd
 
-# The Pi is shared by every project: each service gets a hard memory and CPU ceiling and
-# rotated logs, so PMD can never starve its neighbours or fill the SD card.
+# The Pi is shared by every project: each service gets a memory and CPU ceiling and rotated
+# logs, so PMD cannot starve its neighbours or fill the SD card. The Pi's kernel runs without
+# the memory cgroup, so Docker discards mem_limit there (enabling it needs a reboot); the caps
+# that really hold are the JVM heap (JAVA_OPTS) and the WiredTiger cache below. cpus does apply.
 x-logging: &default-logging
   driver: json-file
   options:
@@ -118,8 +120,9 @@ services:
       # Uploads: total size cap for the uploads volume, and uploads per account per hour.
       PMD_UPLOADS_MAX_TOTAL_MB: ${PMD_UPLOADS_MAX_TOTAL_MB:-200}
       PMD_UPLOADS_RATE_LIMIT_PER_HOUR: ${PMD_UPLOADS_RATE_LIMIT_PER_HOUR:-5}
-      # Heap = 60% of the 640m container limit; the rest is metaspace, threads and code cache.
-      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=60}
+      # A fixed heap, not a percentage: without the memory cgroup the JVM would size itself from
+      # the whole host (~4.9 GB heap on the Pi). About 384 MB heap + 160 MB metaspace + overhead.
+      JAVA_OPTS: ${JAVA_OPTS:--Xmx384m -Xms128m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC}
       SERVER_PORT: 8080
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]

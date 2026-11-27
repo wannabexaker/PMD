@@ -10,9 +10,11 @@ teams, roles, projects, assignments, comments, an audit log, and GDPR export/era
 **It is a demo.** Live frontend: <https://pmd.olamov.com> (Vercel). API:
 <https://api-pmd.olamov.com> (a Raspberry Pi behind a Cloudflare Tunnel). Part of Olamov.
 
-**The backend is stopped on the Pi on purpose** (owner's decision, 2026-11-20 — no users).
-The frontend detects this and shows a "demo — backend is offline" notice on the auth screens.
-**Do not start it** unless the owner asks. When asked: `./scripts/pi/demo.sh up` in `~/projects/pmd` (see `docs/OPERATIONS.md`).
+**The demo is live** (since 2026-11-27, owner's decision). It is bounded on purpose: demo
+workspaces expire after 7 days, and accounts, workspaces, uploads and request sizes are capped
+(see the `PMD_LIMITS_*` / `PMD_UPLOADS_*` settings in `docker-compose.pi.yml`). If the API does
+not answer, the auth screens show a "demo — backend is offline" notice. Start/stop only through
+`./scripts/pi/demo.sh` in `~/projects/pmd` (see `docs/OPERATIONS.md`), and only when the owner asks.
 
 ## Stack and layout
 
@@ -75,19 +77,14 @@ on every push to `main`; it does not deploy to the Pi. Vercel builds the fronten
 `docker-compose.pi.yml` in this repo is the source of truth. It fixes the project name
 (`name: pmd`) and reads secrets from a `.env` next to it, which compose loads by itself.
 
-**Target layout** (`~/projects/pmd`, one `.env`):
+On the Pi it lives in `~/projects/pmd` with one `.env` (chmod 600). The backend image is pinned
+by `PMD_BACKEND_TAG` (a commit sha). To ship a new backend build: push to `main`, wait for the
+Release workflow, set the new sha in the Pi's `.env`, run `./scripts/pi/demo.sh up`. Anything run
+on the Pi needs the owner's yes.
 
-```bash
-cd ~/projects/pmd
-docker compose -f docker-compose.pi.yml pull backend
-docker compose -f docker-compose.pi.yml up -d backend
-curl -fsS http://127.0.0.1:8080/actuator/health
-```
-
-**Today the Pi still uses the old layout** — `~/pmd`, secrets in `.env.production`, its own older
-copy of the compose file — so there you still need `--env-file .env.production`. The one-time
-move, and what has to be added to the env file first (`PMD_SECURITY_ADMIN_EMAILS`), is in
-`docs/OPERATIONS.md`. It is the owner's call; do not apply it unasked.
+The Pi's kernel has no memory cgroup, so `mem_limit` is ignored there; memory is bounded by the
+fixed JVM heap in `JAVA_OPTS` and the WiredTiger cache size. Never switch `JAVA_OPTS` back to a
+percentage. The old `~/pmd` folder is kept as a fallback, along with a pre-move dump.
 
 Platform admin is granted on demand with `scripts/pi/admin-mode.sh on|off|status`.
 

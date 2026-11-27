@@ -13,7 +13,7 @@ project's containers, volumes, networks or ports.
 | Secrets | `.env`, loaded by compose automatically. Template: `.env.pi.example` |
 | Image | `ghcr.io/wannabexaker/pmd-backend:${PMD_BACKEND_TAG}`, pinned in `.env` |
 | Data | volumes `pmd_mongo_data`, `pmd_uploads` (the compose file pins `name: pmd`) |
-| Limits | backend 640 MB / 1 CPU, mongo 512 MB / 1 CPU, logs 3 × 10 MB per container |
+| Limits | JVM heap 384 MB, WiredTiger cache 256 MB, 1 CPU each, logs 3 × 10 MB per container. `mem_limit` (640/512 MB) is set but the Pi's kernel has no memory cgroup, so Docker ignores it |
 
 The older layout (`~/pmd` with `.env.production` and `--env-file`) gave the same project name,
 so moving between the two keeps the same containers' names and the same volumes.
@@ -56,7 +56,7 @@ mkdir -p ~/projects/pmd/scripts
 cp -p ~/pmd/.env.production ~/projects/pmd/.env && chmod 600 ~/projects/pmd/.env
 
 # 3. Variables the repo's compose file needs that the old file lacked:
-#    PMD_SECURITY_ADMIN_EMAILS, PMD_BACKEND_TAG, JAVA_OPTS=-XX:MaxRAMPercentage=60.
+#    PMD_SECURITY_ADMIN_EMAILS, PMD_BACKEND_TAG, and JAVA_OPTS as in .env.pi.example (a fixed -Xmx).
 #    The old CLOUDFLARE_TUNNEL_TOKEN line is unused and can go.
 
 # 4. Check it resolves without printing it (the merged config contains secrets):
