@@ -1,11 +1,14 @@
 package com.pmd.team.dto;
 
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 
 public class TeamRequest {
 
     @NotBlank
+    @Size(max = 80)
     private String name;
+    @Size(max = 16)
     private String color;
 
     public TeamRequest() {

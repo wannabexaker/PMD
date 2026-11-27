@@ -1,12 +1,15 @@
 package com.pmd.person.dto;
 
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 
 public class PersonRequest {
 
     @NotBlank
+    @Size(max = 120)
     private String displayName;
 
+    @Size(max = 254)
     private String email;
 
     public PersonRequest() {

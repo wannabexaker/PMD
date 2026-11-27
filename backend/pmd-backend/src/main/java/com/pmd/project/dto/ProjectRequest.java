@@ -1,5 +1,6 @@
 package com.pmd.project.dto;
 
+import jakarta.validation.constraints.Size;
 import com.pmd.project.model.ProjectStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -8,8 +9,10 @@ import java.util.List;
 public class ProjectRequest {
 
     @NotBlank
+    @Size(max = 120)
     private String name;
 
+    @Size(max = 4000)
     private String description;
 
     @NotNull
@@ -19,6 +22,7 @@ public class ProjectRequest {
     // when the "Require team when creating project" preference is enabled.
     private String teamId;
 
+    @Size(max = 50)
     private List<String> memberIds;
 
     public ProjectRequest() {

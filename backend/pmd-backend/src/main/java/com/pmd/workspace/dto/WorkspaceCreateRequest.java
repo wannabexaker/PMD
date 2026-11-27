@@ -1,13 +1,16 @@
 package com.pmd.workspace.dto;
 
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
 public class WorkspaceCreateRequest {
 
     @NotBlank
+    @Size(max = 80)
     private String name;
 
+    @Size(max = 20)
     private List<WorkspaceInitialTeam> initialTeams;
 
     public WorkspaceCreateRequest() {
@@ -35,6 +38,7 @@ public class WorkspaceCreateRequest {
 
     public static class WorkspaceInitialTeam {
         @NotBlank
+        @Size(max = 80)
         private String name;
 
         public WorkspaceInitialTeam() {

@@ -1,17 +1,21 @@
 package com.pmd.auth.dto;
 
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 
 public class LoginRequest {
 
     @NotBlank
+    @Size(max = 254)
     private String username;
 
     @NotBlank
+    @Size(max = 200)
     private String password;
 
     private Boolean remember;
 
+    @Size(max = 4096)
     private String turnstileToken;
 
     public LoginRequest() {

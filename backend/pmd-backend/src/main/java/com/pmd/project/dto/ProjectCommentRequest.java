@@ -1,5 +1,6 @@
 package com.pmd.project.dto;
 
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
@@ -9,6 +10,7 @@ public class ProjectCommentRequest {
     private String authorId;
 
     @NotBlank
+    @Size(max = 4000)
     private String message;
 
     @Min(0)
