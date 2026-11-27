@@ -3,6 +3,7 @@ import type { Team, UserSummary, WorkspaceRole } from '../types'
 import { listRoles } from '../api/workspaces'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { useTeams } from '../teams/TeamsContext'
+import { displayEmail } from '../shared/displayEmail'
 
 export type MentionOptionType = 'everyone' | 'team' | 'role' | 'user'
 
@@ -123,7 +124,7 @@ export function useMentionOptions(users: UserSummary[]) {
         if (!label) return
         const team = user.teamId ? teamsById.get(user.teamId) : null
         const teamLabel = team?.name?.trim() ? team.name.trim() : 'No team'
-        const hintParts = [user.email ?? 'User', teamLabel]
+        const hintParts = [displayEmail(user.email) || 'User', teamLabel]
         options.push({
           key: `user:${user.id}`,
           type: 'user',

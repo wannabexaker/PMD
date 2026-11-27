@@ -9,6 +9,9 @@ import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
 import { useToast } from '../shared/ui/toast/ToastProvider'
+import { displayEmail } from '../shared/displayEmail'
+import { pluralize } from '../shared/pluralize'
+import { useConfirmDialog } from './common/useConfirmDialog'
 import {
   PROJECT_FOLDERS,
   PROJECT_STATUS_SELECTABLE,
@@ -30,15 +33,6 @@ type AssignPageProps = {
 const MAX_PROJECT_TITLE_LENGTH = 32
 const DEFAULT_ROLE_BADGE_COLOR = '#6366F1'
 const DEFAULT_TEAM_BADGE_COLOR = '#3B82F6'
-
-function formatMemberEmailForUi(value?: string | null) {
-  if (!value) return '-'
-  const [localRaw = '', domainRaw = ''] = value.split('@')
-  if (!localRaw || !domainRaw) return value
-  const plusIndex = localRaw.indexOf('+')
-  if (plusIndex <= 0) return value
-  return `${localRaw.slice(0, plusIndex)}@${domainRaw}`
-}
 
 function roleBadgeLabel(user: UserSummary): string | null {
   const label = user.roleBadgeLabel?.trim()
@@ -134,6 +128,7 @@ export function AssignPage({
   const { teams, teamById } = useTeams()
   const { activeWorkspaceId } = useWorkspace()
   const { showToast } = useToast()
+  const { confirmDestructive, dialog: confirmDialog } = useConfirmDialog()
   const [selectedMembers, setSelectedMembers] = useState<UserSummary[]>([])
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
@@ -661,7 +656,15 @@ export function AssignPage({
 
   const handleDeleteArchived = async () => {
     if (!selectedProject || !selectedProject.id || !activeWorkspaceId) return
-    const confirmed = window.confirm('Delete this project permanently?')
+    const confirmed = await confirmDestructive({
+      title: 'Delete project?',
+      message: (
+        <>
+          <strong>{selectedProject.name ?? 'This project'}</strong> is deleted permanently. This cannot be undone.
+        </>
+      ),
+      confirmLabel: 'Delete project',
+    })
     if (!confirmed) return
     setError(null)
     try {
@@ -804,6 +807,27 @@ export function AssignPage({
             </div>
           ) : null}
           <div className="assign-panel-body assign-folders">
+            {scopedProjects.length === 0 ? (
+              <div className="empty-state">
+                {projectSearch.trim() ? (
+                  <>
+                    <p className="muted">No projects match “{projectSearch.trim()}”.</p>
+                    <button type="button" className="btn btn-secondary" onClick={() => setProjectSearch('')}>
+                      Clear search
+                    </button>
+                  </>
+                ) : projectsSource.length > 0 ? (
+                  <p className="muted">No projects match the current filters.</p>
+                ) : (
+                  <>
+                    <p className="muted">No projects yet.</p>
+                    <button type="button" className="btn btn-primary" onClick={() => setShowCreateProject(true)}>
+                      Create project
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
             {foldersToShow.map((folder) => {
               const filteredProjects = scopedProjects
                 .filter((project) => toFolderKey(project.status ?? 'NOT_STARTED') === folder.key)
@@ -903,8 +927,8 @@ export function AssignPage({
                         <strong className="truncate" title={user.displayName ?? ''}>
                           {user.displayName ?? '-'}
                         </strong>
-                        <span className="muted truncate" title={user.email ?? ''}>
-                          {formatMemberEmailForUi(user.email)}
+                        <span className="muted truncate" title={displayEmail(user.email)}>
+                          {displayEmail(user.email)}
                         </span>
                         {isExpanded && badgeItems.length > 0 ? (
                           <div className="member-badge-labels">
@@ -1020,7 +1044,7 @@ export function AssignPage({
                 ? `Assigned to ${formatProjectTitle(selectedProject.name)}`
                 : 'Assigned people'}
             </h3>
-            <span className="muted">{selectedMembers.length} people</span>
+            <span className="muted">{pluralize(selectedMembers.length, 'person', 'people')}</span>
           </div>
           {selectedProject ? (
             selectedIsArchived ? (
@@ -1037,7 +1061,7 @@ export function AssignPage({
                 <div className="assign-status-group">
                   <label className="muted">Status</label>
                   <select
-                    className="status-select"
+                    className={`status-select status-${selectedProject.status ?? 'NOT_STARTED'}`}
                     aria-label="Project status"
                     value={selectedProject.status ?? 'NOT_STARTED'}
                     onChange={(event) => handleStatusChange(event.target.value as ProjectStatus)}
@@ -1101,10 +1125,10 @@ export function AssignPage({
                           onDragStart={(event) => handleDragStart(event, member.id)}
                           onDragEnd={handleDragEnd}
                         >
-                          <strong className="chip-name" title={member.email ?? ''}>
+                          <strong className="chip-name" title={displayEmail(member.email)}>
                             <span
                               className="truncate"
-                              title={`${member.displayName ?? ''}${member.email ? ` - ${member.email}` : ''}`}
+                              title={`${member.displayName ?? ''}${member.email ? ` - ${displayEmail(member.email)}` : ''}`}
                             >
                               {member.displayName ?? '-'}
                             </span>
@@ -1178,6 +1202,7 @@ export function AssignPage({
           ) : null}
         </div>
       </div>
+      {confirmDialog}
     </section>
   )
 }

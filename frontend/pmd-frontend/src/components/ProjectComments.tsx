@@ -19,6 +19,8 @@ import { useToast } from '../shared/ui/toast/ToastProvider'
 import { MentionText } from '../mentions/MentionText'
 import { useNavigate } from 'react-router-dom'
 import { navigateFromMention } from '../mentions/mentionNavigation'
+import { formatDateTime } from '../shared/formatDateTime'
+import { useConfirmDialog } from './common/useConfirmDialog'
 
 const REACTIONS: { type: CommentReactionType; label: string }[] = [
   { type: 'LIKE', label: 'Like' },
@@ -33,13 +35,6 @@ const MAX_IMAGE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 // Attachments are the one unbounded upload path — disabled until a storage quota exists. The
 // backend enforces this too (a disabled button is not a security control); keep both in step.
 const ATTACHMENTS_ENABLED = false
-
-function formatTimestamp(value?: string | null) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString()
-}
 
 function hasUserReacted(reactions: ProjectComment['reactions'], type: CommentReactionType, userId: string) {
   const users = reactions?.[type] ?? []
@@ -73,6 +68,7 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
   const mentionOptions = useMentionOptions(mentionUsers)
+  const { confirmDestructive, dialog: confirmDialog } = useConfirmDialog()
 
   const canDelete = useMemo(() => {
     const currentUserId = currentUser.id ?? ''
@@ -164,6 +160,12 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
         setError('Select a workspace to continue.')
         return
       }
+      const confirmed = await confirmDestructive({
+        title: 'Delete comment?',
+        message: 'The comment and its reactions are removed for everyone. This cannot be undone.',
+        confirmLabel: 'Delete comment',
+      })
+      if (!confirmed) return
       await deleteComment(activeWorkspaceId, comment.id)
       setComments((prev) => prev.filter((item) => item.id !== comment.id))
       showToast({ type: 'success', message: 'Comment deleted.' })
@@ -312,7 +314,7 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
               <strong className="truncate" title={item.authorName}>
                 {item.authorName}
               </strong>
-              <span className="muted">{formatTimestamp(item.createdAt)}</span>
+              <span className="muted">{formatDateTime(item.createdAt)}</span>
               {canDelete(item) ? (
                 <button type="button" className="btn btn-ghost" onClick={() => handleDelete(item)}>
                   Delete
@@ -360,6 +362,7 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
       </div>
 
       {previewUrl ? <ImageModal src={previewUrl} onClose={() => setPreviewUrl(null)} /> : null}
+      {confirmDialog}
     </div>
   )
 }

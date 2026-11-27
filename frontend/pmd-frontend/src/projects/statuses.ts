@@ -36,3 +36,20 @@ export function formatStatusLabel(value?: string | null) {
   return value.replace('_', ' ')
 }
 
+// Semantic status colours for charts (SVG strokes need literal colours, not CSS variables).
+// They match the theme tokens behind the .status-* badges: info = in progress, success = completed,
+// danger = canceled, neutral slate = not started and archived.
+export const PROJECT_STATUS_CHART_COLORS: Record<ProjectFolderKey, string> = {
+  NOT_STARTED: '#94a3b8',
+  IN_PROGRESS: '#38bdf8',
+  COMPLETED: '#22c55e',
+  CANCELED: '#ef4444',
+  ARCHIVED: '#475569',
+}
+
+/** Chart colour for a status key ("IN_PROGRESS") or a backend label ("In progress"). */
+export function projectStatusChartColor(statusOrLabel?: string | null): string {
+  const key = (statusOrLabel ?? '').trim().toUpperCase().replace(/\s+/g, '_')
+  return PROJECT_STATUS_CHART_COLORS[toFolderKey(key)]
+}
+

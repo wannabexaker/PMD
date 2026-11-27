@@ -1179,6 +1179,37 @@
   width: min(620px, 88vw);
 }
 
+/* Shared ConfirmDialog (components/common/ConfirmDialog.tsx): same shell as the team-edit overlay.
+   It can open from inside other dialogs (e.g. the avatar editor at --z-modal + 20), so it stacks above them. */
+.confirm-dialog-overlay {
+  z-index: calc(var(--z-modal) + 40);
+}
+
+.workspace-inline-editor-overlay.confirm-dialog {
+  width: min(440px, 92vw);
+}
+
+.confirm-dialog.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
+.confirm-dialog .team-edit-box {
+  margin-top: 0;
+}
+
+.confirm-dialog-close {
+  flex: 0 0 auto;
+}
+
+.confirm-dialog-typed {
+  display: grid;
+  gap: 6px;
+}
+
+.confirm-dialog-typed input {
+  width: 100%;
+}
+
 .workspace-delete-overlay {
   width: min(640px, 92vw);
 }

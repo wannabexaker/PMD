@@ -18,6 +18,9 @@ import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
 import { useToast } from '../shared/ui/toast/ToastProvider'
+import { displayEmail } from '../shared/displayEmail'
+import { useConfirmDialog } from './common/useConfirmDialog'
+import { projectStatusChartColor } from '../projects/statuses'
 import { createPerson, deletePerson, listPeople, updatePerson } from '../api/people'
 import {
   clearPeopleSelection,
@@ -34,7 +37,6 @@ type PeoplePageProps = {
 }
 
 const MAX_PROJECT_TITLE_LENGTH = 32
-const STATUS_COLORS = ['#60a5fa', '#f59e0b', '#22c55e', '#ef4444', '#64748b']
 const ACTIVITY_COLORS = ['#22c55e', '#64748b']
 const WIDGET_IDS = {
   projectsByStatus: 'projectsByStatus',
@@ -118,6 +120,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
   const { teams, teamById } = useTeams()
   const { activeWorkspaceId } = useWorkspace()
   const { showToast } = useToast()
+  const { confirmDestructive, dialog: confirmDialog } = useConfirmDialog()
   const isAdmin = Boolean(currentUser?.isAdmin)
   const [widgets, setWidgets] = useState<PeoplePageWidgets>(() => mergeWidgetDefaults(currentUser?.peoplePageWidgets))
   const [widgetsEditing, setWidgetsEditing] = useState(false)
@@ -138,10 +141,10 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
 
   const selectedStatusSlices = useMemo(() => {
     const slices = selectedUserStats?.pies?.projectsByStatus ?? []
-    return slices.map((slice, index) => ({
+    return slices.map((slice) => ({
       label: slice.label,
       value: slice.value ?? 0,
-      color: STATUS_COLORS[index % STATUS_COLORS.length],
+      color: projectStatusChartColor(slice.label),
     }))
   }, [selectedUserStats])
 
@@ -644,8 +647,8 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                       <strong className="truncate" title={person.displayName ?? ''}>
                         {person.displayName ?? '-'}
                       </strong>
-                      <div className="muted truncate" title={person.email ?? ''}>
-                        {person.email ?? ''}
+                      <div className="muted truncate" title={displayEmail(person.email)}>
+                        {displayEmail(person.email)}
                       </div>
                     </div>
                   )}
@@ -714,7 +717,15 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                           className="btn btn-danger"
                           onClick={async () => {
                             if (!person.id) return
-                            const confirmed = window.confirm('Delete this person record?')
+                            const confirmed = await confirmDestructive({
+                              title: 'Delete person record?',
+                              message: (
+                                <>
+                                  <strong>{person.displayName ?? 'This record'}</strong> is deleted permanently.
+                                </>
+                              ),
+                              confirmLabel: 'Delete record',
+                            })
                             if (!confirmed) return
                             if (!activeWorkspaceId) {
                               setPeopleError('Select a workspace to continue.')
@@ -780,7 +791,20 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
           </div>
           <div className="people-directory-scroll">
             <div className="people-grid people-directory">
-              {visibleUsers.length === 0 ? <div className="muted">No people yet in this workspace.</div> : null}
+              {visibleUsers.length === 0 ? (
+                search.trim() ? (
+                  <div className="empty-state">
+                    <p className="muted">No people match “{search.trim()}”.</p>
+                    <button type="button" className="btn btn-secondary" onClick={() => setSearch('')}>
+                      Clear search
+                    </button>
+                  </div>
+                ) : users.length > 0 ? (
+                  <div className="muted">No people match the current filters.</div>
+                ) : (
+                  <div className="muted">No people yet in this workspace.</div>
+                )
+              ) : null}
               {visibleUsers.map((user, index) => {
                 const isRecommended = Boolean(user.id && recommendedIds.has(user.id))
                 const recommendedCount = user.recommendedCount ?? 0
@@ -797,7 +821,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     const id = user.id ?? null
                     handleSelectUser(id)
                   }}
-                  title={`${user.displayName ?? ''}${user.email ? ` - ${user.email}` : ''}${recommendedCount > 0 ? ` - ${recommendedCount} recommended` : ''}`}
+                  title={`${user.displayName ?? ''}${user.email ? ` - ${displayEmail(user.email)}` : ''}${recommendedCount > 0 ? ` - ${recommendedCount} recommended` : ''}`}
                   aria-pressed={selectedUserId === user.id}
                 >
                   <div className="people-card-main">
@@ -876,8 +900,8 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     <h3 className="truncate" title={selectedUser.displayName ?? ''}>
                       {selectedUser.displayName ?? '-'}
                     </h3>
-                    <div className="muted truncate" title={selectedUser.email ?? ''}>
-                      {selectedUser.email ?? ''}
+                    <div className="muted truncate" title={displayEmail(selectedUser.email)}>
+                      {displayEmail(selectedUser.email)}
                     </div>
                     {roleBadgeLabel(selectedUser) ? (
                       <span className="pill role-badge-pill" style={roleBadgeStyle(selectedUser)}>
@@ -892,8 +916,14 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     </div>
                   </div>
                   <div className="people-widgets-toolbar">
-                    <button type="button" className="btn btn-secondary" onClick={handleEditWidgets}>
-                      Edit
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleEditWidgets}
+                      aria-expanded={widgetsEditing}
+                      title="Choose which charts to show"
+                    >
+                      Customize charts
                     </button>
                     {widgetsEditing && widgetsDraft ? (
                       <div className="people-widgets-editor">
@@ -1041,6 +1071,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
           </div>
         </div>
       </div>
+      {confirmDialog}
     </section>
   )
 }

@@ -12,6 +12,7 @@ import { AVATAR_ACCEPT, validateAvatarFile } from '../shared/avatarCrop'
 import { AvatarCropDialog, type AvatarCrop } from './avatar/AvatarCropDialog'
 import { CloseIcon } from '../shared/ui/CloseIcon'
 import { useToast } from '../shared/ui/toast/ToastProvider'
+import { useConfirmDialog } from './common/useConfirmDialog'
 
 type ProfilePanelProps = {
   user: User
@@ -66,6 +67,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   const [myStatsError, setMyStatsError] = useState<string | null>(null)
   const [myDashboardStats, setMyDashboardStats] = useState<DashboardStatsResponse | null>(null)
   const [myDashboardError, setMyDashboardError] = useState<string | null>(null)
+  const { confirmDestructive, dialog: confirmDialog } = useConfirmDialog()
 
   const resolveAssetUrl = resolveStoredAssetUrl
 
@@ -188,8 +190,14 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
 
   const handleDeleteAccount = async () => {
     // Irreversible, so make the user type the confirmation rather than click through it.
-    const typed = window.prompt('This permanently deletes your account and cannot be undone.\n\nType DELETE to confirm:')
-    if (typed !== 'DELETE') return
+    // A typed confirmation always shows, even with "Confirm destructive actions" turned off.
+    const confirmed = await confirmDestructive({
+      title: 'Delete your account?',
+      message: 'This permanently deletes your account and signs you out. It cannot be undone.',
+      confirmLabel: 'Delete my account',
+      requireText: 'DELETE',
+    })
+    if (!confirmed) return
     try {
       setDataBusy('delete')
       setDataError(null)
@@ -355,8 +363,12 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
                     className="avatar-thumb-delete"
                     title="Delete photo"
                     aria-label="Delete photo"
-                    onClick={() => {
-                      const ok = window.confirm('Delete profile photo?')
+                    onClick={async () => {
+                      const ok = await confirmDestructive({
+                        title: 'Delete profile photo?',
+                        message: 'Your photo is removed and your initial is shown instead.',
+                        confirmLabel: 'Delete photo',
+                      })
                       if (!ok) return
                       void handleAvatarSave('')
                     }}
@@ -619,6 +631,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
           </div>
         )}
       </div>
+      {confirmDialog}
     </div>
   )
 }
