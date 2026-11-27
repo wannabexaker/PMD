@@ -40,6 +40,7 @@ import {
 } from './ui/uiSelectionStore'
 import { getAvatarFrameStyle } from './shared/avatarFrame'
 import { DEMO_PILL_TITLE, demoPillLabel } from './workspaces/demoExpiry'
+import { BetaBadge } from './components/common/BetaBadge'
 import './App.css'
 
 function toLandingPath(preferences: ReturnType<typeof loadUiPreferences>) {
@@ -962,9 +963,7 @@ function AppView({
           >
             <Logo size={26} />
           </button>
-          <span className="beta-badge" title="PMD is in beta — there are no backups; don't keep anything here you can't afford to lose.">
-            Beta
-          </span>
+          <BetaBadge />
           <div className="topbar-actions">
             {isAuthed ? (
               <div className="topbar-identities">

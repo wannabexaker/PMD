@@ -222,10 +222,6 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
           Back to login
         </button>
       </div>
-      <p className="auth-beta-note">
-        PMD is in <strong>beta</strong>. Expect rough edges — and there are <strong>no backups</strong>:
-        don&apos;t keep anything here you can&apos;t afford to lose.
-      </p>
       <BackendOfflineNotice status={backendStatus} onRecheck={recheckBackend} />
       {showSuccess ? (
         <div className="auth-success">
@@ -359,7 +355,7 @@ export function RegisterForm({ onRegister, onGoogleLogin, loading, onSwitchToLog
               <span className="field-error">{fieldErrors.bio ?? ''}</span>
             </div>
           </div>
-          <div className="form-field form-span-2">
+          <div className="form-field">
             {/* Opens in a new tab on purpose: reading the terms must not discard a half-filled form. */}
             <label className="auth-consent">
               <input
