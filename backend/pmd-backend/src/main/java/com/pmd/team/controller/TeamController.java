@@ -86,10 +86,19 @@ public class TeamController {
         User requester = getRequester(authentication);
         requireManageTeamsPermission(requester, workspaceId, "update teams");
         Team team = teamService.updateTeam(workspaceId, id, request.getName(), request.getIsActive(), request.getColor());
+        // A request that only flips isActive is a deactivate/restore; record it as such so the
+        // audit log does not show it as a generic update.
+        boolean activeToggleOnly = request.getIsActive() != null && request.getName() == null && request.getColor() == null;
+        String action = activeToggleOnly ? (Boolean.TRUE.equals(request.getIsActive()) ? "RESTORE" : "DEACTIVATE") : "UPDATE";
+        String message = switch (action) {
+            case "RESTORE" -> "Restored workspace team";
+            case "DEACTIVATE" -> "Deactivated workspace team";
+            default -> "Updated workspace team";
+        };
         workspaceAuditService.log(new WorkspaceAuditService.WorkspaceAuditWriteRequest(
             workspaceId,
             "TEAM",
-            "UPDATE",
+            action,
             "SUCCESS",
             requester,
             null,
@@ -99,7 +108,7 @@ public class TeamController {
             "TEAM",
             team.getId(),
             team.getName(),
-            "Updated workspace team"
+            message
         ));
         return toResponse(team);
     }

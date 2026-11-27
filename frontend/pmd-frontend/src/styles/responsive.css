@@ -289,8 +289,6 @@
 
   .avatar-menu-popover,
   .invite-menu-dropdown,
-  .settings-order-popover,
-  .settings-grid-bounds-popover,
   .project-menu {
     position: fixed;
     left: 12px !important;

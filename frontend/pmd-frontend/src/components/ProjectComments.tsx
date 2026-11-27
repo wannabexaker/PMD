@@ -272,14 +272,7 @@ export function ProjectComments({ projectId, currentUser, mentionUsers = [] }: P
                 </label>
                 <span className="comment-attach-hint">PNG/JPG/WEBP - up to {MAX_IMAGE_SIZE_MB}MB</span>
               </>
-            ) : (
-              <>
-                <button type="button" className="btn btn-ghost comment-attach" disabled title="Attachments are temporarily disabled">
-                  Attach image
-                </button>
-                <span className="comment-attach-hint">Attachments are under construction</span>
-              </>
-            )}
+            ) : null}
             <button
               type="button"
               className={`btn btn-ghost${timeSpentEnabled ? ' is-active' : ''}`}
