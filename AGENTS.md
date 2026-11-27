@@ -12,7 +12,7 @@ teams, roles, projects, assignments, comments, an audit log, and GDPR export/era
 
 **The backend is stopped on the Pi on purpose** (owner's decision, 2026-11-20 — no users).
 The frontend detects this and shows a "demo — backend is offline" notice on the auth screens.
-**Do not start it** unless the owner asks. When asked: `docker start pmd-mongo-1 pmd-backend-1`.
+**Do not start it** unless the owner asks. When asked: `./scripts/pi/demo.sh up` in `~/projects/pmd` (see `docs/OPERATIONS.md`).
 
 ## Stack and layout
 

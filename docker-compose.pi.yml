@@ -20,6 +20,14 @@
 # whatever the folder is called (~/pmd today, ~/projects/pmd as the target).
 name: pmd
 
+# The Pi is shared by every project: each service gets a hard memory and CPU ceiling and
+# rotated logs, so PMD can never starve its neighbours or fill the SD card.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   mongo:
     # Pinned to 4.4.18: the Raspberry Pi 4 CPU (Cortex-A72) is ARMv8.0-A, but
@@ -27,7 +35,13 @@ services:
     # crash otherwise). 4.4.18 is the last build that runs on the Pi 4.
     image: mongo:4.4.18
     restart: unless-stopped
-    command: ["mongod", "--auth", "--bind_ip_all"]
+    # WiredTiger would size its cache to ~half the host's RAM; diagnostic.data grows to 200 MB.
+    command: ["mongod", "--auth", "--bind_ip_all",
+              "--wiredTigerCacheSizeGB", "0.25",
+              "--setParameter", "diagnosticDataCollectionDirectorySizeMB=50"]
+    mem_limit: 512m
+    cpus: 1.0
+    logging: *default-logging
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?set in .env}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?set in .env}
@@ -46,7 +60,11 @@ services:
       - data
 
   backend:
-    image: ghcr.io/${GHCR_OWNER:-wannabexaker}/pmd-backend:latest
+    # Pin PMD_BACKEND_TAG in .env to a commit sha or v* tag; :latest moves on every push to main.
+    image: ghcr.io/${GHCR_OWNER:-wannabexaker}/pmd-backend:${PMD_BACKEND_TAG:-latest}
+    mem_limit: 640m
+    cpus: 1.0
+    logging: *default-logging
     # Loopback only: Docker bypasses the Pi's firewall, so 0.0.0.0 would expose the
     # API to the whole home network. The host tunnel connects to 127.0.0.1:8080.
     ports:
@@ -100,7 +118,8 @@ services:
       # Uploads: total size cap for the uploads volume, and uploads per account per hour.
       PMD_UPLOADS_MAX_TOTAL_MB: ${PMD_UPLOADS_MAX_TOTAL_MB:-200}
       PMD_UPLOADS_RATE_LIMIT_PER_HOUR: ${PMD_UPLOADS_RATE_LIMIT_PER_HOUR:-5}
-      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=70}
+      # Heap = 60% of the 640m container limit; the rest is metaspace, threads and code cache.
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=60}
       SERVER_PORT: 8080
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
