@@ -295,6 +295,8 @@ function AppView({
     setActiveWorkspaceId,
   } = useWorkspace()
   const location = useLocation()
+  // The beta note: next to the logo on the sign-in screens and, inside the app, on Settings only.
+  const showBetaBadge = ['/login', '/register', '/settings'].includes(location.pathname)
   const navigate = useNavigate()
   const previousPathRef = useRef<string>(location.pathname)
   const previousWorkspaceIdRef = useRef<string | null>(activeWorkspaceId ?? null)
@@ -945,6 +947,7 @@ function AppView({
       </div>
       <header className="topbar">
         <div className="topbar-inner">
+          <div className="topbar-start">
           <button
             type="button"
             className="brand brand-link"
@@ -963,7 +966,8 @@ function AppView({
           >
             <Logo size={26} />
           </button>
-          <BetaBadge />
+          {showBetaBadge ? <BetaBadge /> : null}
+          </div>
           <div className="topbar-actions">
             {isAuthed ? (
               <div className="topbar-identities">
