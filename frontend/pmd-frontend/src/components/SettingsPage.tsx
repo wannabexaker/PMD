@@ -64,6 +64,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     activeWorkspace,
     activeWorkspaceId,
     workspaces,
+    loading: workspacesLoading,
     setActiveWorkspaceId,
     createWorkspace,
     joinWorkspace,
@@ -71,7 +72,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     refresh,
   } = useWorkspace()
   const { user } = useAuth()
-  const { teams, createTeam, updateTeam, refresh: refreshTeams } = useTeams()
+  const { teams, loading: teamsLoading, createTeam, updateTeam, refresh: refreshTeams } = useTeams()
   const { showToast } = useToast()
   const [workspaceName, setWorkspaceName] = useState('')
   const [joinValue, setJoinValue] = useState('')
@@ -134,6 +135,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const [teamError, setTeamError] = useState<string | null>(null)
   const [roles, setRoles] = useState<WorkspaceRole[]>([])
   const [rolesLoading, setRolesLoading] = useState(false)
+  // Workspace whose roles/members finished loading; until it matches the active one we show a
+  // loading line instead of the empty state (no "No roles yet" / "0 members" flash).
+  const [rolesLoadedFor, setRolesLoadedFor] = useState<string | null>(null)
   const [rolesError, setRolesError] = useState<string | null>(null)
   const [roleName, setRoleName] = useState('')
   const [roleBadgeColor, setRoleBadgeColor] = useState<string>('#3B82F6')
@@ -149,6 +153,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   })
   const [members, setMembers] = useState<UserSummary[]>([])
   const [membersLoading, setMembersLoading] = useState(false)
+  const [membersLoadedFor, setMembersLoadedFor] = useState<string | null>(null)
   const [assignUserId, setAssignUserId] = useState('')
   const [assignRoleId, setAssignRoleId] = useState('')
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences | null>(null)
@@ -178,6 +183,8 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const canCreateTeamsByRole =
     isAdmin || workspaceRole.includes('owner') || workspaceRole.includes('manager') || workspaceRole.includes('admin')
   const canCreateTeams = canEditTeams && canCreateTeamsByRole
+  const rolesReady = activeWorkspaceId ? rolesLoadedFor === activeWorkspaceId : !workspacesLoading
+  const membersReady = Boolean(activeWorkspaceId) && membersLoadedFor === activeWorkspaceId
   const defaultInviteRoleId = useMemo(() => {
     const memberRole = roles.find((role) => `${role.name ?? ''}`.trim().toLocaleLowerCase() === 'member')
     return (memberRole?.id as string | undefined) ?? ''
@@ -384,6 +391,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       }
     } finally {
       setRolesLoading(false)
+      setRolesLoadedFor(workspaceId)
     }
   }, [showToast])
 
@@ -398,6 +406,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       showToast({ type: 'error', message })
     } finally {
       setMembersLoading(false)
+      setMembersLoadedFor(workspaceId)
     }
   }, [showToast])
 
@@ -2007,7 +2016,8 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
-              {teams.length === 0 ? <p className="muted">No teams yet.</p> : null}
+              {teams.length === 0 && teamsLoading ? <p className="muted">Loading teams...</p> : null}
+              {teams.length === 0 && !teamsLoading ? <p className="muted">No teams yet.</p> : null}
               {teams.length > 0 ? (
                 <div className="workspace-list compact settings-scroll">
                   {teams.map((team) => (
@@ -2022,7 +2032,9 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                           {team.name ?? 'Untitled'}
                         </div>
                         <div className="workspace-inline-actions">
-                          <span className="pill team-member-count">{teamMemberCountById.get(team.id ?? '') ?? 0}</span>
+                          {membersReady ? (
+                            <span className="pill team-member-count">{teamMemberCountById.get(team.id ?? '') ?? 0}</span>
+                          ) : null}
                           {team.isActive === false ? <span className="pill">Inactive</span> : null}
                           {canEditTeams && editingTeamId !== team.id ? (
                             <button
@@ -2303,9 +2315,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
           </div>
           <div className="settings-card-body">
             <div className="workspace-group">
-              {rolesLoading ? <p className="muted">Loading roles...</p> : null}
+              {rolesLoading || !rolesReady ? <p className="muted">Loading roles...</p> : null}
               {rolesError ? <p className="field-error">{rolesError}</p> : null}
-              {!rolesLoading && roles.length === 0 ? <p className="muted">No roles yet.</p> : null}
+              {!rolesLoading && rolesReady && !rolesError && roles.length === 0 ? (
+                <p className="muted">No roles yet.</p>
+              ) : null}
               {roles.length > 0 ? (
                 <div className="workspace-list compact settings-scroll">
                   {roles.map((role) => (
@@ -2315,9 +2329,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                           {role.name ?? 'Untitled'}
                         </div>
                         <div className="workspace-inline-actions">
-                          <span className="pill team-member-count">
-                            {roleMemberCountByName.get((role.name ?? '').trim().toLocaleLowerCase()) ?? 0}
-                          </span>
+                          {membersReady ? (
+                            <span className="pill team-member-count">
+                              {roleMemberCountByName.get((role.name ?? '').trim().toLocaleLowerCase()) ?? 0}
+                            </span>
+                          ) : null}
                           {role.system ? (
                             <span className="pill pill-with-icon">
                               {activeWorkspace?.demo ? (
