@@ -25,6 +25,9 @@
   color: var(--text);
   width: 100%;
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .workspace-switcher select:focus-visible {

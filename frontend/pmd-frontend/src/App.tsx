@@ -1004,6 +1004,7 @@ function AppView({
                     <select
                       data-tour="workspace-switcher"
                       aria-label="Active workspace"
+                      title={activeWorkspace?.name ?? 'Select workspace'}
                       value={activeWorkspaceId ?? ''}
                       onChange={(event) => handleWorkspaceSwitcherChange(event.target.value || null)}
                     >
@@ -1068,7 +1069,9 @@ function AppView({
                 </div>
               </div>
             ) : null}
-            <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+            <div className="topbar-theme">
+              <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+            </div>
             <button
               type="button"
               className={`burger${menuOpen ? ' is-open' : ''}`}
@@ -1090,6 +1093,16 @@ function AppView({
           <button type="button" className="btn btn-secondary" onClick={() => setMenuOpen(false)}>
             Close
           </button>
+        </div>
+        {/* On phones the header keeps only logo, workspace, avatar and burger; what does not fit lives here. */}
+        <div className="drawer-mobile-extras">
+          {isAuthed && activeWorkspace?.demo ? (
+            <span className="pill" title={DEMO_PILL_TITLE}>{demoPillLabel(activeWorkspace)}</span>
+          ) : null}
+          <div className="drawer-theme-row">
+            <span className="muted">Theme</span>
+            <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+          </div>
         </div>
         <nav className="drawer-nav">
           {isAuthed ? (

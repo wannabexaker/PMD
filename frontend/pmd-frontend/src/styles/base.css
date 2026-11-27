@@ -251,6 +251,16 @@ body {
   gap: 12px;
 }
 
+.topbar-theme {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Theme toggle and demo pill copies for phones; hidden on wider screens (responsive.css). */
+.drawer-mobile-extras {
+  display: none;
+}
+
 .topbar-identities {
   display: inline-flex;
   align-items: center;
