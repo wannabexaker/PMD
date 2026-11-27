@@ -62,6 +62,24 @@ const LAST_APP_ROUTE_KEY = 'pmd.lastAppRoute'
 const ROUTE_MEMORY_ALLOWLIST = new Set(['/dashboard', '/assign', '/people', '/settings', '/profile', '/admin'])
 const THEME_KEY = 'pmd.theme'
 const ONBOARDING_TOUR_KEY_PREFIX = 'pmd.onboardingTour.v1.'
+const TEAM_BANNER_DISMISSED_KEY_PREFIX = 'pmd.teamBannerDismissed.v1.'
+
+function readStoredFlag(key: string | null): boolean {
+  if (!key) return false
+  try {
+    return window.localStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeStoredFlag(key: string) {
+  try {
+    window.localStorage.setItem(key, '1')
+  } catch {
+    // Storage blocked (private mode, quota): the dismissal then lasts for this session only.
+  }
+}
 
 type OnboardingTourStep = {
   id: string
@@ -314,6 +332,12 @@ function AppView({
   const preferredAuthedRoute =
     uiPreferences.defaultLandingPage === 'lastVisited' ? (readLastAppRoute() ?? '/dashboard') : landingPath
   const onboardingKey = currentUser?.id ? `${ONBOARDING_TOUR_KEY_PREFIX}${currentUser.id}` : null
+  const teamBannerKey = currentUser?.id ? `${TEAM_BANNER_DISMISSED_KEY_PREFIX}${currentUser.id}` : null
+  const [teamBannerDismissedKey, setTeamBannerDismissedKey] = useState<string | null>(null)
+  const teamBannerDismissed =
+    teamBannerKey != null && (teamBannerDismissedKey === teamBannerKey || readStoredFlag(teamBannerKey))
+  const canManageTeams =
+    isAdmin || activeWorkspace?.role === 'OWNER' || Boolean(activeWorkspace?.permissions?.manageTeams)
   const [tourOpen, setTourOpen] = useState(false)
   const [tourStepIndex, setTourStepIndex] = useState(0)
   const [tourHighlightRect, setTourHighlightRect] = useState<DOMRect | null>(null)
@@ -800,6 +824,23 @@ function AppView({
     if (!next.rememberPeopleSelection) {
       clearPeopleSelection()
     }
+  }
+
+  // Settings has no deep link per panel; open it and bring the Teams card into view once rendered.
+  const openSettingsTeams = () => {
+    navigate('/settings')
+    // Cards above Teams grow as their data loads, so keep re-aligning for a short while.
+    let attempts = 0
+    const tryScroll = () => {
+      const card = document.querySelector('[data-panel-id="teams"]') as HTMLElement | null
+      if (card && card.offsetParent !== null) {
+        const offset = card.getBoundingClientRect().top - 72
+        if (Math.abs(offset) > 8) window.scrollBy({ top: offset })
+      }
+      attempts += 1
+      if (attempts < 15) window.setTimeout(tryScroll, 100)
+    }
+    window.setTimeout(tryScroll, 100)
   }
 
   const completeTour = useCallback(() => {
@@ -1297,19 +1338,34 @@ function AppView({
             {workspaceError}
           </div>
         ) : null}
-        {isAuthed && hasWorkspace && !currentUser?.teamId ? (
+        {isAuthed && hasWorkspace && !currentUser?.teamId && !teamBannerDismissed && location.pathname !== '/profile' ? (
           <div className="banner info" role="status">
             <strong>You are not in a team yet.</strong>
-            <div className="muted">Join a team from your profile, or create one if you are an admin.</div>
+            <div className="muted">
+              {canManageTeams
+                ? 'Create a team in Settings → Teams, or join one from your profile.'
+                : 'Join a team from your profile.'}
+            </div>
             <div className="banner-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => navigate('/profile')}>
-                Go to profile
-              </button>
-              {isAdmin ? (
-                <button type="button" className="btn btn-primary" onClick={() => navigate('/admin')}>
+              {canManageTeams ? (
+                <button type="button" className="btn btn-primary" onClick={openSettingsTeams}>
                   Create a team
                 </button>
               ) : null}
+              <button type="button" className="btn btn-secondary" onClick={() => navigate('/profile')}>
+                Go to profile
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  if (!teamBannerKey) return
+                  writeStoredFlag(teamBannerKey)
+                  setTeamBannerDismissedKey(teamBannerKey)
+                }}
+              >
+                Dismiss
+              </button>
             </div>
           </div>
         ) : null}
