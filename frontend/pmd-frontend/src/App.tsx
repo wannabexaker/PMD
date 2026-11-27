@@ -317,7 +317,9 @@ function AppView({
   const [tourOpen, setTourOpen] = useState(false)
   const [tourStepIndex, setTourStepIndex] = useState(0)
   const [tourHighlightRect, setTourHighlightRect] = useState<DOMRect | null>(null)
-  const [tourCardPosition, setTourCardPosition] = useState<{ top: number; left: number } | null>(null)
+  const [tourCardPosition, setTourCardPosition] = useState<{ top: number; left: number; stepId: string } | null>(null)
+  // The step whose target lookup has finished (found or missing); the card stays hidden until then.
+  const [tourResolvedStepId, setTourResolvedStepId] = useState<string | null>(null)
   const [workspaceWarpActive, setWorkspaceWarpActive] = useState(false)
   const tourCardRef = useRef<HTMLDivElement | null>(null)
   const activeTourStep = tourOpen ? ONBOARDING_TOUR_STEPS[tourStepIndex] : null
@@ -852,27 +854,45 @@ function AppView({
   }, [activeTourStep?.route, location.pathname, navigate, tourOpen])
 
   useEffect(() => {
-    if (!tourOpen || !activeTourStep?.selector) {
+    if (!tourOpen || !activeTourStep) {
       setTourHighlightRect(null)
+      setTourResolvedStepId(null)
       return
     }
+    const stepId = activeTourStep.id
     const selector = activeTourStep.selector
+    if (!selector) {
+      setTourHighlightRect(null)
+      setTourResolvedStepId(stepId)
+      return
+    }
+    // Keep the card hidden until the target is found (or given up on), so it is placed once
+    // instead of appearing in a corner and then jumping next to the target.
+    setTourResolvedStepId(null)
+    let attempts = 0
+    let timer: number | undefined
     const refreshRect = () => {
       const element = document.querySelector(selector) as HTMLElement | null
-      if (!element) {
-        setTourHighlightRect(null)
-        return
-      }
-      setTourHighlightRect(element.getBoundingClientRect())
+      setTourHighlightRect(element ? element.getBoundingClientRect() : null)
     }
-    const timer = window.setTimeout(() => {
+    const locate = () => {
       const element = document.querySelector(selector) as HTMLElement | null
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+        // Instant scroll: a smooth scroll would keep moving the target, and the card, after placement.
+        element.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' })
+        setTourHighlightRect(element.getBoundingClientRect())
+        setTourResolvedStepId(stepId)
+        return
       }
-      refreshRect()
-    }, 80)
-    refreshRect()
+      attempts += 1
+      if (attempts >= 15) {
+        setTourHighlightRect(null)
+        setTourResolvedStepId(stepId)
+        return
+      }
+      timer = window.setTimeout(locate, 100)
+    }
+    timer = window.setTimeout(locate, 80)
     window.addEventListener('resize', refreshRect)
     window.addEventListener('scroll', refreshRect, true)
     return () => {
@@ -880,16 +900,17 @@ function AppView({
       window.removeEventListener('resize', refreshRect)
       window.removeEventListener('scroll', refreshRect, true)
     }
-  }, [activeTourStep?.id, activeTourStep?.selector, location.pathname, tourOpen])
+  }, [activeTourStep, location.pathname, tourOpen])
 
   useEffect(() => {
-    if (!tourOpen) {
+    if (!tourOpen || !activeTourStep) {
       setTourCardPosition(null)
       return
     }
+    const stepId = activeTourStep.id
     const positionCard = () => {
       const card = tourCardRef.current
-      if (!card) {
+      if (!card || tourResolvedStepId !== stepId) {
         return
       }
       const cardRect = card.getBoundingClientRect()
@@ -913,9 +934,9 @@ function AppView({
       left = Math.max(margin, Math.min(left, window.innerWidth - cardRect.width - margin))
       top = Math.max(margin, Math.min(top, window.innerHeight - cardRect.height - margin))
 
-      const next = { top: Math.round(top), left: Math.round(left) }
+      const next = { top: Math.round(top), left: Math.round(left), stepId }
       setTourCardPosition((prev) => {
-        if (prev && prev.top === next.top && prev.left === next.left) {
+        if (prev && prev.top === next.top && prev.left === next.left && prev.stepId === next.stepId) {
           return prev
         }
         return next
@@ -930,7 +951,7 @@ function AppView({
       window.removeEventListener('resize', positionCard)
       window.removeEventListener('scroll', positionCard, true)
     }
-  }, [activeTourStep?.id, location.pathname, tourHighlightRect, tourOpen, tourStepIndex])
+  }, [activeTourStep, location.pathname, tourHighlightRect, tourOpen, tourResolvedStepId])
 
   if (authLoading) {
     return (
@@ -1233,9 +1254,9 @@ function AppView({
             ref={tourCardRef}
             className="onboarding-tour-card"
             style={
-              tourCardPosition
+              tourCardPosition && tourCardPosition.stepId === activeTourStep?.id
                 ? { top: `${tourCardPosition.top}px`, left: `${tourCardPosition.left}px` }
-                : undefined
+                : { visibility: 'hidden' }
             }
           >
             <div className="onboarding-tour-head">
