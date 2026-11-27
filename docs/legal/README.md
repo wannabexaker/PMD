@@ -58,7 +58,8 @@ question 5.
 
 - ~~The two documents contradict each other about backups~~ — **resolved by the developer's
   answer, 15 July 2026: there are no backups at all.** Not automated, not manual, none.
-  `docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md` is aspirational and was never implemented. So:
+  The old `PRODUCTION_BACKUP_RESTORE_RUNBOOK.md` was aspirational and never implemented (removed
+  2026-11; `scripts/pi/backup.sh` is the prepared, unscheduled replacement). So:
   - **Privacy §12's "the primary and only copy of the database" was true all along** and is
     unchanged.
   - **Terms §8 was the false half** and has been rewritten: the licence no longer includes
@@ -450,9 +451,9 @@ archive exists:
   exceed the licence users granted. The sequencing is therefore self-enforcing: text first,
   then dump.
 
-`docs/PRODUCTION_BACKUP_RESTORE_RUNBOOK.md` stays useful as the *procedure* to implement,
-but it describes nothing that exists. Consider marking it aspirational at the top so nobody
-else spends an afternoon on the same contradiction.
+The procedure now lives in `docs/OPERATIONS.md` ("Backups") and `scripts/pi/backup.sh`. Both
+are prepared and deliberately unscheduled: PMD is a demo, and the documents say there are no
+backups. Scheduling them still requires the text changes above first.
 
 ### D. Operational
 

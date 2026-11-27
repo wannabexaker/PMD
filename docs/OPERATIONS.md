@@ -75,7 +75,9 @@ container so credentials never leave it) and tars the uploads, with sha256 check
 14 daily and 6 monthly copies. It never starts a container: with mongo stopped it exits 1.
 Tested against a throwaway `mongo:4.4.18`: dump, checksum, and `mongorestore` all round-trip.
 
-**Blocked on two things before it may run:**
+**Not used, on purpose.** PMD is a demo: accounts and demo workspaces expire, nothing in it is
+worth restoring, and the Terms and Privacy Policy say there are no backups. The script is kept to
+show the setup is ready. If PMD ever stops being a demo, two things come first:
 
 1. **Legal docs.** The Terms (§4, §8) and the Privacy Policy say there are no backups.
    `docs/legal/README.md` (R3) requires privacy §12/§13/§14.2 and terms §8 to be rewritten —
