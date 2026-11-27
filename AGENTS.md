@@ -48,8 +48,8 @@ cd frontend/pmd-frontend && npm ci && npm run dev       # http://localhost:5173
 ```
 
 The Vite dev server proxies `/api`, `/actuator` and `/uploads` to the backend port
-(`PMD_BACKEND_PORT`, else `.runtime/backend-port.txt`, else 8080). The Windows helpers in
-`scripts/` (`pmd_dev_up`, `pmd-start`, …) wrap the same steps.
+(`PMD_BACKEND_PORT`, else `.runtime/backend-port.txt`, else 8080). The Windows launcher
+`scripts/pmd.bat` (PMD Control) wraps the same steps.
 
 ## Checks before committing
 
