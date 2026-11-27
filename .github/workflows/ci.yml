@@ -65,8 +65,16 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Test
         run: npm run test
+
+      # Vercel builds from the repo too; this catches a broken build (e.g. a ?raw legal
+      # import) before a deploy does.
+      - name: Build
+        run: npm run build
 
       - name: Dependency audit (high)
         run: npm audit --audit-level=high
@@ -80,13 +88,24 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     needs: infra
+    # Production runs mongo:4.4.18 (the last build the Pi 4 CPU can run); dev uses 7.
+    # Both, so a query that only works on one fails here and not on the Pi.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mongo: "mongo:7"
+            shell: mongosh
+          - mongo: "mongo:4.4.18"
+            shell: mongo
+    name: backend (${{ matrix.mongo }})
     services:
       mongo:
-        image: mongo:7
+        image: ${{ matrix.mongo }}
         ports:
           - 27017:27017
         options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-cmd "${{ matrix.shell }} --quiet --eval 'db.runCommand({ ping: 1 })'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
