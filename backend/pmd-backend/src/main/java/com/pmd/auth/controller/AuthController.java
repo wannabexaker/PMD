@@ -152,6 +152,7 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Passwords do not match");
         }
         passwordPolicyService.validateForRegister(request.getPassword());
+        userService.requireAccountCapacity();
 
         User user = new User();
         user.setUsername(username);
@@ -199,6 +200,7 @@ public class AuthController {
             // Only when creating the account. Signing in with Google is not the moment to
             // re-ask an existing user, and blocking them would lock them out of their data.
             requireTermsAccepted(request.isAcceptedTerms());
+            userService.requireAccountCapacity();
             User created = new User();
             created.setUsername(email);
             created.setEmail(email);

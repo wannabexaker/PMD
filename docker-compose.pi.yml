@@ -85,6 +85,14 @@ services:
       # Both optional: empty = that feature stays disabled.
       PMD_GOOGLE_CLIENT_ID: ${PMD_GOOGLE_CLIENT_ID:-}
       PMD_TURNSTILE_SECRET: ${PMD_TURNSTILE_SECRET:-}
+      # Public-demo caps (0 = unlimited). Demo workspaces delete themselves after the TTL;
+      # the user can create a new one. Each user owns at most one workspace besides it.
+      PMD_DEMO_WORKSPACE_TTL_DAYS: ${PMD_DEMO_WORKSPACE_TTL_DAYS:-7}
+      PMD_LIMITS_MAX_ACCOUNTS: ${PMD_LIMITS_MAX_ACCOUNTS:-200}
+      PMD_LIMITS_MAX_OWNED_WORKSPACES: ${PMD_LIMITS_MAX_OWNED_WORKSPACES:-1}
+      PMD_LIMITS_WORKSPACE_MAX_PROJECTS: ${PMD_LIMITS_WORKSPACE_MAX_PROJECTS:-30}
+      PMD_LIMITS_WORKSPACE_MAX_MEMBERS: ${PMD_LIMITS_WORKSPACE_MAX_MEMBERS:-25}
+      PMD_LIMITS_WORKSPACE_MAX_TEAMS: ${PMD_LIMITS_WORKSPACE_MAX_TEAMS:-10}
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=70}
       SERVER_PORT: 8080
     healthcheck:

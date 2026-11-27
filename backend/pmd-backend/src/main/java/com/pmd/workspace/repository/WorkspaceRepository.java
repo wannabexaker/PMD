@@ -18,4 +18,6 @@ public interface WorkspaceRepository extends MongoRepository<Workspace, String> 
     boolean existsByNameIgnoreCaseAndIdNot(String name, String id);
 
     List<Workspace> findByDeletionScheduledAtLessThanEqual(Instant now);
+
+    long countByCreatedByUserIdAndDemoFalse(String createdByUserId);
 }

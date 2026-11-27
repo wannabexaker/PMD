@@ -49,6 +49,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -97,6 +98,22 @@ public class WorkspaceService {
     private final UserService userService;
     private static final Logger logger = LoggerFactory.getLogger(WorkspaceService.class);
 
+    // A demo workspace is scheduled for deletion the moment it is created and purged by the
+    // same job as any other scheduled deletion. The user can create a fresh one afterwards.
+    @Value("${pmd.demo.workspace-ttl-days:7}")
+    private long demoWorkspaceTtlDays = 7;
+
+    // Public-demo caps; 0 means unlimited, which is the default outside the Pi. The demo
+    // workspace is not counted: every user has exactly one, keyed by their user id.
+    @Value("${pmd.limits.max-owned-workspaces:0}")
+    private int maxOwnedWorkspaces = 0;
+    @Value("${pmd.limits.workspace.max-projects:0}")
+    private int defaultMaxProjects = 0;
+    @Value("${pmd.limits.workspace.max-members:0}")
+    private int defaultMaxMembers = 0;
+    @Value("${pmd.limits.workspace.max-teams:0}")
+    private int defaultMaxTeams = 0;
+
     public WorkspaceService(WorkspaceRepository workspaceRepository,
                             WorkspaceMemberRepository workspaceMemberRepository,
                             WorkspaceInviteRepository workspaceInviteRepository,
@@ -144,6 +161,11 @@ public class WorkspaceService {
         if (trimmed.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace name is required");
         }
+        if (maxOwnedWorkspaces > 0 && creator != null && creator.getId() != null
+            && workspaceRepository.countByCreatedByUserIdAndDemoFalse(creator.getId()) >= maxOwnedWorkspaces) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "This demo allows " + maxOwnedWorkspaces + " workspace(s) of your own besides the demo workspace");
+        }
         if (workspaceRepository.existsByNameIgnoreCase(trimmed)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Workspace name already exists");
         }
@@ -162,9 +184,9 @@ public class WorkspaceService {
         workspace.setCreatedByUserId(creator != null ? creator.getId() : null);
         workspace.setDemo(false);
         workspace.setRequireApproval(false);
-        workspace.setMaxProjects(null);
-        workspace.setMaxMembers(null);
-        workspace.setMaxTeams(null);
+        workspace.setMaxProjects(defaultMaxProjects > 0 ? defaultMaxProjects : null);
+        workspace.setMaxMembers(defaultMaxMembers > 0 ? defaultMaxMembers : null);
+        workspace.setMaxTeams(defaultMaxTeams > 0 ? defaultMaxTeams : null);
         workspace.setMaxStorageMb(null);
         Workspace saved = workspaceRepository.save(workspace);
 
@@ -251,9 +273,18 @@ public class WorkspaceService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace name confirmation does not match");
         }
 
-        if (workspace.getDeletionScheduledAt() == null) {
+        Instant graceEnd = Instant.now().plus(WORKSPACE_DELETE_GRACE_MINUTES, ChronoUnit.MINUTES);
+        if (workspace.isDemo() && workspace.getDeletionScheduledAt() != null
+            && workspace.getDeletionScheduledAt().isAfter(graceEnd)) {
+            // A demo already carries its expiry; deleting it by hand only brings that forward.
+            workspace.setDeletionScheduledAt(graceEnd);
+            workspace.setDeletionRequestedAt(Instant.now());
+            workspace.setDeletionRequestedByUserId(requester != null ? requester.getId() : null);
+            workspaceRepository.save(workspace);
+            workspaceInviteNotificationService.notifyWorkspaceDeletionScheduled(workspace, requester, graceEnd);
+        } else if (workspace.getDeletionScheduledAt() == null) {
             Instant now = Instant.now();
-            Instant scheduledAt = now.plus(WORKSPACE_DELETE_GRACE_MINUTES, ChronoUnit.MINUTES);
+            Instant scheduledAt = graceEnd;
             workspace.setDeletionRequestedAt(now);
             workspace.setDeletionScheduledAt(scheduledAt);
             workspace.setDeletionRequestedByUserId(requester != null ? requester.getId() : null);
@@ -268,6 +299,10 @@ public class WorkspaceService {
         Workspace workspace = workspaceRepository.findById(workspaceId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
         requireWorkspaceDeletePermission(workspace, requester);
+        if (workspace.isDemo()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Demo workspaces expire automatically; create a new one after it is gone");
+        }
 
         boolean hadPendingDeletion = workspace.getDeletionScheduledAt() != null;
         workspace.setDeletionRequestedAt(null);
@@ -718,16 +753,16 @@ public class WorkspaceService {
             workspace.setAvatarUrl(avatarUrl.trim());
         }
         if (maxProjects != null) {
-            workspace.setMaxProjects(normalizeLimit(maxProjects, "Max projects"));
+            workspace.setMaxProjects(normalizeLimit(maxProjects, "Max projects", defaultMaxProjects));
         }
         if (maxMembers != null) {
-            workspace.setMaxMembers(normalizeLimit(maxMembers, "Max members"));
+            workspace.setMaxMembers(normalizeLimit(maxMembers, "Max members", defaultMaxMembers));
         }
         if (maxTeams != null) {
-            workspace.setMaxTeams(normalizeLimit(maxTeams, "Max teams"));
+            workspace.setMaxTeams(normalizeLimit(maxTeams, "Max teams", defaultMaxTeams));
         }
         if (maxStorageMb != null) {
-            workspace.setMaxStorageMb(normalizeLimit(maxStorageMb, "Max storage"));
+            workspace.setMaxStorageMb(normalizeLimit(maxStorageMb, "Max storage", 0));
         }
         Workspace saved = workspaceRepository.save(workspace);
         // /uploads is public, so a replaced logo would otherwise stay downloadable forever.
@@ -774,8 +809,20 @@ public class WorkspaceService {
             created.setCreatedByUserId(user.getId());
             created.setDemo(true);
             created.setRequireApproval(true);
+            created.setMaxProjects(defaultMaxProjects > 0 ? defaultMaxProjects : null);
+            created.setMaxMembers(defaultMaxMembers > 0 ? defaultMaxMembers : null);
+            created.setMaxTeams(defaultMaxTeams > 0 ? defaultMaxTeams : null);
+            created.setDeletionRequestedAt(created.getCreatedAt());
+            created.setDeletionScheduledAt(created.getCreatedAt().plus(demoWorkspaceTtlDays, ChronoUnit.DAYS));
             workspace = workspaceRepository.save(created);
-        } else if (workspace.isDemo() && (workspace.getName() == null || workspace.getName().trim().equalsIgnoreCase(DEMO_WORKSPACE_NAME_PREFIX))) {
+        } else if (workspace.isDemo() && workspace.getDeletionScheduledAt() == null) {
+            // Demo created before expiry existed: give it the same lifetime from its creation.
+            Instant base = workspace.getCreatedAt() != null ? workspace.getCreatedAt() : Instant.now();
+            workspace.setDeletionRequestedAt(base);
+            workspace.setDeletionScheduledAt(base.plus(demoWorkspaceTtlDays, ChronoUnit.DAYS));
+            workspace = workspaceRepository.save(workspace);
+        }
+        if (workspace.isDemo() && (workspace.getName() == null || workspace.getName().trim().equalsIgnoreCase(DEMO_WORKSPACE_NAME_PREFIX))) {
             workspace.setName(generateUniqueDemoWorkspaceName());
             workspace = workspaceRepository.save(workspace);
         }
@@ -1046,6 +1093,8 @@ public class WorkspaceService {
         String workspaceId = workspace.getId();
         logger.info("Finalizing scheduled deletion for workspaceId={} workspaceName={}", workspaceId, workspace.getName());
 
+        // Comments are keyed by project, so they go before the projects that lead to them.
+        demoWorkspaceSeeder.purgeWorkspaceExtras(workspaceId, workspace.isDemo());
         projectRepository.deleteByWorkspaceId(workspaceId);
         teamRepository.deleteByWorkspaceId(workspaceId);
         workspaceInviteRepository.deleteByWorkspaceId(workspaceId);
@@ -1201,10 +1250,15 @@ public class WorkspaceService {
         }
     }
 
-    private Integer normalizeLimit(Integer value, String fieldName) {
+    /** 0 clears the limit; with a configured ceiling (public demo) it can neither be cleared nor raised past it. */
+    private Integer normalizeLimit(Integer value, String fieldName, int ceiling) {
         if (value == null) return null;
         if (value < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " must be >= 0");
+        }
+        if (ceiling > 0 && (value == 0 || value > ceiling)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                fieldName + " can be at most " + ceiling + " in this demo");
         }
         return value == 0 ? null : value;
     }

@@ -26,6 +26,8 @@ import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class UserService {
@@ -44,6 +46,26 @@ public class UserService {
         this.mongoTemplate = mongoTemplate;
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceRoleRepository = workspaceRoleRepository;
+    }
+
+    // Cap on sign-ups for the public demo; 0 means unlimited (the default outside the Pi).
+    @Value("${pmd.limits.max-accounts:0}")
+    private long maxAccounts = 0;
+
+    /**
+     * Refuses a new account once the cap is reached. The seed members of demo workspaces
+     * ({@code @pmd.local}, no credentials) are not accounts and do not count.
+     */
+    public void requireAccountCapacity() {
+        if (maxAccounts <= 0) {
+            return;
+        }
+        long accounts = mongoTemplate.count(
+            new Query(Criteria.where("email").not().regex("@pmd\\.local$")), User.class);
+        if (accounts >= maxAccounts) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                "The demo has reached its account limit. Please try again later.");
+        }
     }
 
     public User findById(String id) {

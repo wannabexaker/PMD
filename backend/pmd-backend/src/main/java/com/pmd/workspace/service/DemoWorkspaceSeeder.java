@@ -54,6 +54,9 @@ public class DemoWorkspaceSeeder {
         "IT Support / Helpdesk"
     );
 
+    // The applicant behind the demo's pending join request.
+    private static final SeedUser PENDING_SEED_USER = new SeedUser("Ivan", "Petrov", "Project Management", "Member");
+
     // Indices reference SEED_USERS list positions (0-based)
     private static final List<SeedUser> SEED_USERS = List.of(
         new SeedUser("Alex",   "Johnson",  "Web Development",       "Owner"),   // 0
@@ -200,6 +203,41 @@ public class DemoWorkspaceSeeder {
         this.personRepository = personRepository;
         this.projectRepository = projectRepository;
         this.projectCommentRepository = projectCommentRepository;
+    }
+
+    /**
+     * Deletes what a workspace purge does not reach through the per-workspace repositories:
+     * the comments on its projects (keyed by project, not workspace), its people, and — for a
+     * demo workspace — the password-less seed users minted for it. Call before the projects
+     * themselves are deleted, since comments are found through them.
+     */
+    public void purgeWorkspaceExtras(String workspaceId, boolean demo) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return;
+        }
+        List<String> projectIds = projectRepository.findByWorkspaceId(
+                workspaceId,
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")
+            ).stream()
+            .map(Project::getId)
+            .filter(id -> id != null)
+            .toList();
+        if (!projectIds.isEmpty()) {
+            projectCommentRepository.deleteByProjectIdIn(projectIds);
+        }
+        personRepository.deleteByWorkspaceId(workspaceId);
+        if (!demo) {
+            return;
+        }
+        List<SeedUser> seeds = new ArrayList<>(SEED_USERS);
+        seeds.add(PENDING_SEED_USER);
+        for (SeedUser seed : seeds) {
+            userRepository.findByEmail(buildDemoEmail(seed, workspaceId))
+                // Only ever the unreachable seed accounts: never one that can sign in.
+                .filter(user -> (user.getPasswordHash() == null || user.getPasswordHash().isBlank())
+                    && user.getGoogleId() == null)
+                .ifPresent(userRepository::delete);
+        }
     }
 
     public void resetWorkspaceData(String workspaceId) {
@@ -476,8 +514,7 @@ public class DemoWorkspaceSeeder {
     }
 
     private void ensurePendingJoinRequest(String workspaceId) {
-        SeedUser pendingSeed = new SeedUser("Ivan", "Petrov", "Project Management", "Member");
-        User user = ensureDemoUser(pendingSeed, workspaceId);
+        User user = ensureDemoUser(PENDING_SEED_USER, workspaceId);
         if (user.getId() == null) {
             return;
         }

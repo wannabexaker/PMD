@@ -39,6 +39,7 @@ import {
   setDashboardSelectedProjectId,
 } from './ui/uiSelectionStore'
 import { getAvatarFrameStyle } from './shared/avatarFrame'
+import { DEMO_PILL_TITLE, demoPillLabel } from './workspaces/demoExpiry'
 import './App.css'
 
 function toLandingPath(preferences: ReturnType<typeof loadUiPreferences>) {
@@ -1033,7 +1034,9 @@ function AppView({
                       </span>
                     ) : null}
                   </div>
-                  {activeWorkspace?.demo ? <span className="pill">Demo</span> : null}
+                  {activeWorkspace?.demo ? (
+                    <span className="pill" title={DEMO_PILL_TITLE}>{demoPillLabel(activeWorkspace)}</span>
+                  ) : null}
                 </div>
                 <div className="identity-pill user-identity">
                   <div className="avatar-menu">
