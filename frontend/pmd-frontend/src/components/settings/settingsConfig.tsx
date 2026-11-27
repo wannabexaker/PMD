@@ -245,6 +245,67 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 
 export const AUDIT_CATEGORIES = ['WORKSPACE', 'MEMBERSHIP', 'INVITE', 'REQUEST', 'TEAM', 'ROLE', 'PROJECT', 'GENERAL']
 
+const AUDIT_CATEGORY_LABELS: Record<string, string> = {
+  WORKSPACE: 'Workspace',
+  MEMBERSHIP: 'Membership',
+  INVITE: 'Invite',
+  REQUEST: 'Join request',
+  TEAM: 'Team',
+  ROLE: 'Role',
+  PROJECT: 'Project',
+  GENERAL: 'General',
+}
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  CREATE: 'Created',
+  UPDATE: 'Updated',
+  DELETE: 'Deleted',
+  JOIN: 'Joined',
+  REVOKE: 'Revoked',
+  APPROVE: 'Approved',
+  DENY: 'Denied',
+  CANCEL: 'Cancelled',
+  DEACTIVATE: 'Deactivated',
+  RESTORE: 'Restored',
+  ASSIGN_ROLE: 'Role assigned',
+  RANDOM_ASSIGN: 'Random assignment',
+  UPDATE_SETTINGS: 'Settings updated',
+  REQUEST_DELETE: 'Deletion requested',
+  CANCEL_DELETE: 'Deletion cancelled',
+  RESET_DEMO: 'Demo reset',
+}
+
+/** "SOME_CODE" -> "Some code", for audit codes that have no explicit label. */
+function humanizeAuditCode(code: string): string {
+  const words = code.trim().toLowerCase().replace(/_+/g, ' ')
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : ''
+}
+
+export function auditCategoryLabel(category?: string | null): string {
+  if (!category) return '-'
+  return AUDIT_CATEGORY_LABELS[category.toUpperCase()] ?? humanizeAuditCode(category)
+}
+
+export function auditActionLabel(action?: string | null): string {
+  if (!action) return '-'
+  return AUDIT_ACTION_LABELS[action.toUpperCase()] ?? humanizeAuditCode(action)
+}
+
+/** Audit timestamps, e.g. "27 Nov 2026, 14:05", honouring the 12h/24h preference. */
+export function formatAuditTime(iso: string | null | undefined, format: UiPreferences['dateTimeFormat']): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: format === '12h',
+  })
+}
+
 export type SettingsPageProps = {
   preferences: UiPreferences
   onChange: (next: UiPreferences) => void

@@ -52,6 +52,9 @@ import {
   getSystemRoleDefaults,
   DEFAULT_NOTIFICATION_PREFERENCES,
   AUDIT_CATEGORIES,
+  auditActionLabel,
+  auditCategoryLabel,
+  formatAuditTime,
   WORKSPACE_CROP_STORAGE_KEY,
   loadSavedCropMap,
 } from './settings/settingsConfig'
@@ -684,8 +687,44 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
       setAuditEvents([])
       return
     }
+    // Load when the Audit tab is opened (and again on every visit), so changes made in the
+    // other tabs, such as a team created a moment ago, show up without a manual refresh.
+    if (activeTabPanel !== 'audit') return
     loadAudit(activeWorkspaceId)
-  }, [activeWorkspaceId, canViewAudit, loadAudit])
+  }, [activeWorkspaceId, canViewAudit, loadAudit, activeTabPanel])
+
+  const memberNameById = useMemo(
+    () => new Map(members.filter((member) => member.id).map((member) => [member.id as string, member.displayName ?? member.email ?? 'User'])),
+    [members]
+  )
+  const teamNameById = useMemo(
+    () => new Map(teams.filter((team) => team.id).map((team) => [team.id as string, team.name ?? 'Team'])),
+    [teams]
+  )
+
+  // Audit events carry ids; show names from data already loaded on this page, falling back to the
+  // name the event stored for its own entity (entityName) and only then to a neutral placeholder.
+  const describeAuditEvent = useCallback(
+    (event: WorkspaceAuditEvent) => {
+      const entityName = (event.entityName ?? '').trim()
+      const entityIs = (type: string) => (event.entityType ?? '').toUpperCase() === type && entityName
+      const target = event.targetUserId
+        ? memberNameById.get(event.targetUserId) ??
+          (entityIs('JOIN_REQUEST') ? entityName : null) ??
+          (event.targetUserId === event.actorUserId ? event.actorName : null) ??
+          'Unknown user'
+        : '-'
+      const team = event.teamId
+        ? teamNameById.get(event.teamId) ?? (entityIs('TEAM') ? entityName : 'Unknown team')
+        : '-'
+      const role = event.roleId
+        ? roleNameById.get(event.roleId) ?? (entityIs('ROLE') ? entityName : 'Unknown role')
+        : '-'
+      const project = event.projectId ? (entityIs('PROJECT') ? entityName : 'Unknown project') : '-'
+      return { target, team, role, project }
+    },
+    [memberNameById, roleNameById, teamNameById]
+  )
 
   useEffect(() => {
     if (!user?.id) {
@@ -1885,7 +1924,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       }}
                       disabled={auditLoading || !activeWorkspaceId}
                     >
-                      {auditLoading ? '...' : '?'}
+                      {auditLoading ? 'Refreshing...' : 'Refresh'}
                     </button>
                     <button
                       type="button"
@@ -1917,11 +1956,11 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                         <option value="">Category</option>
                         {AUDIT_CATEGORIES.map((category) => (
                           <option key={category} value={category}>
-                            {category}
+                            {auditCategoryLabel(category)}
                           </option>
                         ))}
                       </select>
-                      <input value={auditAction} onChange={(event) => setAuditAction(event.target.value)} placeholder="Act" title="Action" />
+                      <input value={auditAction} onChange={(event) => setAuditAction(event.target.value)} placeholder="Action" title="Action" />
                       <select value={auditActorUserId} onChange={(event) => setAuditActorUserId(event.target.value)} title="Actor">
                         <option value="">Actor</option>
                         {members.map((member) => (
@@ -1965,6 +2004,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                       </label>
                     </div>
                   ) : null}
+                  {auditEvents.length === 0 && auditLoading ? <p className="muted">Loading audit events...</p> : null}
                   {auditEvents.length === 0 && !auditLoading ? <p className="muted">No audit events for current filters.</p> : null}
                   {auditEvents.length > 0 ? (
                     <div className="audit-table-wrap settings-scroll">
@@ -1972,30 +2012,33 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
                         <thead>
                           <tr>
                             <th>Time</th>
-                            <th>Cat</th>
-                            <th>Act</th>
+                            <th>Category</th>
+                            <th>Action</th>
                             <th>Actor</th>
-                            <th>Target</th>
+                            <th>Target user</th>
                             <th>Team</th>
                             <th>Role</th>
                             <th>Project</th>
-                            <th>Message</th>
+                            <th>Details</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {auditEvents.map((event) => (
-                            <tr key={event.id ?? `${event.createdAt}-${event.action}`}>
-                              <td>{event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}</td>
-                              <td>{event.category ?? '-'}</td>
-                              <td>{event.action ?? '-'}</td>
-                              <td title={event.actorUserId ?? ''}>{event.actorName ?? '-'}</td>
-                              <td>{event.targetUserId ?? '-'}</td>
-                              <td>{event.teamId ?? '-'}</td>
-                              <td>{event.roleId ?? '-'}</td>
-                              <td>{event.projectId ?? '-'}</td>
-                              <td title={event.message ?? ''}>{event.message ?? '-'}</td>
-                            </tr>
-                          ))}
+                          {auditEvents.map((event) => {
+                            const names = describeAuditEvent(event)
+                            return (
+                              <tr key={event.id ?? `${event.createdAt}-${event.action}`}>
+                                <td title={event.createdAt ?? ''}>{formatAuditTime(event.createdAt, preferences.dateTimeFormat)}</td>
+                                <td>{auditCategoryLabel(event.category)}</td>
+                                <td>{auditActionLabel(event.action)}</td>
+                                <td>{event.actorName ?? '-'}</td>
+                                <td>{names.target}</td>
+                                <td>{names.team}</td>
+                                <td>{names.role}</td>
+                                <td>{names.project}</td>
+                                <td title={event.message ?? ''}>{event.message ?? '-'}</td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
