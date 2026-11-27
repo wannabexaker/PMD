@@ -10,6 +10,7 @@ import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
 import { displayEmail } from '../shared/displayEmail'
 import { pluralize } from '../shared/pluralize'
+import { useConfirmDialog } from './common/useConfirmDialog'
 import {
   PROJECT_FOLDERS,
   PROJECT_STATUS_SELECTABLE,
@@ -125,6 +126,7 @@ export function AssignPage({
 }: AssignPageProps) {
   const { teams, teamById } = useTeams()
   const { activeWorkspaceId } = useWorkspace()
+  const { confirmDestructive, dialog: confirmDialog } = useConfirmDialog()
   const [selectedMembers, setSelectedMembers] = useState<UserSummary[]>([])
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
@@ -652,7 +654,15 @@ export function AssignPage({
 
   const handleDeleteArchived = async () => {
     if (!selectedProject || !selectedProject.id || !activeWorkspaceId) return
-    const confirmed = window.confirm('Delete this project permanently?')
+    const confirmed = await confirmDestructive({
+      title: 'Delete project?',
+      message: (
+        <>
+          <strong>{selectedProject.name ?? 'This project'}</strong> is deleted permanently. This cannot be undone.
+        </>
+      ),
+      confirmLabel: 'Delete project',
+    })
     if (!confirmed) return
     setError(null)
     try {
@@ -794,6 +804,27 @@ export function AssignPage({
             </div>
           ) : null}
           <div className="assign-panel-body assign-folders">
+            {scopedProjects.length === 0 ? (
+              <div className="empty-state">
+                {projectSearch.trim() ? (
+                  <>
+                    <p className="muted">No projects match “{projectSearch.trim()}”.</p>
+                    <button type="button" className="btn btn-secondary" onClick={() => setProjectSearch('')}>
+                      Clear search
+                    </button>
+                  </>
+                ) : projectsSource.length > 0 ? (
+                  <p className="muted">No projects match the current filters.</p>
+                ) : (
+                  <>
+                    <p className="muted">No projects yet.</p>
+                    <button type="button" className="btn btn-primary" onClick={() => setShowCreateProject(true)}>
+                      Create project
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
             {foldersToShow.map((folder) => {
               const filteredProjects = scopedProjects
                 .filter((project) => toFolderKey(project.status ?? 'NOT_STARTED') === folder.key)
@@ -1027,7 +1058,7 @@ export function AssignPage({
                 <div className="assign-status-group">
                   <label className="muted">Status</label>
                   <select
-                    className="status-select"
+                    className={`status-select status-${selectedProject.status ?? 'NOT_STARTED'}`}
                     aria-label="Project status"
                     value={selectedProject.status ?? 'NOT_STARTED'}
                     onChange={(event) => handleStatusChange(event.target.value as ProjectStatus)}
@@ -1168,6 +1199,7 @@ export function AssignPage({
           ) : null}
         </div>
       </div>
+      {confirmDialog}
     </section>
   )
 }

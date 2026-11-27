@@ -17,6 +17,7 @@ import { PieChart } from './common/PieChart'
 import { ProjectComments } from './ProjectComments'
 import { displayEmail } from '../shared/displayEmail'
 import { pluralize } from '../shared/pluralize'
+import { useConfirmDialog } from './common/useConfirmDialog'
 import { isApiError } from '../api/http'
 import { useNavigate } from 'react-router-dom'
 import { useTeams } from '../teams/TeamsContext'
@@ -33,6 +34,7 @@ import {
   PROJECT_STATUS_FLOW,
   PROJECT_STATUS_SELECTABLE,
   formatStatusLabel,
+  projectStatusChartColor,
   toFolderKey,
 } from '../projects/statuses'
 import { WORKSPACE_SUMMARY_PANEL_KEYS } from '../types'
@@ -50,7 +52,6 @@ type DashboardPageProps = {
 }
 
 const MAX_PROJECT_TITLE_LENGTH = 32
-const STATUS_COLORS = ['#a855f7', '#38bdf8', '#22c55e', '#f97316', '#64748b']
 const TEAM_COLORS = ['#38bdf8', '#a855f7', '#f97316', '#22c55e', '#facc15', '#e879f9']
 const DEFAULT_ROLE_BADGE_COLOR = '#6366F1'
 const DEFAULT_TEAM_BADGE_COLOR = '#3B82F6'
@@ -389,6 +390,7 @@ export function DashboardPage({
   const { teams, teamById } = useTeams()
   const { activeWorkspaceId, activeWorkspace } = useWorkspace()
   const mentionOptions = useMentionOptions(users)
+  const { confirm, confirmDestructive, dialog: confirmDialog } = useConfirmDialog()
   const [showCreate, setShowCreate] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -761,24 +763,6 @@ export function DashboardPage({
   )
 
   useEffect(() => {
-    if (!selectedProject) {
-      setDraftProject(null)
-      setMemberSearch('')
-      setAvailableSearch('')
-      return
-    }
-    setDraftProject({
-      name: (selectedProject.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
-      description: selectedProject.description ?? '',
-      status: (selectedProject.status ?? 'NOT_STARTED') as ProjectStatus,
-      teamId: selectedProject.teamId ?? currentUser?.teamId ?? '',
-      memberIds: selectedProject.memberIds ?? [],
-    })
-    setMemberSearch('')
-    setAvailableSearch('')
-  }, [selectedProject, currentUser?.teamId])
-
-  useEffect(() => {
     let active = true
     setWorkspaceStatsError(null)
     if (!activeWorkspaceId) {
@@ -1065,7 +1049,15 @@ export function DashboardPage({
   const handleDelete = async (project: Project) => {
     setOpenMenuId(null)
     if (!project.id || !activeWorkspaceId) return
-    const confirmed = window.confirm('Delete this project permanently?')
+    const confirmed = await confirmDestructive({
+      title: 'Delete project?',
+      message: (
+        <>
+          <strong>{project.name ?? 'This project'}</strong> is deleted permanently. This cannot be undone.
+        </>
+      ),
+      confirmLabel: 'Delete project',
+    })
     if (!confirmed) return
     try {
       await deleteProject(activeWorkspaceId, project.id)
@@ -1092,12 +1084,96 @@ export function DashboardPage({
     const originalMembers = (selectedProject.memberIds ?? []).slice().sort()
     const draftMembers = (draftProject.memberIds ?? []).slice().sort()
     return (
-      selectedProject.name !== draftProject.name ||
+      // The draft title is capped at MAX_PROJECT_TITLE_LENGTH, so compare against the capped original.
+      (selectedProject.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH) !== draftProject.name ||
       (selectedProject.description ?? '') !== (draftProject.description ?? '') ||
       (selectedProject.status ?? 'NOT_STARTED') !== draftProject.status ||
       originalMembers.join('|') !== draftMembers.join('|')
     )
   }, [selectedProject, draftProject])
+
+  // Which project the draft was built from. A list refresh hands us a new selectedProject object for the
+  // same project; rebuilding the draft then would silently throw away unsaved edits (B5).
+  const draftSourceIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!selectedProject) {
+      draftSourceIdRef.current = null
+      setDraftProject(null)
+      setMemberSearch('')
+      setAvailableSearch('')
+      return
+    }
+    const sameProject = draftSourceIdRef.current === (selectedProject.id ?? null)
+    if (sameProject && isDirty) {
+      return
+    }
+    draftSourceIdRef.current = selectedProject.id ?? null
+    setDraftProject({
+      name: (selectedProject.name ?? '').slice(0, MAX_PROJECT_TITLE_LENGTH),
+      description: selectedProject.description ?? '',
+      status: (selectedProject.status ?? 'NOT_STARTED') as ProjectStatus,
+      teamId: selectedProject.teamId ?? currentUser?.teamId ?? '',
+      memberIds: selectedProject.memberIds ?? [],
+    })
+    if (!sameProject) {
+      setMemberSearch('')
+      setAvailableSearch('')
+    }
+  }, [selectedProject, currentUser?.teamId, isDirty])
+
+  /** Select another project (or none), asking first when the open project has unsaved edits. */
+  const requestSelection = async (nextProjectId: string | null) => {
+    if (isDirty && nextProjectId !== selectedProjectId) {
+      const discard = await confirm({
+        tone: 'danger',
+        title: 'Discard unsaved changes?',
+        message: (
+          <>
+            You changed <strong>{selectedProject?.name ?? 'this project'}</strong> but did not save. Switching
+            project drops those changes.
+          </>
+        ),
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep editing',
+      })
+      if (!discard) return
+    }
+    holdSplitHeight()
+    if (nextProjectId) {
+      onSelectProject(nextProjectId)
+    } else {
+      onClearSelection()
+    }
+  }
+
+  // B29: the details pane (project) is often shorter than the workspace summary it replaces. When the page
+  // is scrolled near the bottom, the browser then clamps the scroll position and the list jumps under the
+  // cursor. Keep the split at its previous height until the extra space is scrolled out of view.
+  const splitRef = useRef<HTMLDivElement | null>(null)
+  const [splitMinHeight, setSplitMinHeight] = useState<number | null>(null)
+  const holdSplitHeight = () => {
+    const split = splitRef.current
+    if (split) setSplitMinHeight(split.offsetHeight)
+  }
+  useEffect(() => {
+    if (splitMinHeight === null) return
+    const releaseIfSafe = () => {
+      const split = splitRef.current
+      if (!split) return
+      const naturalHeight = Math.max(0, ...Array.from(split.children).map((child) => (child as HTMLElement).offsetHeight))
+      // Safe once the split's natural bottom reaches the viewport bottom: shrinking it then cannot clamp the scroll.
+      if (split.getBoundingClientRect().top + naturalHeight >= window.innerHeight) {
+        setSplitMinHeight(null)
+      }
+    }
+    releaseIfSafe()
+    window.addEventListener('scroll', releaseIfSafe, { passive: true })
+    window.addEventListener('resize', releaseIfSafe)
+    return () => {
+      window.removeEventListener('scroll', releaseIfSafe)
+      window.removeEventListener('resize', releaseIfSafe)
+    }
+  }, [splitMinHeight, selectedProjectId])
 
   const handleDraftSave = async () => {
     if (!selectedProject?.id || !draftProject || !activeWorkspaceId) {
@@ -1192,10 +1268,10 @@ export function DashboardPage({
       const status = (project.status ?? 'NOT_STARTED') as string
       counts.set(status, (counts.get(status) ?? 0) + 1)
     })
-    return PROJECT_STATUS_FLOW.map((status, index) => ({
+    return PROJECT_STATUS_FLOW.map((status) => ({
       label: formatStatusLabel(status),
       value: counts.get(status) ?? 0,
-      color: STATUS_COLORS[index % STATUS_COLORS.length],
+      color: projectStatusChartColor(status),
     }))
   }, [scopedProjects])
 
@@ -1402,10 +1478,34 @@ export function DashboardPage({
         </div>
       ) : null}
 
-      <div className="dashboard-split">
+      <div
+        className="dashboard-split"
+        ref={splitRef}
+        style={splitMinHeight !== null ? { minHeight: splitMinHeight } : undefined}
+      >
         <div className="dashboard-list">
           <ul className="list compact">
-            {visibleProjects.length === 0 ? <li className="muted">No projects yet.</li> : null}
+            {visibleProjects.length === 0 ? (
+              <li className="empty-state">
+                {search.trim() ? (
+                  <>
+                    <p className="muted">No projects match “{search.trim()}”.</p>
+                    <button type="button" className="btn btn-secondary" onClick={() => setSearch('')}>
+                      Clear search
+                    </button>
+                  </>
+                ) : projects.length > 0 ? (
+                  <p className="muted">No projects match the current filters.</p>
+                ) : (
+                  <>
+                    <p className="muted">No projects yet.</p>
+                    <button type="button" className="btn btn-primary" onClick={() => setShowCreate(true)}>
+                      Create project
+                    </button>
+                  </>
+                )}
+              </li>
+            ) : null}
             {foldersToShow.map((folder) => {
               const filteredProjects = visibleProjects
                 .filter((project) => {
@@ -1440,21 +1540,13 @@ export function DashboardPage({
                           className={`card project-row motion-card${isSelected ? ' selected' : ''}${isRowUpdating ? ' is-updating' : ''}`}
                           onClick={() => {
                             if (!project.id) return
-                            if (isSelected) {
-                              onClearSelection()
-                            } else {
-                              onSelectProject(project.id)
-                            }
+                            void requestSelection(isSelected ? null : project.id)
                           }}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                               event.preventDefault()
                               if (!project.id) return
-                              if (isSelected) {
-                                onClearSelection()
-                              } else {
-                                onSelectProject(project.id)
-                              }
+                              void requestSelection(isSelected ? null : project.id)
                             }
                           }}
                           role="button"
@@ -1539,7 +1631,7 @@ export function DashboardPage({
                               ) : (
                                 <div className="project-status-wrap">
                                   <select
-                                    className="status-select"
+                                    className={`status-select status-${status}`}
                                     aria-label={`Status for ${project.name ?? 'project'}`}
                                     value={status}
                                     onClick={(event) => event.stopPropagation()}
@@ -1608,7 +1700,7 @@ export function DashboardPage({
                       </div>
                     ) : (
                       <select
-                        className="status-select"
+                        className={`status-select status-${draftProject?.status ?? 'NOT_STARTED'}`}
                         aria-label="Project status"
                         value={draftProject?.status ?? 'NOT_STARTED'}
                         onChange={(event) =>
@@ -1970,6 +2062,7 @@ export function DashboardPage({
           </div>
         </div>
       </div>
+      {confirmDialog}
     </section>
   )
 }
