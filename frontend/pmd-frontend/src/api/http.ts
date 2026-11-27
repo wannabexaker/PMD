@@ -1,10 +1,32 @@
 const ENV_API_BASE_URL = (import.meta as ImportMeta).env?.VITE_API_BASE_URL as string | undefined
 const MODE = (import.meta as ImportMeta).env?.MODE as string | undefined
-// Keep API calls same-origin by default.
-// Dev uses Vite proxy, Docker/Prod uses Nginx reverse proxy.
+// Same-origin by default: dev uses the Vite proxy, the local Docker stack uses nginx.
+// Production sets VITE_API_BASE_URL to the API host so the browser talks to it directly and
+// the API sees each visitor's own IP (through Cloudflare) rather than a shared proxy's.
 const DEFAULT_API_BASE_URL = ''
-export const API_BASE_URL =
-  ENV_API_BASE_URL && ENV_API_BASE_URL.trim().length > 0 ? ENV_API_BASE_URL : DEFAULT_API_BASE_URL
+export const API_BASE_URL = (
+  ENV_API_BASE_URL && ENV_API_BASE_URL.trim().length > 0 ? ENV_API_BASE_URL.trim() : DEFAULT_API_BASE_URL
+).replace(/\/+$/, '')
+
+/**
+ * Turns a stored image URL into one the browser can load. Only files the API stored
+ * (/uploads/...) live on the API host; everything else relative (e.g. the preset avatars
+ * under /profile-pictures/) is served with the SPA itself.
+ */
+export function resolveAssetUrl(url?: string | null, apiBaseUrl: string = API_BASE_URL): string {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url
+  }
+  const path = url.startsWith('/') ? url : `/${url}`
+  return path.startsWith('/uploads/') ? `${apiBaseUrl}${path}` : path
+}
+
+// A PMD_CSRF cookie set host-only on the SPA's own host (from when the API was proxied
+// same-origin) would shadow the shared-domain one the API now sets. Clear it once.
+if (typeof document !== 'undefined' && API_BASE_URL) {
+  document.cookie = 'PMD_CSRF=; Max-Age=0; path=/'
+}
 const ONLINE_EVENT = 'pmd:online'
 const OFFLINE_EVENT = 'pmd:offline'
 let lastReachability: 'online' | 'offline' | null = null

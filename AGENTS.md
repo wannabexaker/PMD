@@ -31,13 +31,20 @@ query and aggregation compatible with a 4.4 server; there are no transactions (s
 ## Architecture in production
 
 ```
-browser → pmd.olamov.com (Vercel SPA)
-            rewrites /api, /uploads, /actuator → api-pmd.olamov.com
+browser → pmd.olamov.com (Vercel: static SPA only)
+browser → api-pmd.olamov.com (VITE_API_BASE_URL; CORS + credentials) → Cloudflare
               → host Cloudflare Tunnel on the Pi → backend on 127.0.0.1:8080 → Mongo (internal network)
 ```
 
 The Pi runs one host-level Cloudflare Tunnel for all projects; it maps `api-pmd.olamov.com` to
 `http://localhost:8080`. The compose files define no tunnel service of their own.
+
+The SPA calls the API host directly rather than through a Vercel rewrite, so `CF-Connecting-IP`
+is each visitor's own IP and the per-IP rate limits work per visitor (through a rewrite every
+visitor arrived as Vercel's egress IP). That needs: `VITE_API_BASE_URL` in Vercel, the API host in
+CSP `connect-src`, `PMD_ALLOWED_ORIGINS` set to the SPA origin, and the CSRF cookie on the shared
+parent domain (`PMD_AUTH_CSRF_COOKIE_DOMAIN`). Stored images go through `resolveAssetUrl`, which
+sends only `/uploads/...` to the API host.
 
 ## Running it locally
 

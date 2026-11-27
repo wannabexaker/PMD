@@ -20,7 +20,7 @@ import {
   listWorkspaceAudit,
 } from '../api/workspaces'
 import { fetchUsers } from '../api/users'
-import { API_BASE_URL, isApiError } from '../api/http'
+import { isApiError, resolveAssetUrl as resolveStoredAssetUrl } from '../api/http'
 import { getErrorMessage, isForbiddenError } from '../api/errors'
 import { uploadImage } from '../api/uploads'
 import { getAvatarFrameStyle } from '../shared/avatarFrame'
@@ -215,14 +215,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
   const workspaceProfileAvatarFileRef = useRef<HTMLInputElement | null>(null)
   const lastResolvedJoinTokenRef = useRef('')
 
-  const resolveAssetUrl = useCallback((url?: string | null) => {
-    if (!url) return ''
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url
-    }
-    const prefix = url.startsWith('/') ? '' : '/'
-    return `${API_BASE_URL}${prefix}${url}`
-  }, [])
+  const resolveAssetUrl = useCallback((url?: string | null) => resolveStoredAssetUrl(url), [])
 
   const sortedWorkspaces = useMemo(
     () => [...workspaces].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),

@@ -5,7 +5,7 @@ import type { LoginPayload, Project, RegisterPayload, RegisterResponse, User, Us
 import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
 import { fetchMe, googleLogin, login, logoutSession, refreshSession, register } from './api/auth'
-import { API_BASE_URL, getAuthToken, isApiError } from './api/http'
+import { API_BASE_URL, getAuthToken, isApiError, resolveAssetUrl as resolveStoredAssetUrl } from './api/http'
 import { LoginForm } from './components/LoginForm'
 // Route-level code splitting: the heavy authed pages load on demand so the
 // initial bundle stays small. lazy() needs a default export, so the named
@@ -318,14 +318,7 @@ function AppView({
   const [workspaceWarpActive, setWorkspaceWarpActive] = useState(false)
   const tourCardRef = useRef<HTMLDivElement | null>(null)
   const activeTourStep = tourOpen ? ONBOARDING_TOUR_STEPS[tourStepIndex] : null
-  const resolveAssetUrl = useCallback((url?: string | null) => {
-    if (!url) return ''
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url
-    }
-    const prefix = url.startsWith('/') ? '' : '/'
-    return `${API_BASE_URL}${prefix}${url}`
-  }, [])
+  const resolveAssetUrl = useCallback((url?: string | null) => resolveStoredAssetUrl(url), [])
 
   const loadMe = useCallback(async () => {
     setAuthError(null)

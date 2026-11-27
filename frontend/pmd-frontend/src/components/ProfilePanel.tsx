@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { DashboardStatsResponse, UpdateProfilePayload, User, UserStatsResponse } from '../types'
 import { deleteMyAccount, exportMyData, updateProfile } from '../api/auth'
 import { uploadImage } from '../api/uploads'
-import { API_BASE_URL } from '../api/http'
+import { resolveAssetUrl as resolveStoredAssetUrl } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
 import { fetchMyUserStats } from '../api/stats'
 import { fetchMyDashboardStats } from '../api/projects'
@@ -65,12 +65,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
   const [myDashboardStats, setMyDashboardStats] = useState<DashboardStatsResponse | null>(null)
   const [myDashboardError, setMyDashboardError] = useState<string | null>(null)
 
-  const resolveAssetUrl = (url?: string | null) => {
-    if (!url) return ''
-    if (url.startsWith('http://') || url.startsWith('https://')) return url
-    const prefix = url.startsWith('/') ? '' : '/'
-    return `${API_BASE_URL}${prefix}${url}`
-  }
+  const resolveAssetUrl = resolveStoredAssetUrl
 
   const isDirty = useMemo(() => {
     const initialEmail = user.email ?? user.username ?? ''

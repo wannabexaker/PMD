@@ -122,25 +122,33 @@ public class AuthSessionService {
     }
 
     public String buildCsrfCookie(String csrfToken, boolean secureRequest) {
-        return ResponseCookie.from("PMD_CSRF", csrfToken)
-            .httpOnly(false)
-            .secure(properties.isSecureCookie() || secureRequest)
-            .sameSite(properties.getSameSite())
-            .path("/")
+        return csrfCookie(csrfToken, secureRequest)
             .maxAge(properties.getRememberTtlSeconds())
             .build()
             .toString();
     }
 
     public String buildClearCsrfCookie(boolean secureRequest) {
-        return ResponseCookie.from("PMD_CSRF", "")
-            .httpOnly(false)
-            .secure(properties.isSecureCookie() || secureRequest)
-            .sameSite(properties.getSameSite())
-            .path("/")
+        return csrfCookie("", secureRequest)
             .maxAge(0)
             .build()
             .toString();
+    }
+
+    // The double-submit token is readable by script on purpose (the SPA echoes it in a header).
+    // With a configured domain it is shared with the SPA's sibling host; it is useless without
+    // the refresh cookie, which stays HttpOnly and host-only on the API.
+    private ResponseCookie.ResponseCookieBuilder csrfCookie(String value, boolean secureRequest) {
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from("PMD_CSRF", value)
+            .httpOnly(false)
+            .secure(properties.isSecureCookie() || secureRequest)
+            .sameSite(properties.getSameSite())
+            .path("/");
+        String domain = properties.getCsrfCookieDomain();
+        if (domain != null && !domain.isBlank()) {
+            builder.domain(domain.trim());
+        }
+        return builder;
     }
 
     public String generateCsrfToken() {

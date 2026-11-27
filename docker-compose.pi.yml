@@ -69,6 +69,10 @@ services:
       PMD_JWT_EXPIRATIONSECONDS: ${PMD_JWT_EXPIRATIONSECONDS:-900}
       PMD_AUTH_SESSION_COOKIE_SECURE: ${PMD_AUTH_SESSION_COOKIE_SECURE:-true}
       PMD_AUTH_SESSION_COOKIE_SAME_SITE: ${PMD_AUTH_SESSION_COOKIE_SAME_SITE:-Lax}
+      # The SPA (pmd.olamov.com) calls this API (api-pmd.olamov.com) directly and reads the
+      # CSRF token from document.cookie, so that one cookie is set on the shared parent domain.
+      # The refresh-token cookie stays HttpOnly and host-only on the API.
+      PMD_AUTH_CSRF_COOKIE_DOMAIN: ${PMD_AUTH_CSRF_COOKIE_DOMAIN:-olamov.com}
       PMD_AUTH_REQUIRE_VERIFIED_EMAIL: ${PMD_AUTH_REQUIRE_VERIFIED_EMAIL:-false}
       PMD_SECURITY_TRUST_PROXY_HEADERS: ${PMD_SECURITY_TRUST_PROXY_HEADERS:-true}
       # Salts the fingerprint stored alongside the masked IP. Without it the hash is an

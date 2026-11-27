@@ -37,6 +37,19 @@ public class AuthSessionProperties {
 
     private boolean requireVerifiedEmail = false;
 
+    // Domain for the CSRF cookie, e.g. "olamov.com" when the SPA (pmd.olamov.com) calls the API
+    // (api-pmd.olamov.com) directly and must read the token from document.cookie. Empty = host-only.
+    // The refresh-token cookie itself always stays host-only and HttpOnly.
+    private String csrfCookieDomain = "";
+
+    public String getCsrfCookieDomain() {
+        return csrfCookieDomain;
+    }
+
+    public void setCsrfCookieDomain(String csrfCookieDomain) {
+        this.csrfCookieDomain = csrfCookieDomain;
+    }
+
     public String getCookieName() {
         return cookieName;
     }
