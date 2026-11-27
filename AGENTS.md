@@ -60,8 +60,8 @@ cd backend/pmd-backend && ./mvnw test   # integration tests need Mongo on localh
 
 Backend integration tests share a persistent local Mongo; drop the `pmd` database first for a run
 that matches CI. CI (`.github/workflows/ci.yml`) runs compose validation, frontend lint/test and
-backend tests. `release.yml` builds and pushes `ghcr.io/wannabexaker/pmd-{frontend,backend}:latest`
-on every push to `main`; it does not deploy to the Pi.
+backend tests. `release.yml` builds and pushes `ghcr.io/wannabexaker/pmd-backend` (`:latest` and `:<sha>`)
+on every push to `main`; it does not deploy to the Pi. Vercel builds the frontend itself.
 
 ## Deploying to the Pi
 

@@ -31,8 +31,7 @@ jobs:
           export PMD_JWT_SECRET=ci-compose-validation-secret-32bytes
           export PMD_SECURITY_CLIENT_METADATA_HASH_SALT=ci-compose-validation-salt-32bytes
           export PMD_SECURITY_ADMIN_EMAILS=ci-admin@example.com
-          docker compose -f docker-compose.prod.yml config >/dev/null
-          # The Pi stack carries the same required secrets; validating it here means a broken
+          # Validating the Pi stack here means a broken
           # interpolation cannot first surface on the Pi itself.
           docker compose -f docker-compose.pi.yml config >/dev/null
 

@@ -15,10 +15,8 @@ scripts/.pmd-dev-pids.json
 .env
 .env.*
 !.env.example
-!.env.production.example
 !.env.pi.example
 !**/.env.example
-!**/.env.production.example
 
 # --- sensitive / internal docs (do not publish) ---
 docs/release-checklist.md

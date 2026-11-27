@@ -19,7 +19,7 @@ Full-stack application combining a React/Vite frontend, a Spring Boot REST API, 
 - Append-only audit log with hash-chain fields (`prevEventHash`, `eventHash`) for tamper evidence
 - Platform admin interface at `/admin` for cross-workspace governance
 - CI database gates: `DatabaseIndexGateTest` and `DatabaseContractGateTest` verify indexes and schema contract before merge
-- `docker-compose.prod.yml` fails fast if required production env vars are absent
+- The Pi deploy stack (`docker-compose.pi.yml`) fails fast if a required secret is missing
 
 ## Architecture
 
@@ -35,12 +35,12 @@ PMD Control enforces a single active runtime mode (`dev`, `deps`, or `reviewer`)
 | `backend/pmd-backend/` | Spring Boot REST API |
 | `docker-compose.deps.yml` | MongoDB + MailHog for hybrid dev |
 | `docker-compose.local.yml` | Full reviewer stack — all services in Docker with Nginx proxy |
-| `docker-compose.prod.yml` | Production compose — fail-fast on missing vars |
+| `docker-compose.pi.yml` | Production stack on the Raspberry Pi: backend + MongoDB, fail-fast on missing secrets |
 | `scripts/pmd.bat` | PMD Control launcher — entry point for all dev operations |
 | `scripts/pmd_dev_up.bat` | Starts deps, backend (dynamic port), and frontend; waits for health |
 | `scripts/pmd_dev_down.bat` | Stops Maven/Node processes via `.pmd-dev-pids.json` |
-| `scripts/db_backup.ps1` | MongoDB backup helper |
-| `scripts/verify-prod-surface.ps1` | Verifies prod compose does not expose internal ports to host |
+| `scripts/db_backup.ps1` | Local MongoDB backup helper |
+| `scripts/pi/` | Pi helpers: `admin-mode.sh`, `backup.sh` (prepared, not scheduled) |
 | `.runtime/` | Runtime state (port file, active mode, PID list) — gitignored |
 
 ## Tech Stack
@@ -66,7 +66,7 @@ cd PMD
 cp .env.example .env
 ```
 
-Edit `.env` with your local values. For production, use `.env.production.example` as the template — all six production vars are required.
+Edit `.env` with your local values. The Pi deployment uses `.env.pi.example` as its template (see `docs/OPERATIONS.md`).
 
 Docker must be running before starting any PMD mode.
 
@@ -107,23 +107,23 @@ PMD/
 ├── backend/
 │   └── pmd-backend/           — Spring Boot API
 ├── scripts/
+│   ├── pmd.bat                — PMD Control entry point
 │   ├── pmd_dev_up.bat         — start all services
 │   ├── pmd_dev_down.bat       — stop all services
 │   ├── db_backup.ps1          — MongoDB backup
 │   ├── db_restore.ps1         — MongoDB restore
-│   └── verify-prod-surface.ps1 — prod port exposure check
+│   └── pi/                    — Pi helpers (admin mode, backup)
 ├── docs/
-│   ├── PRODUCTION_ARCHITECTURE.md
-│   ├── FIREWALL_POLICY.md
-│   ├── PRODUCTION_BACKUP_RESTORE_RUNBOOK.md
-│   └── PRODUCTION_RELEASE_CHECKLIST.md
+│   ├── OPERATIONS.md          — Pi runbook
+│   ├── db-runbook.md
+│   ├── error-contract.md
+│   └── legal/                 — Terms and Privacy Policy (shown in the app)
 ├── .runtime/                  — runtime state (gitignored)
 ├── docker-compose.deps.yml    — MongoDB + MailHog
 ├── docker-compose.local.yml   — full reviewer stack
-├── docker-compose.prod.yml    — production stack
-├── scripts/pmd.bat            — PMD Control entry point
+├── docker-compose.pi.yml      — production stack (Raspberry Pi)
 ├── .env.example               — dev env template
-└── .env.production.example    — production env template
+└── .env.pi.example            — Pi env template
 ```
 
 ## Notes
@@ -134,4 +134,4 @@ The dynamic backend port (`SERVER_PORT=0`) avoids conflicts when other services 
 
 Client metadata (IP, user-agent) is anonymized at storage time by default. Raw storage is opt-in via `PMD_SECURITY_CLIENT_METADATA_STORE_RAW`.
 
-Production compose (`docker-compose.prod.yml`) requires all six env vars at startup and will refuse to start if any are missing. Use `scripts/verify-prod-surface.ps1` before any deployment to confirm backend and database ports are not bound to the host interface.
+The Pi stack (`docker-compose.pi.yml`) refuses to start if a required secret is missing. The backend is published on `127.0.0.1:8080` only, for the host-level Cloudflare Tunnel; MongoDB is not published at all.
