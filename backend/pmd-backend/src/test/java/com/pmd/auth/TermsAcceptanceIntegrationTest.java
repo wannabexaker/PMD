@@ -51,7 +51,7 @@ class TermsAcceptanceIntegrationTest {
 
     @Test
     void refusesRegistrationThatDoesNotAcceptTheTerms() throws Exception {
-        String email = "no-accept-" + System.nanoTime() + "@pmd.local";
+        String email = "no-accept-" + System.nanoTime() + "@example.com";
 
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -64,7 +64,7 @@ class TermsAcceptanceIntegrationTest {
     @Test
     void refusesRegistrationThatOmitsTheFieldEntirely() throws Exception {
         // A client that simply leaves the field out must not default into acceptance.
-        String email = "omitted-" + System.nanoTime() + "@pmd.local";
+        String email = "omitted-" + System.nanoTime() + "@example.com";
 
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -79,7 +79,7 @@ class TermsAcceptanceIntegrationTest {
 
     @Test
     void recordsWhatWasAcceptedAndWhen() throws Exception {
-        String email = "accepted-" + System.nanoTime() + "@pmd.local";
+        String email = "accepted-" + System.nanoTime() + "@example.com";
 
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)

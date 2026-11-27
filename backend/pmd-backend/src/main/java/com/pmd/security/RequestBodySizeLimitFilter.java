@@ -8,10 +8,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -24,9 +29,34 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RequestBodySizeLimitFilter extends OncePerRequestFilter {
 
     private final long maxBytes;
+    private final ObjectProvider<CorsConfigurationSource> corsConfigurationSource;
 
-    public RequestBodySizeLimitFilter(@Value("${pmd.limits.max-json-body-bytes:262144}") long maxBytes) {
+    public RequestBodySizeLimitFilter(
+        @Value("${pmd.limits.max-json-body-bytes:262144}") long maxBytes,
+        @Qualifier("corsConfigurationSource") ObjectProvider<CorsConfigurationSource> corsConfigurationSource
+    ) {
         this.maxBytes = maxBytes;
+        this.corsConfigurationSource = corsConfigurationSource;
+    }
+
+    /**
+     * Runs before Spring Security's CORS handling, so the rejection carries the CORS headers
+     * itself; otherwise the browser reports a network error and the SPA shows "server offline".
+     * Written directly (no sendError) so no error dispatch can turn it into a 403.
+     */
+    private void reject(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String origin = request.getHeader(HttpHeaders.ORIGIN);
+        CorsConfigurationSource source = corsConfigurationSource.getIfAvailable();
+        CorsConfiguration cors = source != null ? source.getCorsConfiguration(request) : null;
+        String allowed = origin != null && cors != null ? cors.checkOrigin(origin) : null;
+        if (allowed != null) {
+            response.setHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, allowed);
+            response.setHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+            response.addHeader(HttpHeaders.VARY, HttpHeaders.ORIGIN);
+        }
+        response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"status\":413,\"message\":\"Request body too large\"}");
     }
 
     @Override
@@ -43,7 +73,7 @@ public class RequestBodySizeLimitFilter extends OncePerRequestFilter {
         throws ServletException, IOException {
         long declared = request.getContentLengthLong();
         if (declared > maxBytes) {
-            response.sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "Request body too large");
+            reject(request, response);
             return;
         }
         // A chunked body has no declared length, so count what is actually read.

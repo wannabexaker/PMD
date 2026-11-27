@@ -53,15 +53,27 @@ public class UserService {
     private long maxAccounts = 0;
 
     /**
-     * Refuses a new account once the cap is reached. The seed members of demo workspaces
-     * ({@code @pmd.local}, no credentials) are not accounts and do not count.
+     * The demo workspaces' fictional members live on this domain. Nobody may sign up with, or
+     * change to, an address on it: such an account would collide with (and be adopted as) a
+     * seed member of someone's demo, and would not count towards the account cap.
+     */
+    public void rejectReservedEmail(String email) {
+        if (email != null && email.trim().toLowerCase(Locale.ROOT).endsWith("@pmd.local")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This email domain is reserved");
+        }
+    }
+
+    /**
+     * Refuses a new account once the cap is reached. Only accounts that can sign in count —
+     * a password or a Google identity; the demo workspaces' seed members have neither.
      */
     public void requireAccountCapacity() {
         if (maxAccounts <= 0) {
             return;
         }
-        long accounts = mongoTemplate.count(
-            new Query(Criteria.where("email").not().regex("@pmd\\.local$")), User.class);
+        long accounts = mongoTemplate.count(new Query(new Criteria().orOperator(
+            Criteria.where("passwordHash").nin(null, ""),
+            Criteria.where("googleId").nin(null, ""))), User.class);
         if (accounts >= maxAccounts) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                 "The demo has reached its account limit. Please try again later.");

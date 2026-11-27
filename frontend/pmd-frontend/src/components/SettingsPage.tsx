@@ -1177,7 +1177,7 @@ export function SettingsPage({ preferences, onChange }: SettingsPageProps) {
     const currentUrl = workspaceProfileAvatarUrl.trim()
     if (!currentUrl) return
     try {
-      const response = await fetch(resolveAssetUrl(currentUrl), { credentials: 'include' })
+      const response = await fetch(resolveAssetUrl(currentUrl), { credentials: 'omit' })
       if (!response.ok) {
         throw new Error('Could not load current workspace photo for crop.')
       }

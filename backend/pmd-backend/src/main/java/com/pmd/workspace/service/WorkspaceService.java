@@ -166,6 +166,11 @@ public class WorkspaceService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "This demo allows " + maxOwnedWorkspaces + " workspace(s) of your own besides the demo workspace");
         }
+        if (defaultMaxTeams > 0 && initialTeams != null && initialTeams.size() > defaultMaxTeams) {
+            // Initial teams are created directly, so the team cap has to be applied here too.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "A workspace can start with at most " + defaultMaxTeams + " teams in this demo");
+        }
         if (workspaceRepository.existsByNameIgnoreCase(trimmed)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Workspace name already exists");
         }
@@ -318,6 +323,7 @@ public class WorkspaceService {
     @Scheduled(cron = "0 */1 * * * *")
     public void processScheduledWorkspaceDeletions() {
         Instant now = Instant.now();
+        scheduleUnscheduledDemoWorkspaces();
         List<Workspace> due = workspaceRepository.findByDeletionScheduledAtLessThanEqual(now);
         if (due.isEmpty()) {
             return;
@@ -331,6 +337,20 @@ public class WorkspaceService {
             } catch (RuntimeException ex) {
                 logger.error("Failed to finalize scheduled workspace deletion for workspaceId={}", workspace.getId(), ex);
             }
+        }
+    }
+
+    /**
+     * Demo workspaces created before expiry existed carry no deletion date. Give them the same
+     * lifetime counted from their creation, so they are purged even if their owner never
+     * returns (an already-elapsed date is purged by the same run).
+     */
+    private void scheduleUnscheduledDemoWorkspaces() {
+        for (Workspace workspace : workspaceRepository.findByDemoTrueAndDeletionScheduledAtIsNull()) {
+            Instant base = workspace.getCreatedAt() != null ? workspace.getCreatedAt() : Instant.now();
+            workspace.setDeletionRequestedAt(base);
+            workspace.setDeletionScheduledAt(base.plus(demoWorkspaceTtlDays, ChronoUnit.DAYS));
+            workspaceRepository.save(workspace);
         }
     }
 

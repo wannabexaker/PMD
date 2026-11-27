@@ -124,9 +124,12 @@ class DemoLimitsIntegrationTest {
     }
 
     @Test
-    void accountCapIgnoresDemoSeedUsers() {
-        long accounts = mongoTemplate.count(
-            new Query(Criteria.where("email").not().regex("@pmd\\.local$")), User.class);
+    void accountCapCountsOnlyAccountsThatCanSignIn() {
+        // Seed members of a demo have no credentials and must not count.
+        workspaceService.getOrCreateDemoWorkspace(newAccount("cap-seed"));
+        long accounts = mongoTemplate.count(new Query(new Criteria().orOperator(
+            Criteria.where("passwordHash").nin(null, ""),
+            Criteria.where("googleId").nin(null, ""))), User.class);
         try {
             ReflectionTestUtils.setField(userService, "maxAccounts", accounts + 1);
             userService.requireAccountCapacity();
@@ -138,5 +141,12 @@ class DemoLimitsIntegrationTest {
         } finally {
             ReflectionTestUtils.setField(userService, "maxAccounts", 0L);
         }
+    }
+
+    @Test
+    void theSeedMembersEmailDomainIsReserved() {
+        assertThatThrownBy(() -> userService.rejectReservedEmail("anna.k+123@PMD.local"))
+            .isInstanceOf(ResponseStatusException.class);
+        userService.rejectReservedEmail("someone@example.com");
     }
 }

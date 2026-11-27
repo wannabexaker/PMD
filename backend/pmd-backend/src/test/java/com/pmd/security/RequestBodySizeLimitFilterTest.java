@@ -12,7 +12,12 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 class RequestBodySizeLimitFilterTest {
 
-    private final RequestBodySizeLimitFilter filter = new RequestBodySizeLimitFilter(16);
+    private final RequestBodySizeLimitFilter filter = new RequestBodySizeLimitFilter(16, noCors());
+
+    private static org.springframework.beans.factory.ObjectProvider<org.springframework.web.cors.CorsConfigurationSource> noCors() {
+        org.springframework.beans.factory.support.StaticListableBeanFactory factory = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        return factory.getBeanProvider(org.springframework.web.cors.CorsConfigurationSource.class);
+    }
 
     private MockHttpServletRequest json(byte[] body) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/projects");

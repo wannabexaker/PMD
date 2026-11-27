@@ -210,7 +210,7 @@ export function ProfilePanel({ user, onSaved, onClose }: ProfilePanelProps) {
     if (!currentUrl) return
     try {
       setAvatarError(null)
-      const response = await fetch(resolveAssetUrl(currentUrl), { credentials: 'include' })
+      const response = await fetch(resolveAssetUrl(currentUrl), { credentials: 'omit' })
       if (!response.ok) {
         throw new Error('Could not load current photo for crop.')
       }

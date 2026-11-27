@@ -516,13 +516,13 @@ data centre, and you should not treat PMD as the only copy of anything important
 | --- | --- |
 | Your account, profile and bio | Until you delete your account |
 | Your terms-acceptance record (when, and which version) | Until you delete your account — it goes with the account record; see section 4.1 |
-| Your avatar **image file** | Until you delete your account or replace the photo — the file is deleted in both cases; see section 8 |
+| Your avatar **image file** | Until you delete your account or replace the photo — the file is deleted in both cases; see section 8. Copies already cached by Cloudflare or your browser can still be served for up to **24 hours** |
 | Your content (projects, tasks, comments) | Until you or your workspace delete it — see section 14 |
 | Active sessions (`auth_sessions`) | Until they expire; expired sessions are removed by an hourly cleanup |
 | Revoked sessions | **30 days** after revocation |
 | Sign-in security events (`auth_security_events`) | **180 days** — or immediately, if you delete your account |
 | Workspace audit events (`workspace_audit_events`) | **365 days** |
-| A deleted workspace's data | Purged **30 minutes** after deletion is confirmed (a grace period, so an accidental deletion can be cancelled) |
+| A deleted workspace's data | Purged **30 minutes** after deletion is confirmed (a grace period, so an accidental deletion can be cancelled; a demo workspace's automatic deletion cannot be cancelled) |
 | A demo workspace and everything in it | **7 days** from its creation, then purged automatically |
 
 Session lifetimes in production:

@@ -145,6 +145,7 @@ public class AuthController {
         turnstileService.verifyOrThrow(request.getTurnstileToken(), clientMetadataService.resolveClientIp(httpRequest));
         requireTermsAccepted(request.isAcceptedTerms());
         String username = normalizeEmail(request.getEmail());
+        userService.rejectReservedEmail(username);
         if (userService.existsByUsername(username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User already exists");
         }
@@ -200,6 +201,7 @@ public class AuthController {
             // Only when creating the account. Signing in with Google is not the moment to
             // re-ask an existing user, and blocking them would lock them out of their data.
             requireTermsAccepted(request.isAcceptedTerms());
+            userService.rejectReservedEmail(email);
             userService.requireAccountCapacity();
             User created = new User();
             created.setUsername(email);
@@ -323,6 +325,7 @@ public class AuthController {
         String newEmail = normalizeEmail(request.getEmail());
         boolean emailChangeRequested = !newEmail.isBlank() && !newEmail.equals(normalizeEmail(user.getEmail()));
         if (emailChangeRequested) {
+            userService.rejectReservedEmail(newEmail);
             // Reject collisions with another account's login identity up front.
             User emailOwner = userService.findByUsernameOrNull(newEmail);
             if (emailOwner != null && !emailOwner.getId().equals(user.getId())) {

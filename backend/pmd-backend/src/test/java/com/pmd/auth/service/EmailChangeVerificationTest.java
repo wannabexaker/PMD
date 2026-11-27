@@ -35,8 +35,8 @@ class EmailChangeVerificationTest {
 
     @Test
     void emailChangeIsAppliedOnlyWhenConfirmed() {
-        String oldEmail = "old-" + System.nanoTime() + "@pmd.local";
-        String newEmail = "new-" + System.nanoTime() + "@pmd.local";
+        String oldEmail = "old-" + System.nanoTime() + "@example.com";
+        String newEmail = "new-" + System.nanoTime() + "@example.com";
         User user = savedUser(oldEmail, true);
 
         // Request the change: pending only, login identity untouched (what updateProfile does).
@@ -67,7 +67,7 @@ class EmailChangeVerificationTest {
 
     @Test
     void registrationConfirmationStillVerifiesTheCurrentEmail() {
-        String email = "reg-" + System.nanoTime() + "@pmd.local";
+        String email = "reg-" + System.nanoTime() + "@example.com";
         User user = savedUser(email, false);
         EmailVerificationToken token = tokenService.createToken(user); // target = current email
 

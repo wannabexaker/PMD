@@ -20,4 +20,6 @@ public interface WorkspaceRepository extends MongoRepository<Workspace, String> 
     List<Workspace> findByDeletionScheduledAtLessThanEqual(Instant now);
 
     long countByCreatedByUserIdAndDemoFalse(String createdByUserId);
+
+    List<Workspace> findByDemoTrueAndDeletionScheduledAtIsNull();
 }
