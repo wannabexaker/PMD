@@ -4,8 +4,9 @@ import { AuthProvider } from './auth/AuthContext'
 import type { LoginPayload, Project, RegisterPayload, RegisterResponse, User, UserSummary } from './types'
 import { fetchUsers } from './api/users'
 import { fetchProjects } from './api/projects'
-import { fetchMe, googleLogin, login, logoutSession, refreshSession, register } from './api/auth'
-import { API_BASE_URL, getAuthToken, isApiError, resolveAssetUrl as resolveStoredAssetUrl } from './api/http'
+import { fetchMe, googleLogin, login, logoutSession, register } from './api/auth'
+import { API_BASE_URL, getAuthToken, isApiError, refreshAccessToken, resolveAssetUrl as resolveStoredAssetUrl } from './api/http'
+import { loginRedirectState, readReturnPath } from './auth/returnPath'
 import { LoginForm } from './components/LoginForm'
 // Route-level code splitting: the heavy authed pages load on demand so the
 // initial bundle stays small. lazy() needs a default export, so the named
@@ -313,6 +314,8 @@ function AppView({
   const landingPath = toLandingPath(uiPreferences)
   const preferredAuthedRoute =
     uiPreferences.defaultLandingPage === 'lastVisited' ? (readLastAppRoute() ?? '/dashboard') : landingPath
+  // The page that bounced the visitor to /login (a deep link or an expired session).
+  const loginReturnPath = readReturnPath(location.state)
   const onboardingKey = currentUser?.id ? `${ONBOARDING_TOUR_KEY_PREFIX}${currentUser.id}` : null
   const [tourOpen, setTourOpen] = useState(false)
   const [tourStepIndex, setTourStepIndex] = useState(0)
@@ -328,11 +331,9 @@ function AppView({
     setAuthLoading(true)
     let token = getAuthToken()
     if (!token) {
-      const refreshed = await refreshSession()
-      token = refreshed?.token ?? null
-      if (refreshed?.user) {
-        setCurrentUser(refreshed.user)
-      }
+      // Through the shared single-flight refresh: a second bootstrap (StrictMode, or a 401
+      // retry) must reuse this rotation, or the loser logs the user out and the deep link is lost.
+      token = await refreshAccessToken()
     }
     if (!token) {
         setCurrentUser(null)
@@ -478,7 +479,7 @@ function AppView({
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
       setActiveWorkspaceId(null)
-      navigate('/login')
+      navigate('/login', { state: loginRedirectState(window.location) })
     }
     window.addEventListener('pmd:unauthorized', handleUnauthorized)
     return () => {
@@ -673,7 +674,7 @@ function AppView({
       setDashboardSelectedProjectIdState(null)
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
-      navigate(landingPath)
+      navigate(loginReturnPath ?? landingPath, { replace: true })
     } catch (err) {
       if (isApiError(err)) {
         if (err.status === 401) {
@@ -712,7 +713,7 @@ function AppView({
       setDashboardSelectedProjectIdState(null)
       setAssignSelectedProjectIdState(null)
       clearUiSelections()
-      navigate(landingPath)
+      navigate(loginReturnPath ?? landingPath, { replace: true })
     } catch (err) {
       if (isApiError(err)) {
         if (err.status === 0) {
@@ -1315,7 +1316,7 @@ function AppView({
                   noWorkspaceState
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1356,7 +1357,7 @@ function AppView({
                   noWorkspaceState
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1386,7 +1387,7 @@ function AppView({
                   noWorkspaceState
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1402,7 +1403,7 @@ function AppView({
                   <Navigate to="/dashboard" replace />
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1419,7 +1420,7 @@ function AppView({
                   noWorkspaceState
                 )
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1429,7 +1430,7 @@ function AppView({
               isAuthed ? (
                 <SettingsPage preferences={uiPreferences} onChange={handlePreferencesChange} />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login" replace state={loginRedirectState(location)} />
               )
             }
           />
@@ -1437,14 +1438,14 @@ function AppView({
             path="/login"
             element={
               isAuthed ? (
-                <Navigate to={preferredAuthedRoute} replace />
+                <Navigate to={loginReturnPath ?? preferredAuthedRoute} replace />
               ) : (
                 <LoginForm
                   onLogin={handleLogin}
                   onGoogleLogin={handleGoogleLogin}
                   error={authError}
                   loading={authLoading}
-                  onSwitchToRegister={() => navigate('/register')}
+                  onSwitchToRegister={() => navigate('/register', { state: location.state })}
                 />
               )
             }

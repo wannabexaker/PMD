@@ -120,6 +120,16 @@ function runSingleFlightRefresh(): Promise<string | null> {
   return refreshInFlight
 }
 
+/**
+ * Refreshes the access token through the same single-flight gate as the 401 retry path.
+ * The refresh token is single-use and rotates, so the session bootstrap must not race it
+ * with its own request (StrictMode runs the bootstrap twice in dev): the loser would get a
+ * 401 and log the user out. Resolves to the new token, or null when there is no session.
+ */
+export function refreshAccessToken(): Promise<string | null> {
+  return runSingleFlightRefresh().catch(() => null)
+}
+
 function decodeJwtExpMs(token: string): number {
   try {
     const parts = token.split('.')
