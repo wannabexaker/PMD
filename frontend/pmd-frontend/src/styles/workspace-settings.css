@@ -463,6 +463,7 @@
 
 .workspace-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -486,6 +487,8 @@
 .workspace-item.compact {
   padding: 8px 12px;
   cursor: default;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .workspace-groups {
@@ -518,6 +521,12 @@
 
 .workspace-main-layout-tabs .workspace-section-your {
   order: 2;
+}
+
+@media (max-width: 860px) {
+  .workspace-main-layout-tabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .workspace-item-clickable {
@@ -661,6 +670,7 @@
 }
 
 .settings-grid.settings-tabs-mode .settings-card-body {
+  min-width: 0;
   gap: 6px;
   overflow: visible;
   padding-right: 0;
@@ -668,13 +678,14 @@
 
 .settings-tab-two-col {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-items: start;
 }
 
 .settings-tab-main {
   display: grid;
+  min-width: 0;
   gap: 6px;
   align-content: start;
 }
@@ -682,13 +693,13 @@
 .settings-grid.settings-tabs-mode [data-panel-id='teams'] .workspace-list.compact,
 .settings-grid.settings-tabs-mode [data-panel-id='roles'] .workspace-list.compact {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 6px;
 }
 
 .settings-grid.settings-tabs-mode [data-panel-id='workspaces'] .workspace-list.compact {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 6px;
   justify-items: start;
 }
@@ -762,7 +773,7 @@
 }
 
 .settings-grid.settings-tabs-mode [data-panel-id='roles'] .roles-list-group .workspace-list.compact {
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
 }
 
 .settings-grid.settings-tabs-mode [data-panel-id='preferences'] .workspace-group,
@@ -1066,7 +1077,7 @@
 }
 
 .settings-card .workspace-group .workspace-actions {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   align-items: start;
 }
 
@@ -1654,6 +1665,7 @@
 
 .workspace-subpanel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
@@ -1737,7 +1749,7 @@
 }
 
 .settings-grid.settings-tabs-mode [data-panel-id='workspaces'] .invite-controls {
-  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  grid-template-columns: repeat(2, minmax(min(130px, 100%), 1fr));
   gap: 8px;
   align-items: start;
   width: 100%;
@@ -1771,7 +1783,7 @@
 
 @media (max-width: 1040px) {
   .settings-grid.settings-tabs-mode [data-panel-id='workspaces'] .workspace-management {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .settings-grid.settings-tabs-mode [data-panel-id='workspaces'] .workspace-subpanel-invites,
@@ -1783,6 +1795,7 @@
 .invite-list .invite-item,
 .request-list .request-item {
   align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .invite-list .invite-item {
@@ -1797,6 +1810,9 @@
   display: grid;
   gap: 4px;
   min-width: 0;
+  flex: 1 1 160px;
+  grid-template-columns: minmax(0, 1fr);
+  overflow-wrap: anywhere;
 }
 
 .invite-title {
