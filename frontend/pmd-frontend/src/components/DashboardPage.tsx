@@ -10,6 +10,7 @@ import type {
 } from '../types'
 import { CreateProjectForm } from './CreateProjectForm'
 import { deleteProject, updateProject } from '../api/projects'
+import { getErrorMessage } from '../api/errors'
 import { ControlsBar } from './common/ControlsBar'
 import { FilterMenu } from './FilterMenu'
 import { MentionTextarea } from './common/MentionTextarea'
@@ -27,6 +28,7 @@ import { formatMentionText } from '../mentions/formatMentionText'
 import { MentionText } from '../mentions/MentionText'
 import { navigateFromMention } from '../mentions/mentionNavigation'
 import { fetchDashboardStats } from '../api/stats'
+import { useToast } from '../shared/ui/toast/ToastProvider'
 import { fetchWorkspacePanelPreferences, saveWorkspacePanelPreferences } from '../api/preferences'
 import {
   UNASSIGNED_FILTER_KEY,
@@ -389,6 +391,7 @@ export function DashboardPage({
   const navigate = useNavigate()
   const { teams, teamById } = useTeams()
   const { activeWorkspaceId, activeWorkspace } = useWorkspace()
+  const { showToast } = useToast()
   const mentionOptions = useMentionOptions(users)
   const { confirm, confirmDestructive, dialog: confirmDialog } = useConfirmDialog()
   const [showCreate, setShowCreate] = useState(false)
@@ -607,13 +610,15 @@ export function DashboardPage({
         await saveWorkspacePanelPreferences(activeWorkspaceId, {
           workspaceSummaryVisibility: nextVisibility,
         })
+        showToast({ type: 'success', message: 'Preferences saved.' })
       } catch (err) {
         if (typeof window !== 'undefined') {
           console.warn('Failed to save workspace summary visibility.', err)
         }
+        showToast({ type: 'error', message: 'Failed to save preferences.' })
       }
     },
-    [activeWorkspaceId]
+    [activeWorkspaceId, showToast]
   )
 
   const handleSummaryPanelChange = useCallback(
@@ -966,6 +971,7 @@ export function DashboardPage({
     try {
       await updateProject(activeWorkspaceId, project.id, payload)
       await onRefresh()
+      showToast({ type: 'success', message: 'Status updated.' })
     } catch (err) {
       if (isApiError(err) && (err.status === 403 || err.status === 404)) {
         onClearSelection()
@@ -973,7 +979,9 @@ export function DashboardPage({
         setError(err.status === 403 ? 'Not allowed' : 'Project not found.')
         return
       }
-      setError(err instanceof Error ? err.message : 'Failed to update status')
+      const message = err instanceof Error ? err.message : 'Failed to update status'
+      setError(message)
+      showToast({ type: 'error', message })
     } finally {
       setUpdatingId(null)
     }
@@ -1017,10 +1025,12 @@ export function DashboardPage({
     try {
       await updateProjectStatus(project, 'ARCHIVED')
       setArchivedIds((prev) => new Set(prev).add(project.id as string))
+      showToast({ type: 'success', message: 'Project archived.' })
     } catch (err) {
       if (isApiError(err) && err.status === 403) {
         setError('Not allowed')
       }
+      showToast({ type: 'error', message: getErrorMessage(err, 'Failed to archive project.') })
     }
   }
 
@@ -1039,10 +1049,12 @@ export function DashboardPage({
         return next
       })
       await onRefresh()
+      showToast({ type: 'success', message: 'Project restored.' })
     } catch (err) {
       if (isApiError(err) && err.status === 403) {
         setError('Not allowed')
       }
+      showToast({ type: 'error', message: getErrorMessage(err, 'Failed to restore project.') })
     }
   }
 
@@ -1070,10 +1082,12 @@ export function DashboardPage({
       if (selectedProjectId === project.id) {
         onClearSelection()
       }
+      showToast({ type: 'success', message: 'Project deleted.' })
     } catch (err) {
       if (isApiError(err) && err.status === 403) {
         setError('Not allowed')
       }
+      showToast({ type: 'error', message: getErrorMessage(err, 'Failed to delete project.') })
     }
   }
 
@@ -1190,6 +1204,7 @@ export function DashboardPage({
         memberIds: draftProject.memberIds ?? [],
       })
       await onRefresh()
+      showToast({ type: 'success', message: 'Project saved.' })
     } catch (err) {
       if (isApiError(err) && (err.status === 403 || err.status === 404)) {
         onClearSelection()
@@ -1197,7 +1212,9 @@ export function DashboardPage({
         setError(err.status === 403 ? 'Not allowed' : 'Project not found.')
         return
       }
-      setError(err instanceof Error ? err.message : 'Failed to save changes')
+      const message = err instanceof Error ? err.message : 'Failed to save changes'
+      setError(message)
+      showToast({ type: 'error', message })
     } finally {
       setUpdatingId(null)
     }
