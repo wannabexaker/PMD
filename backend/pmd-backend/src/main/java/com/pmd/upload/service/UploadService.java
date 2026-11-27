@@ -4,10 +4,13 @@ import com.pmd.upload.dto.UploadResponse;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -39,8 +42,55 @@ public class UploadService {
 
     private final Path uploadRoot;
 
+    // Total size the uploads directory may reach (the Pi's SD card is shared); 0 = unlimited.
+    @Value("${pmd.uploads.max-total-mb:0}")
+    private long maxTotalMb = 0;
+
     public UploadService() {
         this.uploadRoot = Path.of("uploads");
+    }
+
+    /** For tests: an isolated directory instead of ./uploads. */
+    UploadService(Path uploadRoot, long maxTotalMb) {
+        this.uploadRoot = uploadRoot;
+        this.maxTotalMb = maxTotalMb;
+    }
+
+    Path uploadRoot() {
+        return uploadRoot;
+    }
+
+    /** Lists the files store() created (name shape enforced), for the orphan sweep. */
+    List<Path> listStoredFiles() {
+        if (!Files.isDirectory(uploadRoot)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(uploadRoot)) {
+            return files
+                .filter(Files::isRegularFile)
+                .filter(path -> STORED_URL_PATTERN.matcher(UPLOAD_URL_PREFIX + path.getFileName()).matches())
+                .toList();
+        } catch (IOException ex) {
+            return List.of();
+        }
+    }
+
+    private void requireSpaceFor(long incomingBytes) {
+        if (maxTotalMb <= 0) {
+            return;
+        }
+        long used = 0;
+        for (Path path : listStoredFiles()) {
+            try {
+                used += Files.size(path);
+            } catch (IOException ignored) {
+                // A file vanishing mid-count only makes the estimate conservative.
+            }
+        }
+        if (used + incomingBytes > maxTotalMb * 1024 * 1024) {
+            throw new ResponseStatusException(HttpStatus.INSUFFICIENT_STORAGE,
+                "Upload storage for this demo is full. Please try again later.");
+        }
     }
 
     public UploadResponse store(MultipartFile file) {
@@ -71,6 +121,8 @@ public class UploadService {
         if (detected == null || !detected.equals(expected)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File content does not match an allowed image type");
         }
+
+        requireSpaceFor(bytes.length);
 
         String id = UUID.randomUUID().toString();
         String storedName = id + "." + detected;

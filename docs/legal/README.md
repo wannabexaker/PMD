@@ -5,7 +5,7 @@ This folder holds the legal documents for the hosted PMD service at
 
 | File | What it is | Status |
 | --- | --- | --- |
-| [`privacy-policy.md`](./privacy-policy.md) | GDPR Article 13 privacy notice | **In force (beta v2026-07-15)** |
+| [`privacy-policy.md`](./privacy-policy.md) | GDPR Article 13 privacy notice | **In force (beta v2026-11-27: demo workspaces now expire after 7 days)** |
 | [`terms-of-use.md`](./terms-of-use.md) | Terms of use for the hosted service | **In force (beta v2026-07-15)** |
 
 **Launched for the PMD beta on 15 July 2026 WITHOUT prior lawyer review, at the operator's

@@ -5,7 +5,7 @@
 > by one independent developer; this notice may be refined over time, including with legal
 > advice, and material changes are notified as described in section 19.
 
-**Version:** 2026-07-15 (beta)
+**Version:** 2026-11-27 (beta)
 **In force:** yes — this notice applies to your use of PMD.
 **Applies to:** the PMD web application at <https://pmd.olamov.com>.
 
@@ -464,7 +464,9 @@ is now in your hands rather than only his.
 When you create an account, PMD seeds a demo workspace with sample people, teams and
 projects, so the app is not empty on your first visit. Those sample people are fictional
 and were made up by the developer. They are not real people, and they are not other users'
-records. You can delete the demo workspace.
+records. You can delete the demo workspace yourself, and PMD deletes it **automatically 7 days
+after it was created** — together with anything you added to it. You can then create a new
+one. Put nothing in a demo workspace that you want to keep.
 
 ## 11. Who else is involved, and where they are
 
@@ -521,6 +523,7 @@ data centre, and you should not treat PMD as the only copy of anything important
 | Sign-in security events (`auth_security_events`) | **180 days** — or immediately, if you delete your account |
 | Workspace audit events (`workspace_audit_events`) | **365 days** |
 | A deleted workspace's data | Purged **30 minutes** after deletion is confirmed (a grace period, so an accidental deletion can be cancelled) |
+| A demo workspace and everything in it | **7 days** from its creation, then purged automatically |
 
 Session lifetimes in production:
 
