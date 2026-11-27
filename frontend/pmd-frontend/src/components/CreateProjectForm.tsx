@@ -6,6 +6,7 @@ import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { MentionTextarea } from './common/MentionTextarea'
 import { useMentionOptions } from '../mentions/useMentionOptions'
+import { displayEmail } from '../shared/displayEmail'
 
 type CreateProjectFormProps = {
   users: UserSummary[]
@@ -269,7 +270,7 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
                     tabIndex={0}
                     onClick={() => toggleMember(user.id)}
                     onKeyDown={handleRowKeyDown(user.id)}
-                    title={user.email ?? displayName}
+                    title={displayEmail(user.email) || displayName}
                   >
                     <div className="member-meta">
                       <strong className="truncate" title={displayName}>
@@ -279,8 +280,8 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
                         {teamById.get(user.teamId ?? '')?.name ?? 'No team'}
                       </span>
                     </div>
-                    <span className="muted truncate" title={user.email ?? ''}>
-                      {user.email ?? ''}
+                    <span className="muted truncate" title={displayEmail(user.email)}>
+                      {displayEmail(user.email)}
                     </span>
                     <button
                       type="button"
@@ -309,7 +310,7 @@ export function CreateProjectForm({ users, currentUser, requireTeamOnCreate = fa
                     key={member.id ?? member.email ?? 'member-' + index}
                     className="chip"
                     role="listitem"
-                    title={member.email ?? label}
+                    title={displayEmail(member.email) || label}
                   >
                     <strong className="truncate" title={label}>
                       {label}

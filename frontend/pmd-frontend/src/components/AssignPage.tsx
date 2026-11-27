@@ -8,6 +8,8 @@ import { isApiError } from '../api/http'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
+import { displayEmail } from '../shared/displayEmail'
+import { pluralize } from '../shared/pluralize'
 import {
   PROJECT_FOLDERS,
   PROJECT_STATUS_SELECTABLE,
@@ -29,15 +31,6 @@ type AssignPageProps = {
 const MAX_PROJECT_TITLE_LENGTH = 32
 const DEFAULT_ROLE_BADGE_COLOR = '#6366F1'
 const DEFAULT_TEAM_BADGE_COLOR = '#3B82F6'
-
-function formatMemberEmailForUi(value?: string | null) {
-  if (!value) return '-'
-  const [localRaw = '', domainRaw = ''] = value.split('@')
-  if (!localRaw || !domainRaw) return value
-  const plusIndex = localRaw.indexOf('+')
-  if (plusIndex <= 0) return value
-  return `${localRaw.slice(0, plusIndex)}@${domainRaw}`
-}
 
 function roleBadgeLabel(user: UserSummary): string | null {
   const label = user.roleBadgeLabel?.trim()
@@ -900,8 +893,8 @@ export function AssignPage({
                         <strong className="truncate" title={user.displayName ?? ''}>
                           {user.displayName ?? '-'}
                         </strong>
-                        <span className="muted truncate" title={user.email ?? ''}>
-                          {formatMemberEmailForUi(user.email)}
+                        <span className="muted truncate" title={displayEmail(user.email)}>
+                          {displayEmail(user.email)}
                         </span>
                         {isExpanded && badgeItems.length > 0 ? (
                           <div className="member-badge-labels">
@@ -1017,7 +1010,7 @@ export function AssignPage({
                 ? `Assigned to ${formatProjectTitle(selectedProject.name)}`
                 : 'Assigned people'}
             </h3>
-            <span className="muted">{selectedMembers.length} people</span>
+            <span className="muted">{pluralize(selectedMembers.length, 'person', 'people')}</span>
           </div>
           {selectedProject ? (
             selectedIsArchived ? (
@@ -1098,10 +1091,10 @@ export function AssignPage({
                           onDragStart={(event) => handleDragStart(event, member.id)}
                           onDragEnd={handleDragEnd}
                         >
-                          <strong className="chip-name" title={member.email ?? ''}>
+                          <strong className="chip-name" title={displayEmail(member.email)}>
                             <span
                               className="truncate"
-                              title={`${member.displayName ?? ''}${member.email ? ` - ${member.email}` : ''}`}
+                              title={`${member.displayName ?? ''}${member.email ? ` - ${displayEmail(member.email)}` : ''}`}
                             >
                               {member.displayName ?? '-'}
                             </span>

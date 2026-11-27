@@ -17,6 +17,7 @@ import type { PeoplePageWidgets } from '../types'
 import { useTeams } from '../teams/TeamsContext'
 import { useWorkspace } from '../workspaces/WorkspaceContext'
 import { TeamFilterSelect } from './common/TeamFilterSelect'
+import { displayEmail } from '../shared/displayEmail'
 import { createPerson, deletePerson, listPeople, updatePerson } from '../api/people'
 import {
   clearPeopleSelection,
@@ -640,8 +641,8 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                       <strong className="truncate" title={person.displayName ?? ''}>
                         {person.displayName ?? '-'}
                       </strong>
-                      <div className="muted truncate" title={person.email ?? ''}>
-                        {person.email ?? ''}
+                      <div className="muted truncate" title={displayEmail(person.email)}>
+                        {displayEmail(person.email)}
                       </div>
                     </div>
                   )}
@@ -791,7 +792,7 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     const id = user.id ?? null
                     handleSelectUser(id)
                   }}
-                  title={`${user.displayName ?? ''}${user.email ? ` - ${user.email}` : ''}${recommendedCount > 0 ? ` - ${recommendedCount} recommended` : ''}`}
+                  title={`${user.displayName ?? ''}${user.email ? ` - ${displayEmail(user.email)}` : ''}${recommendedCount > 0 ? ` - ${recommendedCount} recommended` : ''}`}
                   aria-pressed={selectedUserId === user.id}
                 >
                   <div className="people-card-main">
@@ -870,8 +871,8 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     <h3 className="truncate" title={selectedUser.displayName ?? ''}>
                       {selectedUser.displayName ?? '-'}
                     </h3>
-                    <div className="muted truncate" title={selectedUser.email ?? ''}>
-                      {selectedUser.email ?? ''}
+                    <div className="muted truncate" title={displayEmail(selectedUser.email)}>
+                      {displayEmail(selectedUser.email)}
                     </div>
                     {roleBadgeLabel(selectedUser) ? (
                       <span className="pill role-badge-pill" style={roleBadgeStyle(selectedUser)}>
@@ -886,8 +887,14 @@ export function PeoplePage({ users, projects, rememberSelection }: PeoplePagePro
                     </div>
                   </div>
                   <div className="people-widgets-toolbar">
-                    <button type="button" className="btn btn-secondary" onClick={handleEditWidgets}>
-                      Edit
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleEditWidgets}
+                      aria-expanded={widgetsEditing}
+                      title="Choose which charts to show"
+                    >
+                      Customize charts
                     </button>
                     {widgetsEditing && widgetsDraft ? (
                       <div className="people-widgets-editor">

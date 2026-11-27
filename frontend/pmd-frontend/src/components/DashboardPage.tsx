@@ -15,6 +15,8 @@ import { FilterMenu } from './FilterMenu'
 import { MentionTextarea } from './common/MentionTextarea'
 import { PieChart } from './common/PieChart'
 import { ProjectComments } from './ProjectComments'
+import { displayEmail } from '../shared/displayEmail'
+import { pluralize } from '../shared/pluralize'
 import { isApiError } from '../api/http'
 import { useNavigate } from 'react-router-dom'
 import { useTeams } from '../teams/TeamsContext'
@@ -147,20 +149,6 @@ function formatProjectTitle(value?: string | null) {
   return value.length > MAX_PROJECT_TITLE_LENGTH
     ? value.slice(0, MAX_PROJECT_TITLE_LENGTH) + '...'
     : value
-}
-
-function formatMemberEmailForUi(value?: string | null) {
-  const email = value?.trim() ?? ''
-  if (!email) return ''
-  const at = email.indexOf('@')
-  if (at <= 0) return email
-  const local = email.slice(0, at)
-  const domain = email.slice(at + 1)
-  const plus = local.indexOf('+')
-  if (plus <= 0) return email
-  // Demo users are seeded with plus aliases to keep per-workspace uniqueness.
-  // Keep email readable in UI by hiding alias suffix.
-  return `${local.slice(0, plus)}@${domain}`
 }
 
 function roleBadgeLabel(user: UserSummary): string | null {
@@ -1478,7 +1466,7 @@ export function DashboardPage({
                                 {formatProjectTitle(project.name)}
                               </div>
                               <div className="project-row-actions" data-project-menu>
-                                <span className="muted members-count">{memberCount} members</span>
+                                <span className="muted members-count">{pluralize(memberCount, 'member')}</span>
                                 <button
                                   type="button"
                                   className="btn btn-icon btn-ghost"
@@ -1694,8 +1682,8 @@ export function DashboardPage({
                                     <strong className="truncate" title={member.displayName ?? ''}>
                                       {member.displayName ?? '-'}
                                     </strong>
-                                    <span className="muted truncate member-email" title={member.email ?? ''}>
-                                      {formatMemberEmailForUi(member.email)}
+                                    <span className="muted truncate member-email" title={displayEmail(member.email)}>
+                                      {displayEmail(member.email)}
                                     </span>
                                     {badgeItems.length > 0 ? (
                                       <div
@@ -1771,8 +1759,8 @@ export function DashboardPage({
                                     <strong className="truncate" title={member.displayName ?? ''}>
                                       {member.displayName ?? '-'}
                                     </strong>
-                                    <span className="muted truncate member-email" title={member.email ?? ''}>
-                                      {formatMemberEmailForUi(member.email)}
+                                    <span className="muted truncate member-email" title={displayEmail(member.email)}>
+                                      {displayEmail(member.email)}
                                     </span>
                                     {badgeItems.length > 0 ? (
                                       <div
